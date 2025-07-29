@@ -1,3 +1,24 @@
+<#
+.SYNOPSIS
+    Genesys Cloud API Explorer GUI Tool
+
+.DESCRIPTION
+    Loads Genesys Cloud API JSON definitions and allows interactive exploration.
+    Dynamically builds and sends REST API calls with support for:
+    - Query, Path, Body, and Header parameters
+    - Authorization header
+    - Viewing responses
+    - Saving results to file
+
+.NOTES
+    Future Enhancements:
+    - OAuth Token Input
+    - Request preview window
+	- Request logging and timestamped history
+    - More body types (formData, multipart, etc.)
+	- Enhanced body editor for POST/PUT JSON
+	- WPF or Universal Dashboard version
+#>
 # Load required UI libraries
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
