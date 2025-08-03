@@ -22,7 +22,84 @@
 # Load required UI libraries
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Net.HttpListener
 
+function Load-ExampleBodies {
+    param ([string]$JsonPath)
+    if (Test-Path $JsonPath) {
+        return Get-Content $JsonPath -Raw | ConvertFrom-Json
+    }
+    return @{}
+}
+
+function Generate-ExampleFromSchema($schema) {
+    $result = @{}
+    if ($schema -and $schema.properties) {
+        foreach ($prop in $schema.properties.PSObject.Properties) {
+            $key = $prop.Name
+            $val = $prop.Value
+            $exampleVal = $val.example
+            if (-not $exampleVal) {
+                $exampleVal = switch ($val.type) {
+                    "string" { "string" }
+                    "integer" { 0 }
+                    "boolean" { $false }
+                    "array"  { @() }
+                    default   { $null }
+                }
+            }
+            $result[$key] = $exampleVal
+        }
+    }
+    return $result
+}
+
+function Start-OAuthListener {
+    param (
+        [string]$RedirectUri = "http://localhost:8080/callback",
+        [string]$OrgName
+    )
+
+    $listener = New-Object System.Net.HttpListener
+    $listener.Prefixes.Add("http://localhost:8080/callback/")
+    $listener.Start()
+
+    Write-Host "Listening for redirect..."
+    $context = $listener.GetContext()
+    $response = $context.Response
+
+    $tokenFragment = $context.Request.RawUrl.Split("#")[1]
+    $params = @{ }
+    $tokenFragment -split '&' | ForEach-Object {
+        $kv = $_ -split '='
+        $params[$kv[0]] = [uri]::UnescapeDataString($kv[1])
+    }
+
+    $token = $params['access_token']
+
+    # Send response to browser
+    $html = "<html><body><h2>You may now close this window.</h2></body></html>"
+    $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
+    $response.ContentLength64 = $buffer.Length
+    $response.OutputStream.Write($buffer, 0, $buffer.Length)
+    $response.OutputStream.Close()
+    $listener.Stop()
+
+    # Save to text and JSON file in ./auth
+    if (-not (Test-Path "auth")) { New-Item -ItemType Directory -Path "auth" | Out-Null }
+    $tokenPath = "auth/OAuthToken.txt"
+    $jsonPath = "auth/OAuthToken.json"
+    $timestamp = Get-Date -Format o
+    Set-Content -Path $tokenPath -Value "Bearer $token"
+    $tokenObj = [PSCustomObject]@{
+        token     = $token
+        org       = $OrgName
+        timestamp = $timestamp
+    }
+    $tokenObj | ConvertTo-Json | Set-Content -Path $jsonPath
+
+    return $token
+}
 function Load-APIPathsFromJson {
     param ([string]$JsonPath)
     $json = Get-Content $JsonPath -Raw | ConvertFrom-Json
@@ -120,7 +197,7 @@ function Build-GUI {
         $panelParams.Controls.Clear()
 
         $selectedPath = $comboPaths.SelectedItem
-        $selectedPathObject = ($apiPaths.PSObject.Properties | Where-Object { $_.Name -eq $selectedPath }).Value
+        $selectedPathObject = ($apiPaths.$selectedPath).Value
 
         if ($null -ne $selectedPathObject) {
             $methods = Get-MethodsForPath -pathObject $selectedPathObject
@@ -133,7 +210,7 @@ function Build-GUI {
 
         $selectedPath = $comboPaths.SelectedItem
         $selectedMethod = $comboMethods.SelectedItem
-        $selectedPathObject = ($apiPaths.PSObject.Properties | Where-Object { $_.Name -eq $selectedPath }).Value
+        $selectedPathObject = ($apiPaths.$selectedPath).Value
 
         if ($null -ne $selectedPathObject -and $null -ne $selectedMethod) {
             $methodObject = $selectedPathObject.$selectedMethod
@@ -163,7 +240,7 @@ function Build-GUI {
     $btnSubmit.Add_Click({
         $selectedPath = $comboPaths.SelectedItem
         $selectedMethod = $comboMethods.SelectedItem
-        $selectedPathObject = ($apiPaths.PSObject.Properties | Where-Object { $_.Name -eq $selectedPath }).Value
+        $selectedPathObject = ($apiPaths.$selectedPath).Value
 
         if ($null -ne $selectedPathObject -and $null -ne $selectedMethod) {
             $methodObject = $selectedPathObject.$selectedMethod
@@ -235,6 +312,6 @@ function Build-GUI {
 }
 
 # === Run It ===
-$JsonPath = "G:\Storage\BenStuff\Development\OpenAI\OpenAI_Refiner\Sessions\20250727_175519_genesys_cloud_api_endpoints\GenesysCloudAPIEndpoints.json"
+$JsonPath = "G:\Storage\BenStuff\Development\GitPowershell\GenesysCloudAPIExplorer\GenesysCloudAPIEndpoints.json"
 $Paths = Load-APIPathsFromJson -JsonPath $JsonPath
 Build-GUI -apiPaths $Paths
