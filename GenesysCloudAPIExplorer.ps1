@@ -11,13 +11,15 @@
     - Saving results to file
 
 .NOTES
-    Future Enhancements:
+    Enhancements implemented:
     - OAuth Token Input
     - Request preview window
-	- Request logging and timestamped history
+    - Request logging and timestamped history
+
+    Future Enhancements:
     - More body types (formData, multipart, etc.)
-	- Enhanced body editor for POST/PUT JSON
-	- WPF or Universal Dashboard version
+    - Enhanced body editor for POST/PUT JSON
+    - WPF or Universal Dashboard version
 #>
 # Load required UI libraries
 Add-Type -AssemblyName System.Windows.Forms
@@ -164,6 +166,26 @@ function Start-OAuthListener {
 
     return $token
 }
+
+function Log-Request {
+    param(
+        [string]$Method,
+        [string]$Url,
+        [string]$Body,
+        [System.Windows.Forms.ListBox]$ListBox
+    )
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "$timestamp`t$Method`t$Url"
+    if ($Body) { $line += "`t$Body" }
+
+    $dir = "logs"
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    $logFile = Join-Path $dir "request_history.log"
+    Add-Content -Path $logFile -Value $line
+
+    if ($ListBox) { $ListBox.Items.Add($line) }
+}
 function Load-APIPathsFromJson {
     param ([string]$JsonPath)
     $json = Get-Content $JsonPath -Raw | ConvertFrom-Json
@@ -195,11 +217,11 @@ function Build-GUI {
     }
     $form = New-Object System.Windows.Forms.Form -Property $formParams
 
-    # → 2) Top: TableLayoutPanel for Category / Path / Method
+    # → 2) Top: TableLayoutPanel for Token / Category / Path / Method
     $tlpParams = @{
-        RowCount    = 3
+        RowCount    = 4
         ColumnCount = 2
-        Size        = New-Object System.Drawing.Size(760, 100)
+        Size        = New-Object System.Drawing.Size(760, 130)
         Location    = New-Object System.Drawing.Point(20, 10)
         AutoSize    = $false
     }
@@ -208,8 +230,18 @@ function Build-GUI {
     $tlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("AutoSize")))
     $tlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Percent", 100)))
     # rows: all autosize
-    1..3 | ForEach-Object { $tlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle("AutoSize"))) }
+    1..4 | ForEach-Object { $tlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle("AutoSize"))) }
     $form.Controls.Add($tlp)
+
+    # --- Token row ---
+    $initialToken = if (Test-Path "auth/OAuthToken.txt") { Get-Content "auth/OAuthToken.txt" } else { "" }
+    $lblTokenParams = @{ Text = "OAuth Token:"; AutoSize = $true }
+    $lblToken = New-Object System.Windows.Forms.Label -Property $lblTokenParams
+    $tlp.Controls.Add($lblToken, 0, 0)
+
+    $txtTokenParams = @{ Width = 600; Text = $initialToken }
+    $txtToken = New-Object System.Windows.Forms.TextBox -Property $txtTokenParams
+    $tlp.Controls.Add($txtToken, 1, 0)
 
     # --- Category row ---
     $lblCatParams = @{
@@ -217,14 +249,14 @@ function Build-GUI {
         AutoSize = $true
     }
     $lblGroups = New-Object System.Windows.Forms.Label -Property $lblCatParams
-    $tlp.Controls.Add($lblGroups, 0, 0)
+    $tlp.Controls.Add($lblGroups, 0, 1)
 
     $cbCatParams = @{
         DropDownStyle = "DropDownList"
         Width         = 600
     }
     $comboGroups = New-Object System.Windows.Forms.ComboBox -Property $cbCatParams
-    $tlp.Controls.Add($comboGroups, 1, 0)
+    $tlp.Controls.Add($comboGroups, 1, 1)
 
     # --- Path row ---
     $lblPathParams = @{
@@ -232,14 +264,14 @@ function Build-GUI {
         AutoSize = $true
     }
     $lblPaths = New-Object System.Windows.Forms.Label -Property $lblPathParams
-    $tlp.Controls.Add($lblPaths, 0, 1)
+    $tlp.Controls.Add($lblPaths, 0, 2)
 
     $cbPathParams = @{
         DropDownStyle = "DropDownList"
         Width         = 600
     }
     $comboPaths = New-Object System.Windows.Forms.ComboBox -Property $cbPathParams
-    $tlp.Controls.Add($comboPaths, 1, 1)
+    $tlp.Controls.Add($comboPaths, 1, 2)
 
     # --- Method row ---
     $lblMethodParams = @{
@@ -247,19 +279,19 @@ function Build-GUI {
         AutoSize = $true
     }
     $lblMethods = New-Object System.Windows.Forms.Label -Property $lblMethodParams
-    $tlp.Controls.Add($lblMethods, 0, 2)
+    $tlp.Controls.Add($lblMethods, 0, 3)
 
     $cbMethParams = @{
         DropDownStyle = "DropDownList"
         Width         = 600
     }
     $comboMethods = New-Object System.Windows.Forms.ComboBox -Property $cbMethParams
-    $tlp.Controls.Add($comboMethods, 1, 2)
+    $tlp.Controls.Add($comboMethods, 1, 3)
 
     # → 3) Middle: TabControl
     $tabCtrlParams = @{
         Size     = New-Object System.Drawing.Size(760, 400)
-        Location = New-Object System.Drawing.Point(20, 120)
+        Location = New-Object System.Drawing.Point(20, 150)
     }
     $tabs = New-Object System.Windows.Forms.TabControl -Property $tabCtrlParams
     $form.Controls.Add($tabs)
@@ -279,16 +311,16 @@ function Build-GUI {
     $panelParams = New-Object System.Windows.Forms.Panel -Property $panelParamsParams
     $tabParams.Controls.Add($panelParams)
 
-    # --- Tab 2: Example & Response ---
+    # --- Tab 2: Preview & Response ---
     $tab2Params = @{
-        Text = "Example & Response"
+        Text = "Preview & Response"
     }
     $tabExample = New-Object System.Windows.Forms.TabPage -Property $tab2Params
     $tabs.TabPages.Add($tabExample)
 
-    # Example Request textbox
+    # Request Preview textbox
     $lblExParams = @{
-        Text     = "Example Request:"
+        Text     = "Request Preview:"
         AutoSize = $true
         Location = New-Object System.Drawing.Point(5, 5)
     }
@@ -324,6 +356,23 @@ function Build-GUI {
     }
     $resultBox = New-Object System.Windows.Forms.TextBox -Property $txtRespParams
     $tabExample.Controls.Add($resultBox)
+
+    # --- Tab 3: History ---
+    $tab3Params = @{ Text = "History" }
+    $tabHistory = New-Object System.Windows.Forms.TabPage -Property $tab3Params
+    $tabs.TabPages.Add($tabHistory)
+
+    $lstHistParams = @{
+        Location = New-Object System.Drawing.Point(5,5)
+        Size     = New-Object System.Drawing.Size(740,350)
+    }
+    $listHistory = New-Object System.Windows.Forms.ListBox -Property $lstHistParams
+    $tabHistory.Controls.Add($listHistory)
+
+    $historyFile = "logs/request_history.log"
+    if (Test-Path $historyFile) {
+        $listHistory.Items.AddRange((Get-Content $historyFile))
+    }
     # → 4) Bottom: action buttons
     $btnSubmitParams = @{
         Text     = "Submit API Call"
@@ -459,7 +508,7 @@ function Build-GUI {
                 $pathParams = @{}
                 $bodyParams = @{}
                 $headers = @{
-                    "Authorization" = "Bearer YOUR_TOKEN_HERE"
+                    "Authorization" = $txtToken.Text
                     "Content-Type"  = "application/json"
                 }
 
@@ -491,6 +540,8 @@ function Build-GUI {
 
                 $fullUrl = $baseUrl + $pathWithReplacements + $queryString
                 $body = if ($bodyParams.Count -gt 0) { $bodyParams | ConvertTo-Json -Depth 10 } else { $null }
+
+                Log-Request -Method $selectedMethod.ToUpper() -Url $fullUrl -Body $body -ListBox $listHistory
 
                 try {
                     $response = Invoke-RestMethod -Uri $fullUrl -Method $selectedMethod.ToUpper() -Headers $headers -Body $body -ErrorAction Stop
