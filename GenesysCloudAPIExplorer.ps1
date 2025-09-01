@@ -23,6 +23,7 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Net.HttpListener
+. "$PSScriptRoot/GenesysCloudAPI.Common.ps1"
 
 function Load-ExampleBodies {
     param ([string]$JsonPath)
@@ -99,21 +100,6 @@ function Start-OAuthListener {
     $tokenObj | ConvertTo-Json | Set-Content -Path $jsonPath
 
     return $token
-}
-function Load-APIPathsFromJson {
-    param ([string]$JsonPath)
-    $json = Get-Content $JsonPath -Raw | ConvertFrom-Json
-    return $json.'openapi-cache-https---api-mypurecloud-com-api-v2-docs-swagger'.paths
-}
-
-function Get-MethodsForPath {
-    param ($pathObject)
-    return $pathObject.PSObject.Properties.Name
-}
-
-function Get-ParametersForMethod {
-    param ($methodObject)
-    return $methodObject.parameters
 }
 
 function Build-GUI {
@@ -267,24 +253,9 @@ function Build-GUI {
             }
 
             $baseUrl = "https://api.mypurecloud.com/api/v2"
-            $pathWithReplacements = $selectedPath
-            foreach ($key in $pathParams.Keys) {
-                $escapedValue = [uri]::EscapeDataString($pathParams[$key])
-                $pathWithReplacements = $pathWithReplacements -replace "\{$key\}", $escapedValue
-            }
-
-            $queryString = if ($queryParams.Count -gt 0) {
-                "?" + ($queryParams.GetEnumerator() | ForEach-Object {
-                    [uri]::EscapeDataString($_.Key) + "=" + [uri]::EscapeDataString($_.Value)
-                } -join "&")
-            } else { "" }
-
-            $fullUrl = $baseUrl + $pathWithReplacements + $queryString
-            $body = if ($bodyParams.Count -gt 0) { $bodyParams | ConvertTo-Json -Depth 10 } else { $null }
-
             try {
-                $response = Invoke-RestMethod -Uri $fullUrl -Method $selectedMethod.ToUpper() -Headers $headers -Body $body -ErrorAction Stop
-                $global:LastResponseText = $response | ConvertTo-Json -Depth 10
+                $result = Invoke-GenesysApi -BaseUrl $baseUrl -Path $selectedPath -Method $selectedMethod -PathParams $pathParams -QueryParams $queryParams -BodyParams $bodyParams -Headers $headers -BodyType "application/json"
+                $global:LastResponseText = $result.Response | ConvertTo-Json -Depth 10
                 $resultBox.Text = "Success:`r`n$global:LastResponseText"
                 $btnSave.Enabled = $true
             } catch {
@@ -312,6 +283,6 @@ function Build-GUI {
 }
 
 # === Run It ===
-$JsonPath = "G:\Storage\BenStuff\Development\GitPowershell\GenesysCloudAPIExplorer\GenesysCloudAPIEndpoints.json"
+$JsonPath = Join-Path $PSScriptRoot "GenesysCloudAPIEndpoints.json"
 $Paths = Load-APIPathsFromJson -JsonPath $JsonPath
 Build-GUI -apiPaths $Paths
