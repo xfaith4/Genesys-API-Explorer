@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+	<UseWindowsForms>true</UseWindowsForms>
+    <!-- Configure single-file publishing -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embed the Genesys Cloud API Swagger JSON as a resource -->
+    <EmbeddedResource Include="Resources\GenesysCloudAPIEndpoints.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GenesysCloudOAuthWebView" Version="1.0.3" />
+  </ItemGroup>
+</Project>

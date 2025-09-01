@@ -1,0 +1,31 @@
+This will produce `GenesysApiExplorer.exe` (self-contained) in the `publish` folder.
+
+- Optionally, use the provided Inno Setup script to create an installer:
+1. Install Inno Setup (if not already installed).
+2. Open `GenesysApiExplorer.iss` in Inno Setup and compile it. This will generate `GenesysAPIExplorer_Setup.exe`.
+3. The installer will prompt for the Genesys Cloud region during installation. It writes this to `userconfig.ini` in the install directory.
+
+*Note:* If your region is not listed, you can manually edit the `userconfig.ini` after installation to set the correct domain (e.g., `mypurecloud.de` for Germany).
+
+## Usage
+
+- **Login:** Click the "Login" button in the app. A window will appear with the Genesys Cloud login page. After entering your credentials and authorizing, the window will close and the status will show "Login successful".
+- **Explore Endpoints:** On the left, expand a category (for example, "Conversations"). Click on a specific endpoint (you'll see entries like "GET /api/v2/conversations/{conversationId}").
+- **Fill Parameters:** The right pane will show input fields. Fill in path parameters (e.g., conversationId) in the text boxes (currently path/query params aren’t separately listed, so include them in the body or adjust the code to handle path params if needed).
+- **Submit Request:** Click "Submit". The response will appear below. If it’s JSON, it will be pretty-printed. If an error occurs, you’ll see an error message or HTTP error code.
+
+## Technical Notes
+
+- **GenesysCloudOAuthWebView**: This library simplifies the OAuth flow in desktop apps. The app uses the WPF OAuthWebView control with `RedirectUriIsFake=true` so we don't need a real web server for the redirect; the control captures the token internally[1](https://github.com/MyPureCloud/oauth-webview-dotnet).
+- **Region Support:** The app uses `api.<region>` in URLs and configures the OAuth control’s `Environment` property to the region’s domain (e.g., "usw2.pure.cloud" for US-West)[1](https://github.com/MyPureCloud/oauth-webview-dotnet). The installer’s region selection writes the domain to config, which the app reads on startup.
+- **Updating the API Spec:** The Swagger JSON is from Genesys Cloud's public documentation. To update, replace the `GenesysCloudAPIEndpoints.json` file in Resources and set its Build Action to Embedded Resource, then rebuild. The parsing logic should adapt as long as the structure remains Swagger 2.0 or is a similar OpenAPI format.
+
+## Disclaimer
+
+This is a prototype-level implementation. While fully functional, it may require refinements for production use:
+- Adding error handling for missing parameters.
+- Improving handling of path vs query vs body parameters distinctly.
+- Securing stored tokens (currently, the token lives in memory only, which is cleared on app exit).
+- The code is provided as-is for educational and internal use.
+
+Enjoy exploring the Genesys Cloud APIs!

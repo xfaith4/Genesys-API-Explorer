@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "dgSpecHash": "IiMcP1+Xtso=",
+  "success": true,
+  "projectFilePath": "G:\\Storage\\BenStuff\\Development\\GenesysCloud\\GenesysAPIExplorer_DotNet\\GenesysApiExplorer.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\benfu\\.nuget\\packages\\genesyscloudoauthwebview\\1.0.3\\genesyscloudoauthwebview.1.0.3.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.net.illink.analyzers\\7.0.100-1.23211.1\\microsoft.net.illink.analyzers.7.0.100-1.23211.1.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.net.illink.tasks\\7.0.100-1.23211.1\\microsoft.net.illink.tasks.7.0.100-1.23211.1.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.web.webview2\\1.0.1185.39\\microsoft.web.webview2.1.0.1185.39.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\6.0.36\\microsoft.windowsdesktop.app.ref.6.0.36.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.netcore.app.ref\\6.0.36\\microsoft.netcore.app.ref.6.0.36.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\6.0.36\\microsoft.aspnetcore.app.runtime.win-x64.6.0.36.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\6.0.36\\microsoft.windowsdesktop.app.runtime.win-x64.6.0.36.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\6.0.36\\microsoft.aspnetcore.app.ref.6.0.36.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\6.0.36\\microsoft.netcore.app.host.win-x64.6.0.36.nupkg.sha512",
+    "C:\\Users\\benfu\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\6.0.36\\microsoft.netcore.app.runtime.win-x64.6.0.36.nupkg.sha512"
+  ],
+  "logs": []
+}

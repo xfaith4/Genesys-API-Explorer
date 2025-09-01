@@ -1,0 +1,396 @@
+{
+  "version": 3,
+  "targets": {
+    "net6.0-windows7.0": {
+      "GenesysCloudOAuthWebView/1.0.3": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Web.WebView2": "1.0.1185.39"
+        },
+        "compile": {
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Core.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.WinForms.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Wpf.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.dll": {}
+        },
+        "runtime": {
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Core.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.WinForms.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Wpf.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.dll": {}
+        }
+      },
+      "Microsoft.NET.ILLink.Analyzers/7.0.100-1.23211.1": {
+        "type": "package",
+        "build": {
+          "build/Microsoft.NET.ILLink.Analyzers.props": {}
+        }
+      },
+      "Microsoft.NET.ILLink.Tasks/7.0.100-1.23211.1": {
+        "type": "package",
+        "build": {
+          "build/Microsoft.NET.ILLink.Tasks.props": {}
+        }
+      },
+      "Microsoft.Web.WebView2/1.0.1185.39": {
+        "type": "package",
+        "compile": {
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Core.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.WinForms.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Wpf.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Core.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.WinForms.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Wpf.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win-arm64/native/WebView2Loader.dll": {
+            "assetType": "native",
+            "rid": "win-arm64"
+          },
+          "runtimes/win-x64/native/WebView2Loader.dll": {
+            "assetType": "native",
+            "rid": "win-x64"
+          },
+          "runtimes/win-x86/native/WebView2Loader.dll": {
+            "assetType": "native",
+            "rid": "win-x86"
+          }
+        }
+      }
+    },
+    "net6.0-windows7.0/win-x64": {
+      "GenesysCloudOAuthWebView/1.0.3": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Web.WebView2": "1.0.1185.39"
+        },
+        "compile": {
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Core.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.WinForms.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Wpf.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.dll": {}
+        },
+        "runtime": {
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Core.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.WinForms.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Wpf.dll": {},
+          "lib/netcoreapp3.1/GenesysCloudOAuthWebView.dll": {}
+        }
+      },
+      "Microsoft.NET.ILLink.Analyzers/7.0.100-1.23211.1": {
+        "type": "package",
+        "build": {
+          "build/Microsoft.NET.ILLink.Analyzers.props": {}
+        }
+      },
+      "Microsoft.NET.ILLink.Tasks/7.0.100-1.23211.1": {
+        "type": "package",
+        "build": {
+          "build/Microsoft.NET.ILLink.Tasks.props": {}
+        }
+      },
+      "Microsoft.Web.WebView2/1.0.1185.39": {
+        "type": "package",
+        "compile": {
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Core.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.WinForms.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Wpf.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Core.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.WinForms.dll": {
+            "related": ".xml"
+          },
+          "lib/netcoreapp3.0/Microsoft.Web.WebView2.Wpf.dll": {
+            "related": ".xml"
+          }
+        },
+        "native": {
+          "runtimes/win-x64/native/WebView2Loader.dll": {}
+        },
+        "build": {
+          "build/_._": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "GenesysCloudOAuthWebView/1.0.3": {
+      "sha512": "pbmHbcB+UE2wzl2etRbTbG9QQVO9RL3QIzVWosvSA7L1x83lXWwI4BYQ9DlEQwv8BXbJCb4DlxxM2VoqEo93TA==",
+      "type": "package",
+      "path": "genesyscloudoauthwebview/1.0.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "genesys.png",
+        "genesyscloudoauthwebview.1.0.3.nupkg.sha512",
+        "genesyscloudoauthwebview.nuspec",
+        "lib/net472/GenesysCloudOAuthWebView.Core.dll",
+        "lib/net472/GenesysCloudOAuthWebView.WinForms.dll",
+        "lib/net472/GenesysCloudOAuthWebView.Wpf.dll",
+        "lib/net472/GenesysCloudOAuthWebView.dll",
+        "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Core.dll",
+        "lib/netcoreapp3.1/GenesysCloudOAuthWebView.WinForms.dll",
+        "lib/netcoreapp3.1/GenesysCloudOAuthWebView.Wpf.dll",
+        "lib/netcoreapp3.1/GenesysCloudOAuthWebView.dll"
+      ]
+    },
+    "Microsoft.NET.ILLink.Analyzers/7.0.100-1.23211.1": {
+      "sha512": "0GvbEgDGcUQA9KuWcQU1WwYHXt1tBzNr1Nls/M57rM7NA/AndFwCaCEoJpJkmxRY7xLlPDBnmGp8h5+FNqUngg==",
+      "type": "package",
+      "path": "microsoft.net.illink.analyzers/7.0.100-1.23211.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "analyzers/dotnet/cs/ILLink.CodeFixProvider.dll",
+        "analyzers/dotnet/cs/ILLink.RoslynAnalyzer.dll",
+        "build/Microsoft.NET.ILLink.Analyzers.props",
+        "microsoft.net.illink.analyzers.7.0.100-1.23211.1.nupkg.sha512",
+        "microsoft.net.illink.analyzers.nuspec"
+      ]
+    },
+    "Microsoft.NET.ILLink.Tasks/7.0.100-1.23211.1": {
+      "sha512": "tvG8XZYLjT0o3WicCyKBZysVWo1jC9HdCFmNRmddx3WbAz0UCsd0qKZqpiEo99VLA8Re+FzWK51OcRldQPbt2Q==",
+      "type": "package",
+      "path": "microsoft.net.illink.tasks/7.0.100-1.23211.1",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "Sdk/Sdk.props",
+        "build/6.0_suppressions.xml",
+        "build/Microsoft.NET.ILLink.Tasks.props",
+        "build/Microsoft.NET.ILLink.targets",
+        "microsoft.net.illink.tasks.7.0.100-1.23211.1.nupkg.sha512",
+        "microsoft.net.illink.tasks.nuspec",
+        "tools/net472/ILLink.Tasks.dll",
+        "tools/net472/Mono.Cecil.dll",
+        "tools/net472/System.Buffers.dll",
+        "tools/net472/System.Collections.Immutable.dll",
+        "tools/net472/System.Memory.dll",
+        "tools/net472/System.Numerics.Vectors.dll",
+        "tools/net472/System.Reflection.Metadata.dll",
+        "tools/net472/System.Runtime.CompilerServices.Unsafe.dll",
+        "tools/net7.0/ILLink.Tasks.deps.json",
+        "tools/net7.0/ILLink.Tasks.dll",
+        "tools/net7.0/Mono.Cecil.Pdb.dll",
+        "tools/net7.0/Mono.Cecil.dll",
+        "tools/net7.0/illink.deps.json",
+        "tools/net7.0/illink.dll",
+        "tools/net7.0/illink.runtimeconfig.json"
+      ]
+    },
+    "Microsoft.Web.WebView2/1.0.1185.39": {
+      "sha512": "67kgLR4NEu58t+cjiNPzhunpcBV9OZcqJtOCupkfIjcbSMt0l4zssR1BKh8mi8dEcXShMVjzT7b5rLPfal/C6Q==",
+      "type": "package",
+      "path": "microsoft.web.webview2/1.0.1185.39",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.txt",
+        "WebView2.idl",
+        "WebView2.tlb",
+        "build/Common.targets",
+        "build/Microsoft.Web.WebView2.targets",
+        "build/native/Microsoft.Web.WebView2.targets",
+        "build/native/arm64/WebView2Loader.dll",
+        "build/native/arm64/WebView2Loader.dll.lib",
+        "build/native/arm64/WebView2LoaderStatic.lib",
+        "build/native/include-winrt/WebView2Interop.h",
+        "build/native/include-winrt/WebView2Interop.idl",
+        "build/native/include-winrt/WebView2Interop.tlb",
+        "build/native/include/WebView2.h",
+        "build/native/include/WebView2EnvironmentOptions.h",
+        "build/native/x64/WebView2Loader.dll",
+        "build/native/x64/WebView2Loader.dll.lib",
+        "build/native/x64/WebView2LoaderStatic.lib",
+        "build/native/x86/WebView2Loader.dll",
+        "build/native/x86/WebView2Loader.dll.lib",
+        "build/native/x86/WebView2LoaderStatic.lib",
+        "lib/Microsoft.Web.WebView2.Core.winmd",
+        "lib/net45/Microsoft.Web.WebView2.Core.dll",
+        "lib/net45/Microsoft.Web.WebView2.Core.xml",
+        "lib/net45/Microsoft.Web.WebView2.WinForms.dll",
+        "lib/net45/Microsoft.Web.WebView2.WinForms.xml",
+        "lib/net45/Microsoft.Web.WebView2.Wpf.dll",
+        "lib/net45/Microsoft.Web.WebView2.Wpf.xml",
+        "lib/netcoreapp3.0/Microsoft.Web.WebView2.Core.dll",
+        "lib/netcoreapp3.0/Microsoft.Web.WebView2.Core.xml",
+        "lib/netcoreapp3.0/Microsoft.Web.WebView2.WinForms.dll",
+        "lib/netcoreapp3.0/Microsoft.Web.WebView2.WinForms.xml",
+        "lib/netcoreapp3.0/Microsoft.Web.WebView2.Wpf.dll",
+        "lib/netcoreapp3.0/Microsoft.Web.WebView2.Wpf.xml",
+        "microsoft.web.webview2.1.0.1185.39.nupkg.sha512",
+        "microsoft.web.webview2.nuspec",
+        "runtimes/win-arm64/native/WebView2Loader.dll",
+        "runtimes/win-arm64/native_uap/Microsoft.Web.WebView2.Core.dll",
+        "runtimes/win-x64/native/WebView2Loader.dll",
+        "runtimes/win-x64/native_uap/Microsoft.Web.WebView2.Core.dll",
+        "runtimes/win-x86/native/WebView2Loader.dll",
+        "runtimes/win-x86/native_uap/Microsoft.Web.WebView2.Core.dll",
+        "tools/VisualStudioToolsManifest.xml"
+      ]
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net6.0-windows7.0": [
+      "GenesysCloudOAuthWebView >= 1.0.3",
+      "Microsoft.NET.ILLink.Analyzers >= 7.0.100-1.23211.1",
+      "Microsoft.NET.ILLink.Tasks >= 7.0.100-1.23211.1"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\benfu\\.nuget\\packages\\": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "G:\\Storage\\BenStuff\\Development\\GenesysCloud\\GenesysAPIExplorer_DotNet\\GenesysApiExplorer.csproj",
+      "projectName": "GenesysApiExplorer",
+      "projectPath": "G:\\Storage\\BenStuff\\Development\\GenesysCloud\\GenesysAPIExplorer_DotNet\\GenesysApiExplorer.csproj",
+      "packagesPath": "C:\\Users\\benfu\\.nuget\\packages\\",
+      "outputPath": "G:\\Storage\\BenStuff\\Development\\GenesysCloud\\GenesysAPIExplorer_DotNet\\obj\\",
+      "projectStyle": "PackageReference",
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
+      "configFilePaths": [
+        "C:\\Users\\benfu\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+      ],
+      "originalTargetFrameworks": [
+        "net6.0-windows"
+      ],
+      "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "G:\\Google Drive (as of 2025-08-06)": {},
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net6.0-windows7.0": {
+          "targetAlias": "net6.0-windows",
+          "projectReferences": {}
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "9.0.300"
+    },
+    "frameworks": {
+      "net6.0-windows7.0": {
+        "targetAlias": "net6.0-windows",
+        "dependencies": {
+          "GenesysCloudOAuthWebView": {
+            "target": "Package",
+            "version": "[1.0.3, )"
+          },
+          "Microsoft.NET.ILLink.Analyzers": {
+            "suppressParent": "All",
+            "target": "Package",
+            "version": "[7.0.100-1.23211.1, )",
+            "autoReferenced": true
+          },
+          "Microsoft.NET.ILLink.Tasks": {
+            "suppressParent": "All",
+            "target": "Package",
+            "version": "[7.0.100-1.23211.1, )",
+            "autoReferenced": true
+          }
+        },
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.AspNetCore.App.Ref",
+            "version": "[6.0.36, 6.0.36]"
+          },
+          {
+            "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
+            "version": "[6.0.36, 6.0.36]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Host.win-x64",
+            "version": "[6.0.36, 6.0.36]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[6.0.36, 6.0.36]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Runtime.win-x64",
+            "version": "[6.0.36, 6.0.36]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Ref",
+            "version": "[6.0.36, 6.0.36]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
+            "version": "[6.0.36, 6.0.36]"
+          }
+        ],
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          },
+          "Microsoft.WindowsDesktop.App": {
+            "privateAssets": "none"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304\\RuntimeIdentifierGraph.json"
+      }
+    },
+    "runtimes": {
+      "win-x64": {
+        "#import": []
+      }
+    }
+  }
+}

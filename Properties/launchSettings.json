@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "GenesysApiExplorer": {
+      "commandName": "Project",
+      "jsWebView2Debugging": false
+    }
+  }
+}
