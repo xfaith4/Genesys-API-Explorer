@@ -6,15 +6,12 @@ namespace GenesysApiExplorer
     public partial class MainWindow : Window
     {
         private readonly EndpointViewModel ViewModel;
+
         public MainWindow()
-        : this(0)
-        { }
-        public MainWindow(long v)
         {
             InitializeComponent();
-            ViewModel = new EndpointViewModel(v);
-            this.DataContext = ViewModel;
-            // Load the Swagger API definitions (from embedded resource)
+            ViewModel = new EndpointViewModel();
+            DataContext = ViewModel;
             ViewModel.LoadSwagger();
         }
 

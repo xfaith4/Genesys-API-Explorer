@@ -6,6 +6,9 @@
         xmlns:local="clr-namespace:GenesysApiExplorer" xmlns:viewmodels="clr-namespace:GenesysApiExplorer.ViewModels"
         d:DataContext="{d:DesignInstance Type=viewmodels:EndpointViewModel, IsDesignTimeCreatable=True}"
         Title="Genesys API Explorer" Height="600" Width="800">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
 
     <Grid>
         <!-- Define a top row for toolbar and main row for content -->
@@ -22,14 +25,16 @@
             <!-- Right pane -->
         </Grid.ColumnDefinitions>
 
-        <!-- Top toolbar with Login button -->
+        <!-- Top toolbar with Login and favorite toggle -->
         <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="5">
             <Button Content="Login" Command="{Binding LoginCommand}" Width="80" Margin="0,0,5,0"/>
+            <Button Content="Toggle Favorite" Command="{Binding ToggleFavoriteCommand}" Width="120"/>
         </StackPanel>
 
         <!-- TreeView for API navigation (left pane) -->
         <TreeView Grid.Column="0"
-          ItemsSource="{Binding Categories}">
+          ItemsSource="{Binding Categories}"
+          SelectedItemChanged="TreeView_SelectedItemChanged">
             <TreeView.Resources>
                 <HierarchicalDataTemplate DataType="{x:Type vm:ApiCategory}" ItemsSource="{Binding Endpoints}">
                     <StackPanel Orientation="Horizontal">
@@ -38,7 +43,10 @@
                     </StackPanel>
                 </HierarchicalDataTemplate>
                 <DataTemplate DataType="{x:Type vm:ApiEndpoint}">
-                    <TextBlock Text="{Binding DisplayName}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="★" Foreground="Gold" Visibility="{Binding IsFavorite, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text="{Binding DisplayName}" Margin="2,0,0,0"/>
+                    </StackPanel>
                 </DataTemplate>
             </TreeView.Resources>
         </TreeView>
