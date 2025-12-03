@@ -57,9 +57,11 @@ GitHub Actions automatically runs syntax validation and function tests on push a
 
 ```powershell
 # Parse the script to check for syntax errors
+$tokens = $null
+$errors = $null
 $null = [System.Management.Automation.Language.Parser]::ParseFile(
     ".\GenesysCloudAPIExplorer.ps1",
-    [ref]$null,
+    [ref]$tokens,
     [ref]$errors
 )
 if ($errors) { $errors | ForEach-Object { Write-Error $_ } }
