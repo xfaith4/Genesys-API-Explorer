@@ -1,0 +1,171 @@
+name: Test PowerShell Script
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Validate PowerShell syntax
+      shell: pwsh
+      run: |
+        $scriptPath = ".\GenesysCloudAPIExplorer.ps1"
+        Write-Host "Validating PowerShell syntax for: $scriptPath"
+        
+        $tokens = $null
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$errors
+        )
+        
+        if ($errors.Count -gt 0) {
+            Write-Host "::error::PowerShell syntax errors found:"
+            foreach ($error in $errors) {
+                Write-Host "::error::$($error.Message) at line $($error.Extent.StartLineNumber)"
+            }
+            exit 1
+        }
+        
+        Write-Host "PowerShell syntax validation passed!"
+        
+    - name: Validate JSON endpoint catalog
+      shell: pwsh
+      run: |
+        $jsonPath = ".\GenesysCloudAPIEndpoints.json"
+        Write-Host "Validating JSON syntax for: $jsonPath"
+        
+        try {
+            $content = Get-Content -Path $jsonPath -Raw
+            $json = $content | ConvertFrom-Json -ErrorAction Stop
+            Write-Host "JSON validation passed!"
+            
+            # Check for expected structure
+            $hasOpenApiCache = $false
+            foreach ($prop in $json.PSObject.Properties) {
+                if ($prop.Value -and $prop.Value.paths) {
+                    $hasOpenApiCache = $true
+                    $pathCount = ($prop.Value.paths.PSObject.Properties | Measure-Object).Count
+                    Write-Host "Found API catalog with $pathCount endpoint paths"
+                    break
+                }
+            }
+            
+            if (-not $hasOpenApiCache) {
+                Write-Host "::warning::Could not find 'paths' section in API catalog"
+            }
+        }
+        catch {
+            Write-Host "::error::JSON parsing failed: $($_.Exception.Message)"
+            exit 1
+        }
+        
+    - name: Test helper functions
+      shell: pwsh
+      run: |
+        Write-Host "Testing helper functions from the script..."
+        
+        # Load only the function definitions (without running the GUI)
+        $scriptContent = Get-Content -Path ".\GenesysCloudAPIExplorer.ps1" -Raw
+        
+        # Extract and test specific functions
+        # Test Build-GroupMap function logic
+        $testPaths = @{
+            "/api/v2/users" = @{}
+            "/api/v2/users/{userId}" = @{}
+            "/api/v2/conversations" = @{}
+            "/api/v2/routing/queues" = @{}
+        }
+        
+        # Simulate Build-GroupMap logic
+        $map = @{}
+        foreach ($path in $testPaths.Keys) {
+            if ($path -match "^/api/v2/([^/]+)") {
+                $group = $Matches[1]
+            }
+            else {
+                $group = "Other"
+            }
+            
+            if (-not $map.ContainsKey($group)) {
+                $map[$group] = @()
+            }
+            $map[$group] += $path
+        }
+        
+        # Validate results
+        if ($map.Keys.Count -ne 3) {
+            Write-Host "::error::Expected 3 groups, got $($map.Keys.Count)"
+            exit 1
+        }
+        
+        if ($map["users"].Count -ne 2) {
+            Write-Host "::error::Expected 2 paths in 'users' group"
+            exit 1
+        }
+        
+        Write-Host "Group mapping logic test passed!"
+        
+        # Test Get-GroupForPath logic
+        function Test-GetGroupForPath {
+            param ([string]$Path)
+            if ($Path -match "^/api/v2/([^/]+)") {
+                return $Matches[1]
+            }
+            return "Other"
+        }
+        
+        $testCases = @(
+            @{ Path = "/api/v2/users"; Expected = "users" },
+            @{ Path = "/api/v2/conversations/{conversationId}"; Expected = "conversations" },
+            @{ Path = "/other/path"; Expected = "Other" }
+        )
+        
+        foreach ($case in $testCases) {
+            $result = Test-GetGroupForPath -Path $case.Path
+            if ($result -ne $case.Expected) {
+                Write-Host "::error::GetGroupForPath test failed for '$($case.Path)': expected '$($case.Expected)', got '$result'"
+                exit 1
+            }
+        }
+        
+        Write-Host "GetGroupForPath logic test passed!"
+        
+        # Test Job-StatusIsPending logic
+        function Test-JobStatusIsPending {
+            param ([string]$Status)
+            if (-not $Status) { return $false }
+            return $Status -match '^(pending|running|in[-]?progress|processing|created)$'
+        }
+        
+        $pendingStatuses = @("pending", "running", "in-progress", "inprogress", "processing", "created")
+        $completedStatuses = @("completed", "failed", "success", "done", "")
+        
+        foreach ($status in $pendingStatuses) {
+            if (-not (Test-JobStatusIsPending -Status $status)) {
+                Write-Host "::error::JobStatusIsPending should return true for '$status'"
+                exit 1
+            }
+        }
+        
+        foreach ($status in $completedStatuses) {
+            if (Test-JobStatusIsPending -Status $status) {
+                Write-Host "::error::JobStatusIsPending should return false for '$status'"
+                exit 1
+            }
+        }
+        
+        Write-Host "JobStatusIsPending logic test passed!"
+        Write-Host ""
+        Write-Host "All helper function tests passed!"

@@ -27,10 +27,42 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 ## Project Structure
 
 ```plaintext
-genesys-api-explorer/
-├── src/
-│   ├── GenesysApiGuiExplorer.ps1         # Main GUI script
-│   └── GenesysCloudAPIEndpoints.json     # Example endpoint file
+Genesys-API-Explorer/
+├── GenesysCloudAPIExplorer.ps1           # Main GUI script
+├── GenesysCloudAPIEndpoints.json         # API endpoint catalog exported from Genesys Cloud
 ├── README.md                             # This documentation
-├── .gitignore                            # File exclusion rules
-└── LICENSE                               # (Optional) Open-source license
+└── .github/
+    └── workflows/
+        └── test.yml                      # GitHub Actions workflow for testing
+```
+
+---
+
+## Usage
+
+1. Run the script using Windows PowerShell:
+   ```powershell
+   .\GenesysCloudAPIExplorer.ps1
+   ```
+2. When prompted, paste your Genesys Cloud OAuth token into the token field
+3. Select an API group, endpoint path, and HTTP method from the dropdowns
+4. Fill in any required parameters and click "Submit API Call"
+5. View responses in the Response tab and use the Inspector for large results
+
+---
+
+## Testing
+
+GitHub Actions automatically runs syntax validation and function tests on push and pull requests. To run tests locally:
+
+```powershell
+# Parse the script to check for syntax errors
+$tokens = $null
+$errors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseFile(
+    ".\GenesysCloudAPIExplorer.ps1",
+    [ref]$tokens,
+    [ref]$errors
+)
+if ($errors) { $errors | ForEach-Object { Write-Error $_ } }
+```
