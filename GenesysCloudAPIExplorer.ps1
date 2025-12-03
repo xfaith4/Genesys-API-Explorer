@@ -96,7 +96,7 @@ function Show-SplashScreen {
     $splashXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud API Explorer" Height="340" Width="540" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        Title="Genesys Cloud API Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True">
   <Border Margin="10" Padding="14" BorderBrush="#FF2C2C2C" BorderThickness="1" CornerRadius="6" Background="#FFF8F9FB">
     <StackPanel>
@@ -209,7 +209,7 @@ function Populate-ParameterValues {
         if (-not $name) { continue }
 
         $input = $paramInputs[$name]
-        if ($input -and $entry.value -ne $null) {
+        if ($input -and $null -ne $entry.value) {
             $input.Text = $entry.value
         }
     }
@@ -524,10 +524,10 @@ function Job-StatusIsPending {
     param ([string]$Status)
 
     if (-not $Status) { return $false }
-    return $Status -imatch '^(pending|running|in[-]?progress|processing|created)$'
+    return $Status -match '^(pending|running|in[-]?progress|processing|created)$'
 }
 
-$ApiBaseUrl = "https://api.usw2.pure.cloud/api/v2"
+$ApiBaseUrl = "https://api.mypurecloud.com/api/v2"
 $JobTracker = [PSCustomObject]@{
     Timer      = $null
     JobId      = $null
@@ -719,7 +719,6 @@ $script:LastResponseText = ""
 $script:LastResponseRaw = ""
 $paramInputs = @{}
 $pendingFavoriteParameters = $null
-$script:LastReportData = $null
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 if (-not $ScriptRoot) {
@@ -746,7 +745,6 @@ $Xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Genesys Cloud API Explorer" Height="780" Width="950"
-        MinWidth="900" MinHeight="700"
         WindowStartupLocation="CenterScreen">
   <DockPanel LastChildFill="True">
     <Menu DockPanel.Dock="Top">
@@ -799,10 +797,10 @@ $Xaml = @"
       </StackPanel>
     </Grid>
 
-    <Border Grid.Row="3" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0 0 0 10" VerticalAlignment="Stretch">
+    <Border Grid.Row="3" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0 0 0 10">
       <StackPanel>
         <TextBlock Text="Parameters" FontWeight="Bold" Margin="0 0 0 10"/>
-        <ScrollViewer MinHeight="220" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Height="220" VerticalScrollBarVisibility="Auto">
           <StackPanel Name="ParameterPanel"/>
         </ScrollViewer>
       </StackPanel>
@@ -830,11 +828,10 @@ $Xaml = @"
     <StackPanel Grid.Row="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
       <Button Name="SubmitButton" Width="150" Height="34" Content="Submit API Call" Margin="0 0 10 0"/>
       <Button Name="SaveButton" Width="150" Height="34" Content="Save Response" IsEnabled="False"/>
-      <Button Name="GenerateReportButton" Width="150" Height="34" Content="Generate Report" Margin="0 0 10 0"/>
       <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
     </StackPanel>
 
-    <TabControl Grid.Row="6" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+    <TabControl Grid.Row="6">
       <TabItem Header="Response">
         <Grid>
           <Grid.RowDefinitions>
@@ -844,19 +841,18 @@ $Xaml = @"
           <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 0 0 6">
             <Button Name="InspectResponseButton" Width="140" Height="30" Content="Inspect Result"/>
           </StackPanel>
-        <TextBox Grid.Row="1" Name="ResponseText" TextWrapping="Wrap" AcceptsReturn="True"
-                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
-                 VerticalAlignment="Stretch" HorizontalAlignment="Stretch" MinHeight="180"/>
+          <TextBox Grid.Row="1" Name="ResponseText" TextWrapping="Wrap" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="250"/>
         </Grid>
       </TabItem>
       <TabItem Header="Transparency Log">
         <TextBox Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
-                 HorizontalScrollBarVisibility="Auto" IsReadOnly="True" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" MinHeight="220"/>
+                 HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="250"/>
       </TabItem>
       <TabItem Header="Schema">
         <StackPanel>
           <TextBlock Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
-          <ListView Name="SchemaList" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" MinHeight="200"
+          <ListView Name="SchemaList" Height="250"
                     VirtualizingStackPanel.IsVirtualizing="True"
                     VirtualizingStackPanel.VirtualizationMode="Recycling">
             <ListView.View>
@@ -883,24 +879,8 @@ $Xaml = @"
           <TextBlock Name="JobResultsPath" Text="Results file: (not available yet)" TextWrapping="Wrap"/>
         </StackPanel>
       </TabItem>
-      <TabItem Header="Reporting">
-        <Grid Margin="10">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-          </Grid.RowDefinitions>
-          <TextBlock Grid.Row="0" Text="Conversation reporting" FontWeight="Bold" Margin="0 0 0 6"/>
-          <TextBox Grid.Row="1" Name="ReportText" TextWrapping="Wrap" AcceptsReturn="True"
-                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                   IsReadOnly="True" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" MinHeight="220"/>
-          <Button Grid.Row="2" Name="ExportReportButton" Width="160" Height="32" Content="Export Report"
-                  HorizontalAlignment="Right" Margin="0 10 0 0" IsEnabled="False"/>
-        </Grid>
-      </TabItem>
     </TabControl>
   </Grid>
-</DockPanel>
 </Window>
 "@
 
@@ -934,9 +914,6 @@ $exportJobResultsButton = $Window.FindName("ExportJobResultsButton")
 $helpMenuItem = $Window.FindName("HelpMenuItem")
 $helpDevLink = $Window.FindName("HelpDevLink")
 $helpSupportLink = $Window.FindName("HelpSupportLink")
-$generateReportButton = $Window.FindName("GenerateReportButton")
-$reportText = $Window.FindName("ReportText")
-$exportReportButton = $Window.FindName("ExportReportButton")
 
 function Add-LogEntry {
     param ([string]$Message)
@@ -945,661 +922,6 @@ function Add-LogEntry {
     if ($logBox) {
         $logBox.AppendText("[$timestamp] $Message`r`n")
         $logBox.ScrollToEnd()
-    }
-}
-
-function Normalize-MediaCategory {
-    param ([string]$MediaType)
-
-    if (-not $MediaType) {
-        return $null
-    }
-
-    $normalized = $MediaType.ToLowerInvariant()
-    switch ($normalized) {
-        "callback" { return "voice" }
-        "phone" { return "voice" }
-        default { return $normalized }
-    }
-}
-
-function Compute-PeakConcurrency {
-    param ([System.Collections.ArrayList]$Events)
-
-    if (-not $Events -or $Events.Count -eq 0) {
-        return 0
-    }
-
-    $sorted = $Events | Sort-Object @{ Expression = { $_.Time } }, @{ Expression = { -($_.Delta) } }
-    $count = 0
-    $peak = 0
-    foreach ($evt in $sorted) {
-        $count += $evt.Delta
-        if ($count -gt $peak) {
-            $peak = $count
-        }
-    }
-
-    return $peak
-}
-
-function Add-ConcurrencyEvent {
-    param (
-        [hashtable]$Store,
-        [string]$Key,
-        [datetime]$Start,
-        [datetime]$End
-    )
-
-    if (-not $Store.ContainsKey($Key)) {
-        $Store[$Key] = [System.Collections.ArrayList]::new()
-    }
-
-    $events = $Store[$Key]
-    $events.Add([ordered]@{ Time = $Start; Delta = 1 }) | Out-Null
-    $events.Add([ordered]@{ Time = $End; Delta = -1 }) | Out-Null
-}
-
-function Find-ConversationsCollection {
-    param (
-        $Node,
-        [int]$Depth = 0
-    )
-
-    if (-not $Node -or $Depth -gt 4) {
-        return $null
-    }
-
-    if ($Node.conversations -and ($Node.conversations -is [System.Collections.IEnumerable])) {
-        return $Node.conversations
-    }
-
-    if ($Node.data -and $Node.data.conversations -and ($Node.data.conversations -is [System.Collections.IEnumerable])) {
-        return $Node.data.conversations
-    }
-
-    if ($Node.results -and ($Node.results -is [System.Collections.IEnumerable])) {
-        return $Node.results
-    }
-
-    if ($Node.entities -and ($Node.entities -is [System.Collections.IEnumerable])) {
-        return $Node.entities
-    }
-
-    if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
-        foreach ($item in $Node) {
-            $found = Find-ConversationsCollection -Node $item -Depth ($Depth + 1)
-            if ($found) {
-                return $found
-            }
-        }
-    }
-
-    if ($Node -and $Node.PSObject) {
-        foreach ($prop in $Node.PSObject.Properties) {
-            $found = Find-ConversationsCollection -Node $prop.Value -Depth ($Depth + 1)
-            if ($found) {
-                return $found
-            }
-        }
-    }
-
-    return $null
-}
-
-function Get-ConversationsCollection {
-    param ($Json)
-
-    $collection = Find-ConversationsCollection -Node $Json
-    if ($collection -and ($collection | Where-Object { $_.conversationId })) {
-        return $collection
-    }
-
-    return @()
-}
-
-
-function Get-MonthKey {
-    param ([datetime]$DateTime)
-
-    if (-not $DateTime) {
-        return ""
-    }
-
-    return "{0}-{1:00}" -f $DateTime.Year, $DateTime.Month
-}
-
-function Generate-ConversationReport {
-    param (
-        $SourceJson
-    )
-
-    $conversations = Get-ConversationsCollection -Json $SourceJson
-    if (-not $conversations.Count) {
-        return $null
-    }
-
-    $agents = @{}
-    $queues = @{}
-    $flows = @{}
-    $queueNames = @{}
-    $divisionStats = @{}
-    $errors = [System.Collections.ArrayList]::new()
-    $monthlyStats = @{}
-    $globalMediaDirectionCounts = @{}
-    $voiceConcurrencyEvents = @{
-        inbound  = [System.Collections.ArrayList]::new()
-        outbound = [System.Collections.ArrayList]::new()
-    }
-    $interestMedia = @("voice", "messaging", "sms")
-
-    foreach ($conversation in $conversations) {
-        $conversationId = $conversation.conversationId
-        if (-not $conversationId) {
-            continue
-        }
-
-        $convoAgentSet = [System.Collections.Generic.HashSet[string]]::new()
-        $convoQueueSet = [System.Collections.Generic.HashSet[string]]::new()
-        $convoFlowSet = [System.Collections.Generic.HashSet[string]]::new()
-        $conversationErrors = [System.Collections.Generic.HashSet[string]]::new()
-        $mediaDirectionSet = [System.Collections.Generic.HashSet[string]]::new()
-
-        $directionNormalized = if ($conversation.originatingDirection) { $conversation.originatingDirection.ToLowerInvariant() } else { "unknown" }
-
-        $_participants = if ($conversation.participants) { $conversation.participants } else { @() }
-        foreach ($participant in $_participants) {
-            if ($participant.userId) {
-                $agentKey = $participant.userId
-                if (-not $convoAgentSet.Contains($agentKey)) {
-                    $convoAgentSet.Add($agentKey) | Out-Null
-                    if (-not $agents.ContainsKey($agentKey)) {
-                        $agents[$agentKey] = [ordered]@{
-                            UserId            = $agentKey
-                            Name              = ($participant.participantName -or $participant.userId)
-                            ConversationCount = 0
-                        }
-                    }
-                    $agents[$agentKey].ConversationCount++
-                }
-            }
-
-            if ($participant.sessions) {
-                foreach ($session in $participant.sessions) {
-                    if ($session.segments) {
-                        foreach ($segment in $session.segments) {
-                            if ($segment.queueId) {
-                                $convoQueueSet.Add($segment.queueId) | Out-Null
-                                if ($segment.queueName) {
-                                    $queueNames[$segment.queueId] = $segment.queueName
-                                }
-                            }
-                            if ($segment.errorCode) {
-                                $conversationErrors.Add($segment.errorCode) | Out-Null
-                            }
-                        }
-                    }
-
-                    if ($session.flow) {
-                        $flowKey = if ($session.flow.flowId) { $session.flow.flowId } else { $session.flow.flowName }
-                        if ($flowKey -and -not $convoFlowSet.Contains($flowKey)) {
-                            $convoFlowSet.Add($flowKey) | Out-Null
-                            if (-not $flows.ContainsKey($flowKey)) {
-                                $flows[$flowKey] = [ordered]@{
-                                    FlowId    = $flowKey
-                                    FlowName  = ($session.flow.flowName -or $flowKey)
-                                    Count     = 0
-                                }
-                            }
-                            $flows[$flowKey].Count++
-                        }
-                    }
-
-                    if ($session.mediaType) {
-                        $mediaCategory = Normalize-MediaCategory -MediaType $session.mediaType
-                        if ($mediaCategory) {
-                            $mediaDirectionSet.Add("$mediaCategory|$directionNormalized") | Out-Null
-                        }
-                    }
-                }
-            }
-        }
-
-        foreach ($queueId in $convoQueueSet) {
-            if (-not $queues.ContainsKey($queueId)) {
-                $queues[$queueId] = [ordered]@{
-                    QueueId           = $queueId
-                    QueueName         = ($queueNames[$queueId] -or "")
-                    ConversationCount = 0
-                }
-            }
-            $queues[$queueId].ConversationCount++
-        }
-
-        $minMos = $null
-        if ($conversation.mediaStatsMinConversationMos -ne $null) {
-            $minMos = [double]$conversation.mediaStatsMinConversationMos
-        }
-
-        $latencyValues = [System.Collections.ArrayList]::new()
-        foreach ($participant in $_participants) {
-            if ($participant.sessions) {
-                foreach ($session in $participant.sessions) {
-                    if ($session.mediaEndpointStats) {
-                        foreach ($stat in $session.mediaEndpointStats) {
-                            if ($stat.maxLatencyMs -ne $null) {
-                                $latencyValues.Add([double]$stat.maxLatencyMs) | Out-Null
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        $avgLatency = $null
-        if ($latencyValues.Count) {
-            $avgLatency = ($latencyValues | Measure-Object -Average).Average
-        }
-
-        if ($conversation.divisionIds) {
-            foreach ($divisionId in $conversation.divisionIds) {
-                if (-not $divisionStats.ContainsKey($divisionId)) {
-                    $divisionStats[$divisionId] = [ordered]@{
-                        DivisionId        = $divisionId
-                        ConversationCount = 0
-                        MinMosSum         = 0.0
-                        MinMosCount       = 0
-                        LatencySum        = 0.0
-                        LatencyCount      = 0
-                    }
-                }
-
-                $divisionStats[$divisionId].ConversationCount++
-                if ($minMos -ne $null) {
-                    $divisionStats[$divisionId].MinMosSum += $minMos
-                    $divisionStats[$divisionId].MinMosCount++
-                }
-                if ($avgLatency -ne $null) {
-                    $divisionStats[$divisionId].LatencySum += $avgLatency
-                    $divisionStats[$divisionId].LatencyCount++
-                }
-            }
-        }
-
-        if ($conversationErrors.Count -gt 0) {
-            $errors.Add([ordered]@{
-                ConversationId = $conversationId
-                ErrorCodes     = $conversationErrors.ToArray()
-            }) | Out-Null
-        }
-
-        $startTime = $null
-        if ($conversation.conversationStart) {
-            try {
-                $startTime = [datetime]::Parse($conversation.conversationStart)
-            } catch {
-                $startTime = $null
-            }
-        }
-
-        $endTime = $null
-        if ($conversation.conversationEnd) {
-            try {
-                $endTime = [datetime]::Parse($conversation.conversationEnd)
-            } catch {
-                $endTime = $null
-            }
-        }
-
-        if (-not $endTime -and $startTime) {
-            $endTime = $startTime
-        }
-
-        if ($startTime -and $endTime -and $endTime -lt $startTime) {
-            $endTime = $startTime
-        }
-
-        $monthKey = if ($startTime) { Get-MonthKey -DateTime $startTime } else { "" }
-        $monthStart = if ($startTime) { Get-Date -Year $startTime.Year -Month $startTime.Month -Day 1 -Hour 0 -Minute 0 -Second 0 } else { $null }
-        $monthEnd = if ($monthStart) { $monthStart.AddMonths(1).AddTicks(-1) } else { $null }
-
-        foreach ($comboKey in $mediaDirectionSet) {
-            $parts = $comboKey.Split("|")
-            $mediaCategory = $parts[0]
-            $directionCategory = $parts[1]
-
-            if ($monthKey) {
-                if (-not $monthlyStats.ContainsKey($monthKey)) {
-                    $monthlyStats[$monthKey] = [ordered]@{
-                        Month             = $monthKey
-                        MediaTotals       = @{}
-                        ConcurrencyEvents = @{}
-                    }
-                }
-
-                $monthEntry = $monthlyStats[$monthKey]
-                $monthEntry.MediaTotals[$comboKey] = if ($monthEntry.MediaTotals.ContainsKey($comboKey)) { $monthEntry.MediaTotals[$comboKey] + 1 } else { 1 }
-
-                if ($monthStart -and $monthEnd -and $startTime) {
-                    $intervalStart = if ($startTime -lt $monthStart) { $monthStart } else { $startTime }
-                    $intervalEnd = if (-not $endTime) { $monthEnd } elseif ($endTime -gt $monthEnd) { $monthEnd } else { $endTime }
-                    if ($intervalEnd -lt $intervalStart) {
-                        $intervalEnd = $intervalStart
-                    }
-                    Add-ConcurrencyEvent -Store $monthEntry.ConcurrencyEvents -Key $comboKey -Start $intervalStart -End $intervalEnd
-                }
-            }
-
-            if ($interestMedia -contains $mediaCategory) {
-                if (-not $globalMediaDirectionCounts.ContainsKey($mediaCategory)) {
-                    $globalMediaDirectionCounts[$mediaCategory] = @{}
-                }
-
-                if (-not $globalMediaDirectionCounts[$mediaCategory].ContainsKey($directionCategory)) {
-                    $globalMediaDirectionCounts[$mediaCategory][$directionCategory] = 0
-                }
-                $globalMediaDirectionCounts[$mediaCategory][$directionCategory]++
-            }
-
-            if ($mediaCategory -eq "voice" -and $startTime -and $endTime -and ($directionCategory -eq "inbound" -or $directionCategory -eq "outbound")) {
-                Add-ConcurrencyEvent -Store $voiceConcurrencyEvents -Key $directionCategory -Start $startTime -End $endTime
-            }
-        }
-    }
-
-    $divisionResults = @()
-    foreach ($division in $divisionStats.GetEnumerator()) {
-        $entry = $division.Value
-        $averageMinMos = if ($entry.MinMosCount) { [math]::Round($entry.MinMosSum / $entry.MinMosCount, 3) } else { $null }
-        $averageLatency = if ($entry.LatencyCount) { [math]::Round($entry.LatencySum / $entry.LatencyCount, 2) } else { $null }
-        $divisionResults += [ordered]@{
-            DivisionId        = $entry.DivisionId
-            ConversationCount = $entry.ConversationCount
-            AverageMinMos     = $averageMinMos
-            AverageLatencyMs  = $averageLatency
-        }
-    }
-
-    $monthlySummary = @()
-    foreach ($monthKey in ($monthlyStats.Keys | Sort-Object)) {
-        $entry = $monthlyStats[$monthKey]
-        $comboSummaries = @()
-        foreach ($comboKey in ($entry.MediaTotals.Keys | Sort-Object)) {
-            $parts = $comboKey.Split("|")
-            $mediaType = $parts[0]
-            $directionType = $parts[1]
-            $peak = Compute-PeakConcurrency -Events $entry.ConcurrencyEvents[$comboKey]
-            $comboSummaries += [ordered]@{
-                MediaType      = $mediaType
-                Direction      = $directionType
-                Conversations  = $entry.MediaTotals[$comboKey]
-                PeakConcurrent = $peak
-            }
-        }
-        $monthlySummary += [ordered]@{
-            Month  = $monthKey
-            Totals = $comboSummaries
-        }
-    }
-
-    $mediaSummaryList = @()
-    foreach ($media in ($globalMediaDirectionCounts.Keys | Sort-Object)) {
-        foreach ($direction in ($globalMediaDirectionCounts[$media].Keys | Sort-Object)) {
-            $mediaSummaryList += [ordered]@{
-                MediaType     = $media
-                Direction     = $direction
-                Conversations = $globalMediaDirectionCounts[$media][$direction]
-            }
-        }
-    }
-
-    $voicePeakList = @()
-    foreach ($direction in @("inbound", "outbound")) {
-        $events = $voiceConcurrencyEvents[$direction]
-        $voicePeakList += [ordered]@{
-            Direction      = $direction
-            PeakConcurrent = Compute-PeakConcurrency -Events $events
-        }
-    }
-
-    return [ordered]@{
-        TotalConversations        = $conversations.Count
-        AgentStats                = $agents.Values
-        QueueStats                = $queues.Values
-        FlowStats                 = $flows.Values
-        DivisionStats             = $divisionResults
-        ErrorConversations        = $errors
-        MonthlyMediaTotals        = $monthlySummary
-        TotalMediaDirectionCounts = $mediaSummaryList
-        VoicePeakConcurrent       = $voicePeakList
-    }
-}
-function Format-ConversationReportText {
-    param ($Report)
-
-    if (-not $Report) { return "" }
-
-    $lines = [System.Collections.ArrayList]::new()
-    $lines.Add("Total conversations analyzed: $($Report.TotalConversations)") | Out-Null
-
-    if ($Report.AgentStats.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Agents involved:") | Out-Null
-        foreach ($agent in $Report.AgentStats | Sort-Object -Property ConversationCount -Descending) {
-            $lines.Add("  $($agent.Name) ($($agent.UserId)): $($agent.ConversationCount) conversations") | Out-Null
-        }
-    }
-
-    if ($Report.QueueStats.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Queues touched:") | Out-Null
-        foreach ($queue in $Report.QueueStats | Sort-Object -Property ConversationCount -Descending) {
-            $displayName = if ($queue.QueueName) { "$($queue.QueueName)" } else { "Queue ID $($queue.QueueId)" }
-            $lines.Add("  $displayName: $($queue.ConversationCount) conversations") | Out-Null
-        }
-    }
-
-    if ($Report.FlowStats.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Flows traversed:") | Out-Null
-        foreach ($flow in $Report.FlowStats | Sort-Object -Property Count -Descending) {
-            $flowLabel = if ($flow.FlowName) { $flow.FlowName } else { $flow.FlowId }
-            $lines.Add("  $flowLabel: $($flow.Count) conversations") | Out-Null
-        }
-    }
-
-    if ($Report.DivisionStats.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Division-level averages:") | Out-Null
-        foreach ($division in $Report.DivisionStats | Sort-Object -Property DivisionId) {
-            $mos = if ($division.AverageMinMos -ne $null) { $division.AverageMinMos } else { "N/A" }
-            $lat = if ($division.AverageLatencyMs -ne $null) { "$($division.AverageLatencyMs) ms" } else { "N/A" }
-            $lines.Add("  Division $($division.DivisionId): $($division.ConversationCount) conversations | Avg Min MOS: $mos | Avg Max Latency: $lat") | Out-Null
-        }
-    }
-
-    if ($Report.ErrorConversations.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Conversations with error codes:") | Out-Null
-        foreach ($entry in $Report.ErrorConversations) {
-            $codes = ($entry.ErrorCodes -join ", ")
-            $lines.Add("  $($entry.ConversationId): $codes") | Out-Null
-        }
-    }
-
-    if ($Report.MonthlyMediaTotals.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Monthly conversation totals:") | Out-Null
-        foreach ($monthEntry in $Report.MonthlyMediaTotals) {
-            $lines.Add("  $($monthEntry.Month):") | Out-Null
-            foreach ($combo in $monthEntry.Totals) {
-                $lines.Add("    $($combo.MediaType) $($combo.Direction): $($combo.Conversations) conversations, peak $($combo.PeakConcurrent) concurrent") | Out-Null
-            }
-        }
-    }
-
-    if ($Report.TotalMediaDirectionCounts.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Total inbound/outbound counts by media type:") | Out-Null
-        foreach ($media in $Report.TotalMediaDirectionCounts | Sort-Object MediaType, Direction) {
-            $lines.Add("  $($media.MediaType) $($media.Direction): $($media.Conversations) conversations") | Out-Null
-        }
-    }
-
-    if ($Report.VoicePeakConcurrent.Count) {
-        $lines.Add("") | Out-Null
-        $lines.Add("Peak concurrent voice conversations:") | Out-Null
-        foreach ($entry in $Report.VoicePeakConcurrent) {
-            $lines.Add("  $($entry.Direction): $($entry.PeakConcurrent)") | Out-Null
-        }
-    }
-
-    return [string]::Join("`r`n", $lines)
-}
-
-function Get-ConversationIdsFromJson {
-    param ($Json)
-
-    $ids = [System.Collections.ArrayList]::new()
-    $stack = New-Object System.Collections.ArrayList
-    if ($Json) {
-        $stack.Add($Json) | Out-Null
-    }
-
-    while ($stack.Count -gt 0) {
-        $current = $stack[$stack.Count - 1]
-        $stack.RemoveAt($stack.Count - 1)
-        if (-not $current) {
-            continue
-        }
-
-        if ($current -is [string]) {
-            continue
-        }
-
-        if ($current -is [System.Collections.IDictionary]) {
-            if ($current.ContainsKey("conversationId")) {
-                $candidate = $current["conversationId"]
-                if ($candidate -and -not $ids.Contains($candidate.ToString())) {
-                    $ids.Add($candidate.ToString()) | Out-Null
-                }
-            }
-
-            foreach ($value in $current.Values) {
-                if ($value) {
-                    $stack.Add($value) | Out-Null
-                }
-            }
-
-            continue
-        }
-
-        if ($current -is [System.Collections.IEnumerable]) {
-            foreach ($item in $current) {
-                if ($item) {
-                    $stack.Add($item) | Out-Null
-                }
-            }
-        }
-    }
-
-    return $ids
-}
-
-function Get-ConversationAnalyticsDetails {
-    param (
-        [string]$BaseUrl,
-        [hashtable]$Headers,
-        [string]$ConversationId
-    )
-
-    if (-not $ConversationId) {
-        return $null
-    }
-
-    $url = "$BaseUrl/analytics/conversations/$ConversationId/details"
-    try {
-        $response = Invoke-WebRequest -Uri $url -Method Get -Headers $Headers -ErrorAction Stop
-        return $response.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
-    } catch {
-        Add-LogEntry "Analytics detail fetch for $ConversationId failed: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-function Get-ConversationResource {
-    param (
-        [string]$BaseUrl,
-        [hashtable]$Headers,
-        [string]$ConversationId
-    )
-
-    if (-not $ConversationId) {
-        return $null
-    }
-
-    $url = "$BaseUrl/conversations/$ConversationId"
-    try {
-        $response = Invoke-WebRequest -Uri $url -Method Get -Headers $Headers -ErrorAction Stop
-        return $response.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
-    } catch {
-        Add-LogEntry "Conversation fetch for $ConversationId failed: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-# Enrich analytics responses with correlated conversation and analytics detail objects.
-function Invoke-ConversationsEnrichment {
-    param (
-        [string]$BaseUrl,
-        [hashtable]$Headers,
-        $SourceJson,
-        [int]$MaxConversations = 5
-    )
-
-    if (-not $SourceJson) {
-        return $null
-    }
-
-    $conversationIds = Get-ConversationIdsFromJson -Json $SourceJson
-    if (-not $conversationIds.Count) {
-        return $null
-    }
-
-    $records = [System.Collections.ArrayList]::new()
-    $seen = [System.Collections.ArrayList]::new()
-    foreach ($conversationId in $conversationIds) {
-        if (-not $conversationId) {
-            continue
-        }
-
-        if ($seen.Contains($conversationId)) {
-            continue
-        }
-
-        $seen.Add($conversationId) | Out-Null
-
-        $analyticsDetail = Get-ConversationAnalyticsDetails -BaseUrl $BaseUrl -Headers $Headers -ConversationId $conversationId
-        $conversation = Get-ConversationResource -BaseUrl $BaseUrl -Headers $Headers -ConversationId $conversationId
-
-        $records.Add([ordered]@{
-            ConversationId                 = $conversationId
-            AnalyticsConversationDetail    = $analyticsDetail
-            ConversationResource           = $conversation
-        }) | Out-Null
-
-        if ($records.Count -ge $MaxConversations) {
-            break
-        }
-    }
-
-    if ($records.Count -eq 0) {
-        return $null
-    }
-
-    return [PSCustomObject]@{
-        EnrichedConversations = $records
-        ConversationCount     = $records.Count
     }
 }
 
@@ -1940,7 +1262,7 @@ $btnSubmit.Add_Click({
         }
     }
 
-    $baseUrl = "https://api.usw2.pure.cloud/api/v2"
+    $baseUrl = "https://api.mypurecloud.com/api/v2"
     $pathWithReplacements = $selectedPath
     foreach ($key in $pathParams.Keys) {
         $escaped = [uri]::EscapeDataString($pathParams[$key])
@@ -1975,16 +1297,7 @@ $btnSubmit.Add_Click({
         $script:LastResponseText = $formattedContent
         $script:LastResponseRaw = $rawContent
         $script:LastResponseFile = ""
-        $combinedText = ""
-        if ($json -and $selectedPath -match "/analytics/conversations") {
-            $enriched = Invoke-ConversationsEnrichment -BaseUrl $baseUrl -Headers $headers -SourceJson $json
-            if ($enriched) {
-                $combinedJson = $enriched | ConvertTo-Json -Depth 10
-                $combinedText = "`r`n`r`nCombined conversation data:`r`n$combinedJson"
-                Add-LogEntry "Conversation enrichment returned $($enriched.ConversationCount) records."
-            }
-        }
-        $responseBox.Text = "Status $($response.StatusCode):`r`n$formattedContent$combinedText"
+        $responseBox.Text = "Status $($response.StatusCode):`r`n$formattedContent"
         $btnSave.IsEnabled = $true
         $statusText.Text = "Last call succeeded ($($response.StatusCode))."
         Add-LogEntry "Response: $($response.StatusCode) returned ${($formattedContent.Length)} chars."
@@ -2025,68 +1338,6 @@ $btnSave.Add_Click({
         Add-LogEntry "Saved response to $($dialog.FileName)"
     }
 })
-
-if ($generateReportButton) {
-    $generateReportButton.Add_Click({
-        if (-not $script:LastResponseRaw) {
-            $statusText.Text = "Run an API request before generating a report."
-            Add-LogEntry "Report generation skipped: no response data."
-            return
-        }
-
-        try {
-            $json = $script:LastResponseRaw | ConvertFrom-Json -Depth 10 -ErrorAction Stop
-        } catch {
-            $statusText.Text = "Unable to parse the response for reporting."
-            Add-LogEntry "Report generation failed: $($_.Exception.Message)"
-            return
-        }
-
-        $report = Generate-ConversationReport -SourceJson $json
-        if (-not $report) {
-            $statusText.Text = "No conversation data found for reporting."
-            if ($reportText) {
-                $reportText.Text = "No conversation data found. Try a different endpoint."
-            }
-            $script:LastReportData = $null
-            if ($exportReportButton) {
-                $exportReportButton.IsEnabled = $false
-            }
-            Add-LogEntry "Report generation returned no data."
-            return
-        }
-
-        $script:LastReportData = $report
-        if ($reportText) {
-            $reportText.Text = Format-ConversationReportText -Report $report
-        }
-        $statusText.Text = "Report generated for $($report.TotalConversations) conversations."
-        if ($exportReportButton) {
-            $exportReportButton.IsEnabled = $true
-        }
-        Add-LogEntry "Conversation report generated for $($report.TotalConversations) entries."
-    })
-}
-
-if ($exportReportButton) {
-    $exportReportButton.Add_Click({
-        if (-not $script:LastReportData) {
-            $statusText.Text = "Generate a report before exporting."
-            return
-        }
-
-        $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-        $dialog.Title = "Export Conversation Report"
-        $dialog.FileName = "ConversationReport.json"
-
-        if ($dialog.ShowDialog() -eq $true) {
-            $script:LastReportData | ConvertTo-Json -Depth 10 | Out-File -FilePath $dialog.FileName -Encoding utf8
-            $statusText.Text = "Report saved to $($dialog.FileName)"
-            Add-LogEntry "Conversation report exported to $($dialog.FileName)"
-        }
-    })
-}
 
 Add-LogEntry "Loaded $($GroupMap.Keys.Count) groups from the API catalog."
 $Window.ShowDialog() | Out-Null
