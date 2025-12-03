@@ -881,6 +881,7 @@ $Xaml = @"
       </TabItem>
     </TabControl>
   </Grid>
+</DockPanel>
 </Window>
 "@
 
