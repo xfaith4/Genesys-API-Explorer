@@ -879,6 +879,29 @@ $Xaml = @"
           <TextBlock Name="JobResultsPath" Text="Results file: (not available yet)" TextWrapping="Wrap"/>
         </StackPanel>
       </TabItem>
+      <TabItem Header="Conversation Report">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0 0 0 10">
+            <TextBlock Text="Conversation ID:" VerticalAlignment="Center" Margin="0 0 8 0" FontWeight="Bold"/>
+            <TextBox Name="ConversationIdInput" Width="350" Height="26" VerticalContentAlignment="Center"
+                     ToolTip="Enter a Genesys Cloud Conversation ID to generate a combined report."/>
+            <Button Name="RunReportButton" Width="120" Height="28" Content="Run Report" Margin="10 0 0 0"/>
+            <Button Name="OpenReportInspectorButton" Width="130" Height="28" Content="Open in Inspector" Margin="10 0 0 0" IsEnabled="False"/>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0 0 0 8">
+            <Button Name="ExportReportJsonButton" Width="130" Height="28" Content="Export as JSON" IsEnabled="False"/>
+            <Button Name="ExportReportTextButton" Width="130" Height="28" Content="Export as Text" Margin="10 0 0 0" IsEnabled="False"/>
+          </StackPanel>
+          <TextBox Grid.Row="2" Name="ConversationReportOutput" TextWrapping="Wrap" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   FontFamily="Consolas" FontSize="12"/>
+        </Grid>
+      </TabItem>
     </TabControl>
   </Grid>
 </DockPanel>
