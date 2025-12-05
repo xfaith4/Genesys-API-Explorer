@@ -380,6 +380,9 @@ $script:InspectorNodeCount = 0
 $script:InspectorMaxNodes = 2000
 $script:InspectorMaxDepth = 15
 
+# Maximum length for log message truncation
+$script:LogMaxMessageLength = 500
+
 function Populate-InspectorTree {
     param (
         $Tree,
@@ -415,7 +418,6 @@ function Populate-InspectorTree {
     $isEnumerable = ($Data -is [System.Collections.IEnumerable]) -and -not ($Data -is [string])
     if ($Data -and $Data.PSObject.Properties.Count -gt 0) {
         $node.Header = "$($Label) (object)"
-        $propCount = 0
         foreach ($prop in $Data.PSObject.Properties) {
             if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
                 $ellipsis = New-Object System.Windows.Controls.TreeViewItem
@@ -425,7 +427,6 @@ function Populate-InspectorTree {
                 break
             }
             Populate-InspectorTree -Tree $node -Data $prop.Value -Label "$($prop.Name)" -Depth ($Depth + 1)
-            $propCount++
         }
     }
     elseif ($isEnumerable) {
@@ -2282,8 +2283,8 @@ $btnSubmit.Add_Click({
         Add-LogEntry "Response error: $statusCode$errorMessage"
         if ($errorResponseBody) {
             # Truncate very long error responses for the log
-            $logBody = if ($errorResponseBody.Length -gt 500) { 
-                $errorResponseBody.Substring(0, 500) + "... (truncated)" 
+            $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) { 
+                $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)" 
             } else { 
                 $errorResponseBody 
             }
