@@ -527,6 +527,213 @@ function Job-StatusIsPending {
     return $Status -match '^(pending|running|in[-]?progress|processing|created)$'
 }
 
+function Get-ConversationReport {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ConversationId,
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Headers
+    )
+
+    $result = [PSCustomObject]@{
+        ConversationId      = $ConversationId
+        ConversationDetails = $null
+        AnalyticsDetails    = $null
+        RetrievedAt         = (Get-Date).ToString("o")
+        Errors              = @()
+    }
+
+    $baseUrl = "https://api.mypurecloud.com/api/v2"
+
+    # Fetch conversation details
+    $conversationUrl = "$baseUrl/conversations/$ConversationId"
+    try {
+        $conversationResponse = Invoke-WebRequest -Uri $conversationUrl -Method Get -Headers $Headers -ErrorAction Stop
+        $result.ConversationDetails = $conversationResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+    }
+    catch {
+        $result.Errors += "Conversation details: $($_.Exception.Message)"
+    }
+
+    # Fetch analytics details
+    $analyticsUrl = "$baseUrl/analytics/conversations/$ConversationId/details"
+    try {
+        $analyticsResponse = Invoke-WebRequest -Uri $analyticsUrl -Method Get -Headers $Headers -ErrorAction Stop
+        $result.AnalyticsDetails = $analyticsResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+    }
+    catch {
+        $result.Errors += "Analytics details: $($_.Exception.Message)"
+    }
+
+    return $result
+}
+
+function Format-ConversationReportText {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    [void]$sb.AppendLine("=" * 60)
+    [void]$sb.AppendLine("CONVERSATION REPORT")
+    [void]$sb.AppendLine("=" * 60)
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("Conversation ID: $($Report.ConversationId)")
+    [void]$sb.AppendLine("Retrieved At: $($Report.RetrievedAt)")
+    [void]$sb.AppendLine("")
+
+    if ($Report.Errors -and $Report.Errors.Count -gt 0) {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ERRORS")
+        [void]$sb.AppendLine("-" * 40)
+        foreach ($err in $Report.Errors) {
+            [void]$sb.AppendLine("  - $err")
+        }
+        [void]$sb.AppendLine("")
+    }
+
+    # Conversation Details Section
+    if ($Report.ConversationDetails) {
+        $conv = $Report.ConversationDetails
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("CONVERSATION DETAILS")
+        [void]$sb.AppendLine("-" * 40)
+        
+        if ($conv.startTime) {
+            [void]$sb.AppendLine("Start Time: $($conv.startTime)")
+        }
+        if ($conv.endTime) {
+            [void]$sb.AppendLine("End Time: $($conv.endTime)")
+        }
+        if ($conv.conversationStart) {
+            [void]$sb.AppendLine("Conversation Start: $($conv.conversationStart)")
+        }
+        if ($conv.conversationEnd) {
+            [void]$sb.AppendLine("Conversation End: $($conv.conversationEnd)")
+        }
+        if ($conv.state) {
+            [void]$sb.AppendLine("State: $($conv.state)")
+        }
+        if ($conv.externalTag) {
+            [void]$sb.AppendLine("External Tag: $($conv.externalTag)")
+        }
+        if ($conv.utilizationLabelId) {
+            [void]$sb.AppendLine("Utilization Label ID: $($conv.utilizationLabelId)")
+        }
+        
+        # Participants
+        if ($conv.participants -and $conv.participants.Count -gt 0) {
+            [void]$sb.AppendLine("")
+            [void]$sb.AppendLine("Participants ($($conv.participants.Count)):")
+            foreach ($participant in $conv.participants) {
+                [void]$sb.AppendLine("  - Purpose: $($participant.purpose)")
+                if ($participant.userId) {
+                    [void]$sb.AppendLine("    User ID: $($participant.userId)")
+                }
+                if ($participant.name) {
+                    [void]$sb.AppendLine("    Name: $($participant.name)")
+                }
+                if ($participant.queueId) {
+                    [void]$sb.AppendLine("    Queue ID: $($participant.queueId)")
+                }
+                if ($participant.address) {
+                    [void]$sb.AppendLine("    Address: $($participant.address)")
+                }
+                if ($participant.startTime) {
+                    [void]$sb.AppendLine("    Start Time: $($participant.startTime)")
+                }
+                if ($participant.endTime) {
+                    [void]$sb.AppendLine("    End Time: $($participant.endTime)")
+                }
+                if ($participant.wrapupRequired -ne $null) {
+                    [void]$sb.AppendLine("    Wrapup Required: $($participant.wrapupRequired)")
+                }
+            }
+        }
+        [void]$sb.AppendLine("")
+    }
+    else {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("CONVERSATION DETAILS: Not available")
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("")
+    }
+
+    # Analytics Details Section
+    if ($Report.AnalyticsDetails) {
+        $analytics = $Report.AnalyticsDetails
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ANALYTICS DETAILS")
+        [void]$sb.AppendLine("-" * 40)
+        
+        if ($analytics.conversationStart) {
+            [void]$sb.AppendLine("Conversation Start: $($analytics.conversationStart)")
+        }
+        if ($analytics.conversationEnd) {
+            [void]$sb.AppendLine("Conversation End: $($analytics.conversationEnd)")
+        }
+        if ($analytics.originatingDirection) {
+            [void]$sb.AppendLine("Originating Direction: $($analytics.originatingDirection)")
+        }
+        if ($analytics.divisionIds -and $analytics.divisionIds.Count -gt 0) {
+            [void]$sb.AppendLine("Division IDs: $($analytics.divisionIds -join ', ')")
+        }
+        if ($analytics.mediaStatsMinConversationMos) {
+            [void]$sb.AppendLine("Min MOS: $($analytics.mediaStatsMinConversationMos)")
+        }
+        if ($analytics.mediaStatsMinConversationRFactor) {
+            [void]$sb.AppendLine("Min R-Factor: $($analytics.mediaStatsMinConversationRFactor)")
+        }
+        
+        # Participant Sessions
+        if ($analytics.participants -and $analytics.participants.Count -gt 0) {
+            [void]$sb.AppendLine("")
+            [void]$sb.AppendLine("Analytics Participants ($($analytics.participants.Count)):")
+            foreach ($participant in $analytics.participants) {
+                [void]$sb.AppendLine("  - Participant ID: $($participant.participantId)")
+                if ($participant.participantName) {
+                    [void]$sb.AppendLine("    Name: $($participant.participantName)")
+                }
+                if ($participant.purpose) {
+                    [void]$sb.AppendLine("    Purpose: $($participant.purpose)")
+                }
+                if ($participant.sessions -and $participant.sessions.Count -gt 0) {
+                    [void]$sb.AppendLine("    Sessions: $($participant.sessions.Count)")
+                    foreach ($session in $participant.sessions) {
+                        if ($session.mediaType) {
+                            [void]$sb.AppendLine("      Media Type: $($session.mediaType)")
+                        }
+                        if ($session.direction) {
+                            [void]$sb.AppendLine("      Direction: $($session.direction)")
+                        }
+                        if ($session.ani) {
+                            [void]$sb.AppendLine("      ANI: $($session.ani)")
+                        }
+                        if ($session.dnis) {
+                            [void]$sb.AppendLine("      DNIS: $($session.dnis)")
+                        }
+                    }
+                }
+            }
+        }
+        [void]$sb.AppendLine("")
+    }
+    else {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ANALYTICS DETAILS: Not available")
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("")
+    }
+
+    [void]$sb.AppendLine("=" * 60)
+    [void]$sb.AppendLine("END OF REPORT")
+    [void]$sb.AppendLine("=" * 60)
+
+    return $sb.ToString()
+}
+
 $ApiBaseUrl = "https://api.mypurecloud.com/api/v2"
 $JobTracker = [PSCustomObject]@{
     Timer      = $null
@@ -879,6 +1086,30 @@ $Xaml = @"
           <TextBlock Name="JobResultsPath" Text="Results file: (not available yet)" TextWrapping="Wrap"/>
         </StackPanel>
       </TabItem>
+      <TabItem Header="Conversation Report">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0 0 0 10">
+            <TextBlock Text="Conversation ID:" VerticalAlignment="Center" FontWeight="Bold" Margin="0 0 8 0"/>
+            <TextBox Name="ConversationReportIdInput" Width="350" Height="28" VerticalContentAlignment="Center"
+                     ToolTip="Enter the conversation ID to generate a report"/>
+            <Button Name="RunConversationReportButton" Width="120" Height="30" Content="Run Report" Margin="10 0 0 0"/>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0 0 0 10">
+            <Button Name="InspectConversationReportButton" Width="140" Height="30" Content="Inspect Result" IsEnabled="False"/>
+            <Button Name="ExportConversationReportJsonButton" Width="140" Height="30" Content="Export JSON" Margin="10 0 0 0" IsEnabled="False"/>
+            <Button Name="ExportConversationReportTextButton" Width="140" Height="30" Content="Export Text" Margin="10 0 0 0" IsEnabled="False"/>
+            <TextBlock Name="ConversationReportStatus" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
+          </StackPanel>
+          <TextBox Grid.Row="2" Name="ConversationReportText" TextWrapping="Wrap" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="180"
+                   FontFamily="Consolas" FontSize="11"/>
+        </Grid>
+      </TabItem>
     </TabControl>
   </Grid>
 </DockPanel>
@@ -915,6 +1146,15 @@ $exportJobResultsButton = $Window.FindName("ExportJobResultsButton")
 $helpMenuItem = $Window.FindName("HelpMenuItem")
 $helpDevLink = $Window.FindName("HelpDevLink")
 $helpSupportLink = $Window.FindName("HelpSupportLink")
+$conversationReportIdInput = $Window.FindName("ConversationReportIdInput")
+$runConversationReportButton = $Window.FindName("RunConversationReportButton")
+$inspectConversationReportButton = $Window.FindName("InspectConversationReportButton")
+$exportConversationReportJsonButton = $Window.FindName("ExportConversationReportJsonButton")
+$exportConversationReportTextButton = $Window.FindName("ExportConversationReportTextButton")
+$conversationReportText = $Window.FindName("ConversationReportText")
+$conversationReportStatus = $Window.FindName("ConversationReportStatus")
+$script:LastConversationReport = $null
+$script:LastConversationReportJson = ""
 
 function Add-LogEntry {
     param ([string]$Message)
@@ -1209,6 +1449,138 @@ if ($exportJobResultsButton) {
             Copy-Item -Path $JobTracker.ResultFile -Destination $dialog.FileName -Force
             $statusText.Text = "Job results exported to $($dialog.FileName)"
             Add-LogEntry "Job results exported to $($dialog.FileName)"
+        }
+    })
+}
+
+if ($runConversationReportButton) {
+    $runConversationReportButton.Add_Click({
+        $convId = if ($conversationReportIdInput) { $conversationReportIdInput.Text.Trim() } else { "" }
+        
+        if (-not $convId) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Please enter a conversation ID."
+            }
+            Add-LogEntry "Conversation report blocked: no conversation ID."
+            return
+        }
+
+        $token = $tokenBox.Text.Trim()
+        if (-not $token) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Please provide an OAuth token."
+            }
+            Add-LogEntry "Conversation report blocked: no OAuth token."
+            return
+        }
+
+        $headers = @{
+            "Content-Type"  = "application/json"
+            "Authorization" = "Bearer $token"
+        }
+
+        if ($conversationReportStatus) {
+            $conversationReportStatus.Text = "Fetching report..."
+        }
+        Add-LogEntry "Generating conversation report for: $convId"
+
+        try {
+            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers
+            $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
+            
+            $reportText = Format-ConversationReportText -Report $script:LastConversationReport
+            
+            if ($conversationReportText) {
+                $conversationReportText.Text = $reportText
+            }
+            
+            if ($inspectConversationReportButton) {
+                $inspectConversationReportButton.IsEnabled = $true
+            }
+            if ($exportConversationReportJsonButton) {
+                $exportConversationReportJsonButton.IsEnabled = $true
+            }
+            if ($exportConversationReportTextButton) {
+                $exportConversationReportTextButton.IsEnabled = $true
+            }
+            
+            $errorCount = if ($script:LastConversationReport.Errors) { $script:LastConversationReport.Errors.Count } else { 0 }
+            if ($errorCount -gt 0) {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Report generated with $errorCount error(s)."
+                }
+                Add-LogEntry "Conversation report completed with $errorCount error(s)."
+            }
+            else {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Report generated successfully."
+                }
+                Add-LogEntry "Conversation report generated successfully."
+            }
+        }
+        catch {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Report failed: $($_.Exception.Message)"
+            }
+            Add-LogEntry "Conversation report failed: $($_.Exception.Message)"
+        }
+    })
+}
+
+if ($inspectConversationReportButton) {
+    $inspectConversationReportButton.Add_Click({
+        if ($script:LastConversationReportJson) {
+            Show-DataInspector -JsonText $script:LastConversationReportJson
+        }
+        else {
+            Add-LogEntry "No conversation report data to inspect."
+        }
+    })
+}
+
+if ($exportConversationReportJsonButton) {
+    $exportConversationReportJsonButton.Add_Click({
+        if (-not $script:LastConversationReportJson) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "No report data to export."
+            }
+            return
+        }
+
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+        $dialog.Title = "Export Conversation Report JSON"
+        $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).json"
+        if ($dialog.ShowDialog() -eq $true) {
+            $script:LastConversationReportJson | Out-File -FilePath $dialog.FileName -Encoding utf8
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "JSON exported to $($dialog.FileName)"
+            }
+            Add-LogEntry "Conversation report JSON exported to $($dialog.FileName)"
+        }
+    })
+}
+
+if ($exportConversationReportTextButton) {
+    $exportConversationReportTextButton.Add_Click({
+        if (-not $script:LastConversationReport) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "No report data to export."
+            }
+            return
+        }
+
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+        $dialog.Title = "Export Conversation Report Text"
+        $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).txt"
+        if ($dialog.ShowDialog() -eq $true) {
+            $reportText = Format-ConversationReportText -Report $script:LastConversationReport
+            $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Text exported to $($dialog.FileName)"
+            }
+            Add-LogEntry "Conversation report text exported to $($dialog.FileName)"
         }
     })
 }

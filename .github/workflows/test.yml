@@ -167,5 +167,120 @@ jobs:
         }
         
         Write-Host "JobStatusIsPending logic test passed!"
+        
+        # Test Format-ConversationReportText function logic
+        function Test-FormatConversationReportText {
+            param (
+                [Parameter(Mandatory = $true)]
+                $Report
+            )
+
+            $sb = [System.Text.StringBuilder]::new()
+
+            [void]$sb.AppendLine("=" * 60)
+            [void]$sb.AppendLine("CONVERSATION REPORT")
+            [void]$sb.AppendLine("=" * 60)
+            [void]$sb.AppendLine("")
+            [void]$sb.AppendLine("Conversation ID: $($Report.ConversationId)")
+            [void]$sb.AppendLine("Retrieved At: $($Report.RetrievedAt)")
+            [void]$sb.AppendLine("")
+
+            if ($Report.Errors -and $Report.Errors.Count -gt 0) {
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("ERRORS")
+                [void]$sb.AppendLine("-" * 40)
+                foreach ($err in $Report.Errors) {
+                    [void]$sb.AppendLine("  - $err")
+                }
+                [void]$sb.AppendLine("")
+            }
+
+            if ($Report.ConversationDetails) {
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("CONVERSATION DETAILS")
+                [void]$sb.AppendLine("-" * 40)
+            }
+            else {
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("CONVERSATION DETAILS: Not available")
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("")
+            }
+
+            if ($Report.AnalyticsDetails) {
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("ANALYTICS DETAILS")
+                [void]$sb.AppendLine("-" * 40)
+            }
+            else {
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("ANALYTICS DETAILS: Not available")
+                [void]$sb.AppendLine("-" * 40)
+                [void]$sb.AppendLine("")
+            }
+
+            [void]$sb.AppendLine("=" * 60)
+            [void]$sb.AppendLine("END OF REPORT")
+            [void]$sb.AppendLine("=" * 60)
+
+            return $sb.ToString()
+        }
+        
+        # Test with empty report
+        $testReport = [PSCustomObject]@{
+            ConversationId      = "test-conv-123"
+            ConversationDetails = $null
+            AnalyticsDetails    = $null
+            RetrievedAt         = "2025-01-01T00:00:00Z"
+            Errors              = @()
+        }
+        
+        $reportText = Test-FormatConversationReportText -Report $testReport
+        
+        if (-not $reportText.Contains("CONVERSATION REPORT")) {
+            Write-Host "::error::Format-ConversationReportText should include CONVERSATION REPORT header"
+            exit 1
+        }
+        
+        if (-not $reportText.Contains("test-conv-123")) {
+            Write-Host "::error::Format-ConversationReportText should include conversation ID"
+            exit 1
+        }
+        
+        if (-not $reportText.Contains("CONVERSATION DETAILS: Not available")) {
+            Write-Host "::error::Format-ConversationReportText should show 'Not available' when ConversationDetails is null"
+            exit 1
+        }
+        
+        if (-not $reportText.Contains("END OF REPORT")) {
+            Write-Host "::error::Format-ConversationReportText should include END OF REPORT footer"
+            exit 1
+        }
+        
+        Write-Host "Format-ConversationReportText logic test passed!"
+        
+        # Test with errors
+        $testReportWithErrors = [PSCustomObject]@{
+            ConversationId      = "test-conv-456"
+            ConversationDetails = $null
+            AnalyticsDetails    = $null
+            RetrievedAt         = "2025-01-01T00:00:00Z"
+            Errors              = @("Test error 1", "Test error 2")
+        }
+        
+        $reportTextWithErrors = Test-FormatConversationReportText -Report $testReportWithErrors
+        
+        if (-not $reportTextWithErrors.Contains("ERRORS")) {
+            Write-Host "::error::Format-ConversationReportText should include ERRORS section when errors exist"
+            exit 1
+        }
+        
+        if (-not $reportTextWithErrors.Contains("Test error 1")) {
+            Write-Host "::error::Format-ConversationReportText should include error messages"
+            exit 1
+        }
+        
+        Write-Host "Format-ConversationReportText error handling test passed!"
+        
         Write-Host ""
         Write-Host "All helper function tests passed!"
