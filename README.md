@@ -21,7 +21,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - Windows PowerShell 5.1+ (with WPF libraries available). PowerShell Core is supported only on Windows hosts that expose the PresentationFramework assembly.
 - Valid Genesys Cloud OAuth token (paste into the UI before submitting calls).
 - API catalog JSON exported from [Genesys Cloud API Explorer](https://developer.genesys.cloud/developer-tools/#/api-explorer).
-- Internet access to reach `https://api.usw2.pure.cloud` and the documentation hubs (`https://developer.genesys.cloud`, `https://help.usw2.pure.cloud`).
+- Internet access to reach `https://api.mypurecloud.com` and the documentation hubs (`https://developer.genesys.cloud`, `https://help.mypurecloud.com`).
 
 ---
 
