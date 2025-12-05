@@ -580,7 +580,8 @@ function Get-GCConversationDetailsTimeline {
         $Report
     )
 
-    $events = @()
+    # Use ArrayList for efficient appending instead of array += which creates new arrays
+    $events = [System.Collections.ArrayList]::new()
     $segmentCounter = 0
 
     # Extract events from analytics details (segments with MOS, errorCodes, etc.)
@@ -610,11 +611,12 @@ function Get-GCConversationDetailsTimeline {
                             $wrapUpNote = $segment.wrapUpNote
 
                             # Extract MOS and error codes from metrics
+                            # Use specific MOS metric names to avoid false matches
                             $mos = $null
                             $errorCode = $null
                             if ($segment.metrics) {
                                 foreach ($metric in $segment.metrics) {
-                                    if ($metric.name -eq "nMos" -or $metric.name -match "mos") {
+                                    if ($metric.name -eq "nMos" -or $metric.name -eq "mos" -or $metric.name -eq "MOS") {
                                         $mos = $metric.value
                                     }
                                 }
@@ -627,10 +629,10 @@ function Get-GCConversationDetailsTimeline {
                                 $errorCode = "sip:$($segment.sipResponseCode)"
                             }
 
-                            # Segment start event
+                            # Segment start event - parse with InvariantCulture for reliable ISO 8601 parsing
                             if ($segment.segmentStart) {
-                                $events += [PSCustomObject]@{
-                                    Timestamp    = [DateTime]::Parse($segment.segmentStart)
+                                [void]$events.Add([PSCustomObject]@{
+                                    Timestamp    = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                                     Source       = "AnalyticsDetails"
                                     Participant  = $participantName
                                     ParticipantId = $participantId
@@ -645,14 +647,14 @@ function Get-GCConversationDetailsTimeline {
                                     ErrorCode    = $null
                                     Context      = "ANI: $ani, DNIS: $dnis"
                                     DisconnectType = $null
-                                }
+                                })
                             }
 
-                            # Segment end event
+                            # Segment end event - parse with InvariantCulture
                             if ($segment.segmentEnd) {
                                 $disconnectType = $segment.disconnectType
-                                $events += [PSCustomObject]@{
-                                    Timestamp    = [DateTime]::Parse($segment.segmentEnd)
+                                [void]$events.Add([PSCustomObject]@{
+                                    Timestamp    = [DateTime]::Parse($segment.segmentEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                                     Source       = "AnalyticsDetails"
                                     Participant  = $participantName
                                     ParticipantId = $participantId
@@ -667,7 +669,7 @@ function Get-GCConversationDetailsTimeline {
                                     ErrorCode    = $errorCode
                                     Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
                                     DisconnectType = $disconnectType
-                                }
+                                })
                             }
                         }
                     }
@@ -682,10 +684,10 @@ function Get-GCConversationDetailsTimeline {
             $participantName = if ($participant.name) { $participant.name } else { $participant.purpose }
             $participantId = $participant.id
 
-            # Start time event
+            # Start time event - parse with InvariantCulture
             if ($participant.startTime) {
-                $events += [PSCustomObject]@{
-                    Timestamp    = [DateTime]::Parse($participant.startTime)
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp    = [DateTime]::Parse($participant.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                     Source       = "Conversations"
                     Participant  = $participantName
                     ParticipantId = $participantId
@@ -700,14 +702,14 @@ function Get-GCConversationDetailsTimeline {
                     ErrorCode    = $null
                     Context      = "Purpose: $($participant.purpose)"
                     DisconnectType = $null
-                }
+                })
             }
 
-            # End time / disconnect event
+            # End time / disconnect event - parse with InvariantCulture
             if ($participant.endTime) {
                 $disconnectType = $participant.disconnectType
-                $events += [PSCustomObject]@{
-                    Timestamp    = [DateTime]::Parse($participant.endTime)
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp    = [DateTime]::Parse($participant.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                     Source       = "Conversations"
                     Participant  = $participantName
                     ParticipantId = $participantId
@@ -722,15 +724,15 @@ function Get-GCConversationDetailsTimeline {
                     ErrorCode    = $null
                     Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
                     DisconnectType = $disconnectType
-                }
+                })
             }
 
             # Process calls/chats for state changes
             if ($participant.calls) {
                 foreach ($call in $participant.calls) {
                     if ($call.state -and $call.connectedTime) {
-                        $events += [PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($call.connectedTime)
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($call.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                             Source       = "Conversations"
                             Participant  = $participantName
                             ParticipantId = $participantId
@@ -745,11 +747,11 @@ function Get-GCConversationDetailsTimeline {
                             ErrorCode    = $null
                             Context      = "State: connected"
                             DisconnectType = $null
-                        }
+                        })
                     }
                     if ($call.disconnectedTime) {
-                        $events += [PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($call.disconnectedTime)
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($call.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                             Source       = "Conversations"
                             Participant  = $participantName
                             ParticipantId = $participantId
@@ -764,7 +766,7 @@ function Get-GCConversationDetailsTimeline {
                             ErrorCode    = $null
                             Context      = "State: disconnected"
                             DisconnectType = $call.disconnectType
-                        }
+                        })
                     }
                 }
             }
@@ -773,8 +775,8 @@ function Get-GCConversationDetailsTimeline {
             if ($participant.chats) {
                 foreach ($chat in $participant.chats) {
                     if ($chat.state -and $chat.connectedTime) {
-                        $events += [PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($chat.connectedTime)
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($chat.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                             Source       = "Conversations"
                             Participant  = $participantName
                             ParticipantId = $participantId
@@ -789,11 +791,11 @@ function Get-GCConversationDetailsTimeline {
                             ErrorCode    = $null
                             Context      = "State: connected"
                             DisconnectType = $null
-                        }
+                        })
                     }
                     if ($chat.disconnectedTime) {
-                        $events += [PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($chat.disconnectedTime)
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($chat.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                             Source       = "Conversations"
                             Participant  = $participantName
                             ParticipantId = $participantId
@@ -808,7 +810,7 @@ function Get-GCConversationDetailsTimeline {
                             ErrorCode    = $null
                             Context      = "State: disconnected"
                             DisconnectType = $chat.disconnectType
-                        }
+                        })
                     }
                 }
             }
@@ -853,7 +855,8 @@ function Format-GCConversationTimelineText {
     $sb = [System.Text.StringBuilder]::new()
 
     foreach ($event in $Events) {
-        $timestamp = $event.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        # Format timestamp in UTC with proper ISO 8601 format
+        $timestamp = $event.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
         $eventType = $event.EventType.PadRight(18)
         
         # Build participant/context string
@@ -880,14 +883,16 @@ function Format-GCConversationTimelineText {
             $mediaStr = $parts -join " | "
         }
 
-        # Build MOS string with degraded marker
+        # Build MOS string with degraded marker - use TryParse for safe conversion
         $mosStr = ""
         if ($null -ne $event.Mos) {
-            $mosValue = [double]$event.Mos
-            if ($mosValue -lt 3.5) {
-                $mosStr = "MOS=$($mosValue.ToString('0.00')) (DEGRADED)"
-            } else {
-                $mosStr = "MOS=$($mosValue.ToString('0.00'))"
+            $mosValue = 0.0
+            if ([double]::TryParse($event.Mos.ToString(), [ref]$mosValue)) {
+                if ($mosValue -lt 3.5) {
+                    $mosStr = "MOS=$($mosValue.ToString('0.00')) (DEGRADED)"
+                } else {
+                    $mosStr = "MOS=$($mosValue.ToString('0.00'))"
+                }
             }
         }
 
@@ -941,8 +946,14 @@ function Get-GCConversationSummary {
     $segmentsWithMos = $segmentEndEvents | Where-Object { $null -ne $_.Mos }
     $segmentsWithMosCount = ($segmentsWithMos | Measure-Object).Count
     
-    # Get degraded segments (MOS < 3.5)
-    $degradedSegments = $segmentsWithMos | Where-Object { [double]$_.Mos -lt 3.5 }
+    # Get degraded segments (MOS < 3.5) - use TryParse for safe conversion
+    $degradedSegments = $segmentsWithMos | Where-Object {
+        $mosValue = 0.0
+        if ([double]::TryParse($_.Mos.ToString(), [ref]$mosValue)) {
+            return $mosValue -lt 3.5
+        }
+        return $false
+    }
     $degradedCount = ($degradedSegments | Measure-Object).Count
 
     # Get all disconnect events
@@ -996,15 +1007,17 @@ function Format-GCConversationSummaryText {
         [void]$sb.AppendLine("Degraded segments:")
         foreach ($seg in $Summary.DegradedSegments) {
             $startInfo = $Summary.SegmentDetails[$seg.SegmentId]
-            $startTime = if ($startInfo) { $startInfo.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ") } else { "(unknown)" }
-            $endTime = $seg.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            $startTime = if ($startInfo) { $startInfo.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK") } else { "(unknown)" }
+            $endTime = $seg.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
             
             $participantStr = if ($seg.QueueName) { "Queue: $($seg.QueueName)" } `
                               elseif ($seg.FlowName) { "Flow: $($seg.FlowName)" } `
                               elseif ($seg.Participant) { $seg.Participant } `
                               else { "(unknown)" }
             
-            $mosValue = [double]$seg.Mos
+            # Use TryParse for safe MOS value conversion
+            $mosValue = 0.0
+            [void][double]::TryParse($seg.Mos.ToString(), [ref]$mosValue)
             $errorStr = if ($seg.ErrorCode) { "errorCode=$($seg.ErrorCode)" } else { "errorCode=" }
             
             [void]$sb.AppendLine("  - seg=$($seg.SegmentId) | $participantStr | MOS=$($mosValue.ToString('0.00')) | $startTime-$endTime | $errorStr")
@@ -1016,7 +1029,7 @@ function Format-GCConversationSummaryText {
     if ($Summary.DisconnectEvents -and ($Summary.DisconnectEvents | Measure-Object).Count -gt 0) {
         [void]$sb.AppendLine("Disconnects:")
         foreach ($disc in $Summary.DisconnectEvents) {
-            $timestamp = $disc.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            $timestamp = $disc.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
             $segStr = if ($disc.SegmentId) { "seg=$($disc.SegmentId)" } else { "(no segment)" }
             $disconnector = if ($disc.DisconnectType) { "$($disc.Participant) disconnected ($($disc.DisconnectType))" } else { "$($disc.Participant) disconnected" }
             $errorStr = if ($disc.ErrorCode) { "errorCode=$($disc.ErrorCode)" } else { "errorCode=" }
