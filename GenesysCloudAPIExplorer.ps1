@@ -96,11 +96,11 @@ function Show-SplashScreen {
     $splashXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud API Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        Title="Genesys Cloud  Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True">
   <Border Margin="10" Padding="14" BorderBrush="#FF2C2C2C" BorderThickness="1" CornerRadius="6" Background="#FFF8F9FB">
     <StackPanel>
-      <TextBlock Text="Genesys Cloud API Explorer" FontSize="18" FontWeight="Bold"/>
+      <TextBlock Text="Genesys Cloud  Explorer" FontSize="18" FontWeight="Bold"/>
       <TextBlock Text="Instant access to every Genesys Cloud endpoint with schema insight, job tracking, and saved favorites." TextWrapping="Wrap" Margin="0 6"/>
       <TextBlock Text="Features in this release:" FontWeight="Bold" Margin="0 8 0 0"/>
       <TextBlock Text="• Grouped endpoint navigation with parameter assistance." Margin="0 2"/>
@@ -131,7 +131,7 @@ function Show-SplashScreen {
     $splashWindow.ShowDialog() | Out-Null
 }
 
-function Load-APIPathsFromJson {
+function Load-PathsFromJson {
     param ([Parameter(Mandatory = $true)] [string]$JsonPath)
 
     $json = Get-Content -Path $JsonPath -Raw | ConvertFrom-Json
@@ -148,12 +148,12 @@ function Load-APIPathsFromJson {
 }
 
 function Build-GroupMap {
-    param ([Parameter(Mandatory = $true)] $ApiPaths)
+    param ([Parameter(Mandatory = $true)] $Paths)
 
     $map = @{}
-    foreach ($prop in $ApiPaths.PSObject.Properties) {
+    foreach ($prop in $Paths.PSObject.Properties) {
         $path = $prop.Name
-        if ($path -match "^/api/v2/([^/]+)") {
+        if ($path -match "^//v2/([^/]+)") {
             $group = $Matches[1]
         }
         else {
@@ -533,7 +533,7 @@ function Get-ConversationReport {
         [string]$ConversationId,
         [Parameter(Mandatory = $true)]
         [hashtable]$Headers,
-        [string]$BaseUrl = "https://api.mypurecloud.com/api/v2"
+        [string]$BaseUrl = "https://api.usw2.pure.cloud"
     )
 
     $result = [PSCustomObject]@{
@@ -1244,7 +1244,7 @@ function Format-ConversationReportText {
     return $sb.ToString()
 }
 
-$ApiBaseUrl = "https://api.mypurecloud.com/api/v2"
+$ApiBaseUrl = "https://api.usw2.pure.cloud"
 $JobTracker = [PSCustomObject]@{
     Timer      = $null
     JobId      = $null
@@ -2145,7 +2145,7 @@ $btnSubmit.Add_Click({
         }
     }
 
-    $baseUrl = "https://api.mypurecloud.com/api/v2"
+    $baseUrl = "https://api.usw2.pure.cloud"
     $pathWithReplacements = $selectedPath
     foreach ($key in $pathParams.Keys) {
         $escaped = [uri]::EscapeDataString($pathParams[$key])
