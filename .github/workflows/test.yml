@@ -168,19 +168,68 @@ jobs:
         
         Write-Host "JobStatusIsPending logic test passed!"
         
-        # Test Format-ConversationReportText function by extracting it from the main script
-        # Extract the function definition using regex
-        $functionPattern = '(?ms)function Format-ConversationReportText \{.*?^    return \$sb\.ToString\(\)\r?\n\}'
-        $functionMatch = [regex]::Match($scriptContent, $functionPattern)
+        # Extract all timeline-related functions from the main script
+        # We need Get-GCConversationDetailsTimeline, Merge-GCConversationEvents, 
+        # Format-GCConversationTimelineText, Get-GCConversationSummary, 
+        # Format-GCConversationSummaryText, and Format-ConversationReportText
         
-        if (-not $functionMatch.Success) {
-            Write-Host "::error::Could not extract Format-ConversationReportText function from script"
+        # For efficiency, extract functions by finding their positions in the script
+        # and using substring to avoid regex performance issues
+        Write-Host "Extracting functions from script..."
+        
+        # Find function boundaries using simpler patterns
+        $funcNames = @(
+            "Get-GCConversationDetailsTimeline",
+            "Merge-GCConversationEvents",
+            "Format-GCConversationTimelineText",
+            "Get-GCConversationSummary",
+            "Format-GCConversationSummaryText",
+            "Format-ConversationReportText"
+        )
+        
+        # Extract each function by finding its start position and then the next function or end
+        $lines = $scriptContent -split "`n"
+        $functionsCode = ""
+        $inFunction = $false
+        $braceCount = 0
+        $currentFunction = ""
+        
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            
+            # Check if we're starting a function we care about
+            foreach ($fname in $funcNames) {
+                if ($line -match "^function $fname ") {
+                    $inFunction = $true
+                    $currentFunction = $fname
+                    $braceCount = 0
+                    break
+                }
+            }
+            
+            if ($inFunction) {
+                $functionsCode += $line + "`n"
+                
+                # Count braces
+                $braceCount += ($line.ToCharArray() | Where-Object { $_ -eq '{' }).Count
+                $braceCount -= ($line.ToCharArray() | Where-Object { $_ -eq '}' }).Count
+                
+                # If braces are balanced and we've seen at least one opening brace
+                if ($braceCount -eq 0 -and $line.Contains('}')) {
+                    $inFunction = $false
+                    Write-Host "Extracted $currentFunction"
+                }
+            }
+        }
+        
+        if (-not $functionsCode) {
+            Write-Host "::error::Could not extract any functions from script"
             exit 1
         }
         
-        # Create script block from extracted function and invoke
-        $functionCode = $functionMatch.Value
-        Invoke-Expression $functionCode
+        # Execute the extracted functions
+        Invoke-Expression $functionsCode
+        Write-Host "All required functions loaded"
         
         # Test with empty report
         $testReport = [PSCustomObject]@{
@@ -213,6 +262,11 @@ jobs:
             exit 1
         }
         
+        if (-not $reportText.Contains("CHRONOLOGICAL TIMELINE")) {
+            Write-Host "::error::Format-ConversationReportText should include CHRONOLOGICAL TIMELINE section"
+            exit 1
+        }
+        
         Write-Host "Format-ConversationReportText logic test passed!"
         
         # Test with errors
@@ -237,6 +291,157 @@ jobs:
         }
         
         Write-Host "Format-ConversationReportText error handling test passed!"
+        
+        # Test timeline functions with mock data
+        Write-Host ""
+        Write-Host "Testing timeline extraction and merging functions..."
+        
+        # Create mock report with analytics data containing segments
+        $mockAnalyticsDetails = [PSCustomObject]@{
+            participants = @(
+                [PSCustomObject]@{
+                    participantId = "p1"
+                    participantName = "Agent Smith"
+                    purpose = "agent"
+                    sessions = @(
+                        [PSCustomObject]@{
+                            sessionId = "s1"
+                            mediaType = "voice"
+                            direction = "inbound"
+                            ani = "+15551234567"
+                            dnis = "+15559876543"
+                            segments = @(
+                                [PSCustomObject]@{
+                                    segmentType = "interact"
+                                    segmentStart = "2025-01-15T14:32:05Z"
+                                    segmentEnd = "2025-01-15T14:34:10Z"
+                                    metrics = @(
+                                        [PSCustomObject]@{
+                                            name = "nMos"
+                                            value = 3.2
+                                        }
+                                    )
+                                    errorCode = "network.packetloss"
+                                    disconnectType = "agent"
+                                }
+                            )
+                        }
+                    )
+                }
+            )
+        }
+        
+        $mockConversationDetails = [PSCustomObject]@{
+            participants = @(
+                [PSCustomObject]@{
+                    id = "p1"
+                    name = "Agent Smith"
+                    purpose = "agent"
+                    startTime = "2025-01-15T14:32:00Z"
+                    endTime = "2025-01-15T14:34:15Z"
+                    disconnectType = "agent"
+                }
+            )
+        }
+        
+        $mockReport = [PSCustomObject]@{
+            ConversationId = "test-timeline-123"
+            ConversationDetails = $mockConversationDetails
+            AnalyticsDetails = $mockAnalyticsDetails
+            RetrievedAt = "2025-01-15T15:00:00Z"
+            Errors = @()
+        }
+        
+        # Test Get-GCConversationDetailsTimeline
+        $events = Get-GCConversationDetailsTimeline -Report $mockReport
+        
+        if (-not $events -or $events.Count -eq 0) {
+            Write-Host "::error::Get-GCConversationDetailsTimeline should return events from mock data"
+            exit 1
+        }
+        
+        Write-Host "Get-GCConversationDetailsTimeline returned $($events.Count) events"
+        
+        # Test Merge-GCConversationEvents
+        $sortedEvents = Merge-GCConversationEvents -Events $events
+        
+        if (-not $sortedEvents -or $sortedEvents.Count -eq 0) {
+            Write-Host "::error::Merge-GCConversationEvents should return sorted events"
+            exit 1
+        }
+        
+        # Verify events are sorted by timestamp
+        $lastTimestamp = $null
+        foreach ($evt in $sortedEvents) {
+            if ($lastTimestamp -and $evt.Timestamp -lt $lastTimestamp) {
+                Write-Host "::error::Events are not sorted chronologically"
+                exit 1
+            }
+            $lastTimestamp = $evt.Timestamp
+        }
+        
+        Write-Host "Merge-GCConversationEvents sorting test passed!"
+        
+        # Test Format-GCConversationTimelineText
+        $timelineText = Format-GCConversationTimelineText -Events $sortedEvents
+        
+        if (-not $timelineText) {
+            Write-Host "::error::Format-GCConversationTimelineText should return text output"
+            exit 1
+        }
+        
+        # Check for MOS degraded marker
+        if ($timelineText.Contains("MOS=3.20") -and -not $timelineText.Contains("DEGRADED")) {
+            Write-Host "::error::Timeline should mark MOS < 3.5 as DEGRADED"
+            exit 1
+        }
+        
+        Write-Host "Format-GCConversationTimelineText test passed!"
+        
+        # Test Get-GCConversationSummary
+        $summary = Get-GCConversationSummary -ConversationId "test-timeline-123" -Events $sortedEvents
+        
+        if (-not $summary) {
+            Write-Host "::error::Get-GCConversationSummary should return summary object"
+            exit 1
+        }
+        
+        if ($summary.ConversationId -ne "test-timeline-123") {
+            Write-Host "::error::Summary should include conversation ID"
+            exit 1
+        }
+        
+        Write-Host "Get-GCConversationSummary test passed!"
+        
+        # Test Format-GCConversationSummaryText
+        $summaryText = Format-GCConversationSummaryText -Summary $summary
+        
+        if (-not $summaryText.Contains("Summary")) {
+            Write-Host "::error::Summary text should include 'Summary' header"
+            exit 1
+        }
+        
+        if (-not $summaryText.Contains("Segments:")) {
+            Write-Host "::error::Summary text should include segment count"
+            exit 1
+        }
+        
+        Write-Host "Format-GCConversationSummaryText test passed!"
+        
+        # Test full report with timeline data
+        $fullReport = Format-ConversationReportText -Report $mockReport
+        
+        if (-not $fullReport.Contains("CHRONOLOGICAL TIMELINE")) {
+            Write-Host "::error::Full report should include CHRONOLOGICAL TIMELINE section"
+            exit 1
+        }
+        
+        if (-not $fullReport.Contains("Summary")) {
+            Write-Host "::error::Full report should include Summary section"
+            exit 1
+        }
+        
+        Write-Host "Full report with timeline test passed!"
         
         Write-Host ""
         Write-Host "All helper function tests passed!"

@@ -567,6 +567,470 @@ function Get-ConversationReport {
     return $result
 }
 
+<#
+.SYNOPSIS
+    Extracts timeline events from analytics and conversation details.
+.DESCRIPTION
+    Parses both API responses and creates a unified list of events with timestamps,
+    participant info, segment IDs, MOS scores, error codes, and event types.
+#>
+function Get-GCConversationDetailsTimeline {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    $events = @()
+    $segmentCounter = 0
+
+    # Extract events from analytics details (segments with MOS, errorCodes, etc.)
+    if ($Report.AnalyticsDetails -and $Report.AnalyticsDetails.participants) {
+        foreach ($participant in $Report.AnalyticsDetails.participants) {
+            $participantName = if ($participant.participantName) { $participant.participantName } else { $participant.purpose }
+            $participantId = $participant.participantId
+
+            if ($participant.sessions) {
+                foreach ($session in $participant.sessions) {
+                    $mediaType = $session.mediaType
+                    $direction = $session.direction
+                    $ani = $session.ani
+                    $dnis = $session.dnis
+                    $sessionId = $session.sessionId
+
+                    if ($session.segments) {
+                        foreach ($segment in $session.segments) {
+                            $segmentCounter++
+                            $segmentId = $segmentCounter
+                            $segmentType = $segment.segmentType
+                            $queueId = $segment.queueId
+                            $flowId = $segment.flowId
+                            $flowName = $segment.flowName
+                            $queueName = $segment.queueName
+                            $wrapUpCode = $segment.wrapUpCode
+                            $wrapUpNote = $segment.wrapUpNote
+
+                            # Extract MOS and error codes from metrics
+                            $mos = $null
+                            $errorCode = $null
+                            if ($segment.metrics) {
+                                foreach ($metric in $segment.metrics) {
+                                    if ($metric.name -eq "nMos" -or $metric.name -match "mos") {
+                                        $mos = $metric.value
+                                    }
+                                }
+                            }
+                            if ($segment.errorCode) {
+                                $errorCode = $segment.errorCode
+                            }
+                            # Also check for sipResponseCode as an error indicator
+                            if ($segment.sipResponseCode -and -not $errorCode) {
+                                $errorCode = "sip:$($segment.sipResponseCode)"
+                            }
+
+                            # Segment start event
+                            if ($segment.segmentStart) {
+                                $events += [PSCustomObject]@{
+                                    Timestamp    = [DateTime]::Parse($segment.segmentStart)
+                                    Source       = "AnalyticsDetails"
+                                    Participant  = $participantName
+                                    ParticipantId = $participantId
+                                    SegmentId    = $segmentId
+                                    EventType    = "SegmentStart"
+                                    SegmentType  = $segmentType
+                                    MediaType    = $mediaType
+                                    Direction    = $direction
+                                    QueueName    = $queueName
+                                    FlowName     = $flowName
+                                    Mos          = $null
+                                    ErrorCode    = $null
+                                    Context      = "ANI: $ani, DNIS: $dnis"
+                                    DisconnectType = $null
+                                }
+                            }
+
+                            # Segment end event
+                            if ($segment.segmentEnd) {
+                                $disconnectType = $segment.disconnectType
+                                $events += [PSCustomObject]@{
+                                    Timestamp    = [DateTime]::Parse($segment.segmentEnd)
+                                    Source       = "AnalyticsDetails"
+                                    Participant  = $participantName
+                                    ParticipantId = $participantId
+                                    SegmentId    = $segmentId
+                                    EventType    = if ($disconnectType) { "Disconnect" } else { "SegmentEnd" }
+                                    SegmentType  = $segmentType
+                                    MediaType    = $mediaType
+                                    Direction    = $direction
+                                    QueueName    = $queueName
+                                    FlowName     = $flowName
+                                    Mos          = $mos
+                                    ErrorCode    = $errorCode
+                                    Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
+                                    DisconnectType = $disconnectType
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    # Extract events from conversation details (state transitions, etc.)
+    if ($Report.ConversationDetails -and $Report.ConversationDetails.participants) {
+        foreach ($participant in $Report.ConversationDetails.participants) {
+            $participantName = if ($participant.name) { $participant.name } else { $participant.purpose }
+            $participantId = $participant.id
+
+            # Start time event
+            if ($participant.startTime) {
+                $events += [PSCustomObject]@{
+                    Timestamp    = [DateTime]::Parse($participant.startTime)
+                    Source       = "Conversations"
+                    Participant  = $participantName
+                    ParticipantId = $participantId
+                    SegmentId    = $null
+                    EventType    = "ParticipantJoined"
+                    SegmentType  = $null
+                    MediaType    = $null
+                    Direction    = $null
+                    QueueName    = $null
+                    FlowName     = $null
+                    Mos          = $null
+                    ErrorCode    = $null
+                    Context      = "Purpose: $($participant.purpose)"
+                    DisconnectType = $null
+                }
+            }
+
+            # End time / disconnect event
+            if ($participant.endTime) {
+                $disconnectType = $participant.disconnectType
+                $events += [PSCustomObject]@{
+                    Timestamp    = [DateTime]::Parse($participant.endTime)
+                    Source       = "Conversations"
+                    Participant  = $participantName
+                    ParticipantId = $participantId
+                    SegmentId    = $null
+                    EventType    = if ($disconnectType) { "Disconnect" } else { "ParticipantLeft" }
+                    SegmentType  = $null
+                    MediaType    = $null
+                    Direction    = $null
+                    QueueName    = $null
+                    FlowName     = $null
+                    Mos          = $null
+                    ErrorCode    = $null
+                    Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
+                    DisconnectType = $disconnectType
+                }
+            }
+
+            # Process calls/chats for state changes
+            if ($participant.calls) {
+                foreach ($call in $participant.calls) {
+                    if ($call.state -and $call.connectedTime) {
+                        $events += [PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($call.connectedTime)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "StateChange"
+                            SegmentType  = $null
+                            MediaType    = "voice"
+                            Direction    = $call.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: connected"
+                            DisconnectType = $null
+                        }
+                    }
+                    if ($call.disconnectedTime) {
+                        $events += [PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($call.disconnectedTime)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "Disconnect"
+                            SegmentType  = $null
+                            MediaType    = "voice"
+                            Direction    = $call.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: disconnected"
+                            DisconnectType = $call.disconnectType
+                        }
+                    }
+                }
+            }
+
+            # Process chats
+            if ($participant.chats) {
+                foreach ($chat in $participant.chats) {
+                    if ($chat.state -and $chat.connectedTime) {
+                        $events += [PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($chat.connectedTime)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "StateChange"
+                            SegmentType  = $null
+                            MediaType    = "chat"
+                            Direction    = $chat.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: connected"
+                            DisconnectType = $null
+                        }
+                    }
+                    if ($chat.disconnectedTime) {
+                        $events += [PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($chat.disconnectedTime)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "Disconnect"
+                            SegmentType  = $null
+                            MediaType    = "chat"
+                            Direction    = $chat.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: disconnected"
+                            DisconnectType = $chat.disconnectType
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return $events
+}
+
+<#
+.SYNOPSIS
+    Merges and sorts conversation events chronologically.
+.DESCRIPTION
+    Takes events from Get-GCConversationDetailsTimeline and sorts them by timestamp
+    to create a unified, chronological view of the conversation.
+#>
+function Merge-GCConversationEvents {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    # Sort events by timestamp ascending
+    $sortedEvents = $Events | Sort-Object -Property Timestamp
+
+    return $sortedEvents
+}
+
+<#
+.SYNOPSIS
+    Formats the chronological timeline as text output.
+.DESCRIPTION
+    Creates a text-based timeline with each event on a line showing timestamp,
+    event type, participant, segment ID, MOS score, and error code.
+#>
+function Format-GCConversationTimelineText {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    foreach ($event in $Events) {
+        $timestamp = $event.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $eventType = $event.EventType.PadRight(18)
+        
+        # Build participant/context string
+        $participantStr = ""
+        if ($event.FlowName) {
+            $participantStr = "Flow: $($event.FlowName)"
+        } elseif ($event.QueueName) {
+            $participantStr = "Queue: $($event.QueueName)"
+        } elseif ($event.Participant) {
+            $participantStr = $event.Participant
+        } else {
+            $participantStr = "(unknown)"
+        }
+
+        # Build segment string
+        $segmentStr = if ($event.SegmentId) { "seg=$($event.SegmentId)" } else { "" }
+
+        # Build media/direction string
+        $mediaStr = ""
+        if ($event.MediaType -or $event.Direction) {
+            $parts = @()
+            if ($event.MediaType) { $parts += "media=$($event.MediaType)" }
+            if ($event.Direction) { $parts += "dir=$($event.Direction)" }
+            $mediaStr = $parts -join " | "
+        }
+
+        # Build MOS string with degraded marker
+        $mosStr = ""
+        if ($null -ne $event.Mos) {
+            $mosValue = [double]$event.Mos
+            if ($mosValue -lt 3.5) {
+                $mosStr = "MOS=$($mosValue.ToString('0.00')) (DEGRADED)"
+            } else {
+                $mosStr = "MOS=$($mosValue.ToString('0.00'))"
+            }
+        }
+
+        # Build error code string
+        $errorStr = if ($event.ErrorCode) { "errorCode=$($event.ErrorCode)" } else { "" }
+
+        # Build disconnect info
+        $disconnectStr = ""
+        if ($event.EventType -eq "Disconnect" -and $event.DisconnectType) {
+            $disconnectStr = "$($event.Participant) disconnected ($($event.DisconnectType))"
+        }
+
+        # Construct the line
+        $lineParts = @($timestamp, "|", $eventType, "|", $participantStr)
+        if ($segmentStr) { $lineParts += "| $segmentStr" }
+        if ($mediaStr) { $lineParts += "| $mediaStr" }
+        if ($mosStr) { $lineParts += "| $mosStr" }
+        if ($errorStr) { $lineParts += "| $errorStr" }
+        if ($disconnectStr) { $lineParts += "| $disconnectStr" }
+
+        $line = $lineParts -join " "
+        [void]$sb.AppendLine($line.Trim())
+    }
+
+    return $sb.ToString()
+}
+
+<#
+.SYNOPSIS
+    Generates a summary of degraded segments and disconnects.
+.DESCRIPTION
+    Analyzes the timeline events to produce summary statistics including
+    total segments, segments with MOS values, degraded segments (MOS < 3.5),
+    and all disconnect events.
+#>
+function Get-GCConversationSummary {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ConversationId,
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    # Count segments (SegmentEnd events contain the final MOS)
+    $segmentEndEvents = $Events | Where-Object { $_.EventType -eq "SegmentEnd" -or ($_.EventType -eq "Disconnect" -and $_.SegmentId) }
+    $segmentStartEvents = $Events | Where-Object { $_.EventType -eq "SegmentStart" }
+    
+    $totalSegments = ($segmentStartEvents | Measure-Object).Count
+    
+    # Get segments with MOS values
+    $segmentsWithMos = $segmentEndEvents | Where-Object { $null -ne $_.Mos }
+    $segmentsWithMosCount = ($segmentsWithMos | Measure-Object).Count
+    
+    # Get degraded segments (MOS < 3.5)
+    $degradedSegments = $segmentsWithMos | Where-Object { [double]$_.Mos -lt 3.5 }
+    $degradedCount = ($degradedSegments | Measure-Object).Count
+
+    # Get all disconnect events
+    $disconnectEvents = $Events | Where-Object { $_.EventType -eq "Disconnect" }
+
+    # Build segment details lookup (start times)
+    $segmentDetails = @{}
+    foreach ($startEvent in $segmentStartEvents) {
+        if ($startEvent.SegmentId) {
+            $segmentDetails[$startEvent.SegmentId] = $startEvent
+        }
+    }
+
+    return [PSCustomObject]@{
+        ConversationId       = $ConversationId
+        TotalSegments        = $totalSegments
+        SegmentsWithMos      = $segmentsWithMosCount
+        DegradedSegmentCount = $degradedCount
+        DegradedSegments     = $degradedSegments
+        DisconnectEvents     = $disconnectEvents
+        SegmentDetails       = $segmentDetails
+    }
+}
+
+<#
+.SYNOPSIS
+    Formats the conversation summary as text output.
+.DESCRIPTION
+    Creates a text block with summary statistics and lists of degraded
+    segments and disconnect events.
+#>
+function Format-GCConversationSummaryText {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Summary
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("=" * 50 + " Summary " + "=" * 50)
+    [void]$sb.AppendLine("ConversationId: $($Summary.ConversationId)")
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("Segments:          $($Summary.TotalSegments)")
+    [void]$sb.AppendLine("Segments with MOS: $($Summary.SegmentsWithMos)")
+    [void]$sb.AppendLine("Degraded segments (MOS < 3.5): $($Summary.DegradedSegmentCount)")
+    [void]$sb.AppendLine("")
+
+    # List degraded segments
+    if ($Summary.DegradedSegments -and ($Summary.DegradedSegments | Measure-Object).Count -gt 0) {
+        [void]$sb.AppendLine("Degraded segments:")
+        foreach ($seg in $Summary.DegradedSegments) {
+            $startInfo = $Summary.SegmentDetails[$seg.SegmentId]
+            $startTime = if ($startInfo) { $startInfo.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ") } else { "(unknown)" }
+            $endTime = $seg.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            
+            $participantStr = if ($seg.QueueName) { "Queue: $($seg.QueueName)" } `
+                              elseif ($seg.FlowName) { "Flow: $($seg.FlowName)" } `
+                              elseif ($seg.Participant) { $seg.Participant } `
+                              else { "(unknown)" }
+            
+            $mosValue = [double]$seg.Mos
+            $errorStr = if ($seg.ErrorCode) { "errorCode=$($seg.ErrorCode)" } else { "errorCode=" }
+            
+            [void]$sb.AppendLine("  - seg=$($seg.SegmentId) | $participantStr | MOS=$($mosValue.ToString('0.00')) | $startTime-$endTime | $errorStr")
+        }
+        [void]$sb.AppendLine("")
+    }
+
+    # List disconnect events
+    if ($Summary.DisconnectEvents -and ($Summary.DisconnectEvents | Measure-Object).Count -gt 0) {
+        [void]$sb.AppendLine("Disconnects:")
+        foreach ($disc in $Summary.DisconnectEvents) {
+            $timestamp = $disc.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            $segStr = if ($disc.SegmentId) { "seg=$($disc.SegmentId)" } else { "(no segment)" }
+            $disconnector = if ($disc.DisconnectType) { "$($disc.Participant) disconnected ($($disc.DisconnectType))" } else { "$($disc.Participant) disconnected" }
+            $errorStr = if ($disc.ErrorCode) { "errorCode=$($disc.ErrorCode)" } else { "errorCode=" }
+            
+            [void]$sb.AppendLine("  - $timestamp | $segStr | $disconnector | $errorStr")
+        }
+        [void]$sb.AppendLine("")
+    }
+
+    [void]$sb.AppendLine("=" * 109)
+
+    return $sb.ToString()
+}
+
 function Format-ConversationReportText {
     param (
         [Parameter(Mandatory = $true)]
@@ -723,6 +1187,40 @@ function Format-ConversationReportText {
         [void]$sb.AppendLine("-" * 40)
         [void]$sb.AppendLine("ANALYTICS DETAILS: Not available")
         [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("")
+    }
+
+    # Generate chronological timeline by extracting events from both endpoints
+    # and interlacing them in time order
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("CHRONOLOGICAL TIMELINE")
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("")
+
+    try {
+        # Extract events from both API responses
+        $events = Get-GCConversationDetailsTimeline -Report $Report
+        
+        if ($events -and $events.Count -gt 0) {
+            # Merge and sort events chronologically
+            $sortedEvents = Merge-GCConversationEvents -Events $events
+            
+            # Format timeline text
+            $timelineText = Format-GCConversationTimelineText -Events $sortedEvents
+            [void]$sb.AppendLine($timelineText)
+            
+            # Generate and append summary
+            $summary = Get-GCConversationSummary -ConversationId $Report.ConversationId -Events $sortedEvents
+            $summaryText = Format-GCConversationSummaryText -Summary $summary
+            [void]$sb.AppendLine($summaryText)
+        }
+        else {
+            [void]$sb.AppendLine("No timeline events could be extracted from the available data.")
+            [void]$sb.AppendLine("")
+        }
+    }
+    catch {
+        [void]$sb.AppendLine("Error generating timeline: $($_.Exception.Message)")
         [void]$sb.AppendLine("")
     }
 
