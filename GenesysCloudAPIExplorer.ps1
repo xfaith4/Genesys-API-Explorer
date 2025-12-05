@@ -375,6 +375,14 @@ function Update-SchemaList {
     }
 }
 
+# Script-level variables to track tree population progress
+$script:InspectorNodeCount = 0
+$script:InspectorMaxNodes = 2000
+$script:InspectorMaxDepth = 15
+
+# Maximum length for log message truncation
+$script:LogMaxMessageLength = 500
+
 function Populate-InspectorTree {
     param (
         $Tree,
@@ -384,12 +392,40 @@ function Populate-InspectorTree {
     )
 
     if (-not $Tree) { return }
+    
+    # Check if we've exceeded the maximum node count to prevent freezing
+    if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
+        if ($Depth -eq 0) {
+            $limitNode = New-Object System.Windows.Controls.TreeViewItem
+            $limitNode.Header = "[Maximum node limit reached ($($script:InspectorMaxNodes) nodes). Use Raw tab for full data.]"
+            $limitNode.Foreground = [System.Windows.Media.Brushes]::OrangeRed
+            $Tree.Items.Add($limitNode) | Out-Null
+        }
+        return
+    }
+    
+    # Check if we've exceeded the maximum depth to prevent deep recursion
+    if ($Depth -ge $script:InspectorMaxDepth) {
+        $depthNode = New-Object System.Windows.Controls.TreeViewItem
+        $depthNode.Header = "[Max depth reached - use Raw tab for full data]"
+        $depthNode.Foreground = [System.Windows.Media.Brushes]::Gray
+        $Tree.Items.Add($depthNode) | Out-Null
+        return
+    }
 
+    $script:InspectorNodeCount++
     $node = New-Object System.Windows.Controls.TreeViewItem
     $isEnumerable = ($Data -is [System.Collections.IEnumerable]) -and -not ($Data -is [string])
     if ($Data -and $Data.PSObject.Properties.Count -gt 0) {
         $node.Header = "$($Label) (object)"
         foreach ($prop in $Data.PSObject.Properties) {
+            if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
+                $ellipsis = New-Object System.Windows.Controls.TreeViewItem
+                $ellipsis.Header = "[... node limit reached]"
+                $ellipsis.Foreground = [System.Windows.Media.Brushes]::Gray
+                $node.Items.Add($ellipsis) | Out-Null
+                break
+            }
             Populate-InspectorTree -Tree $node -Data $prop.Value -Label "$($prop.Name)" -Depth ($Depth + 1)
         }
     }
@@ -399,7 +435,15 @@ function Populate-InspectorTree {
         foreach ($item in $Data) {
             if ($count -ge 150) {
                 $ellipsis = New-Object System.Windows.Controls.TreeViewItem
-                $ellipsis.Header = "[...]"
+                $ellipsis.Header = "[... $($Data.Count - 150) more items]"
+                $ellipsis.Foreground = [System.Windows.Media.Brushes]::Gray
+                $node.Items.Add($ellipsis) | Out-Null
+                break
+            }
+            if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
+                $ellipsis = New-Object System.Windows.Controls.TreeViewItem
+                $ellipsis.Header = "[... node limit reached]"
+                $ellipsis.Foreground = [System.Windows.Media.Brushes]::Gray
                 $node.Items.Add($ellipsis) | Out-Null
                 break
             }
@@ -486,7 +530,11 @@ function Show-DataInspector {
 
     if ($treeView) {
         $treeView.Items.Clear()
+        # Reset the node counter before populating
+        $script:InspectorNodeCount = 0
+        Add-LogEntry "Inspector: Building tree view for data (max $($script:InspectorMaxNodes) nodes, max depth $($script:InspectorMaxDepth))..."
         Populate-InspectorTree -Tree $treeView -Data $parsed -Label "root"
+        Add-LogEntry "Inspector: Tree view populated with $($script:InspectorNodeCount) nodes."
     }
 
     if ($copyButton) {
@@ -2193,15 +2241,55 @@ $btnSubmit.Add_Click({
     } catch {
         $errorMessage = $_.Exception.Message
         $statusCode = ""
-        if ($_.Exception.Response -is [System.Net.HttpWebResponse]) {
-            $statusCode = "Status $($($_.Exception.Response.StatusCode)) - "
+        $errorResponseBody = ""
+        
+        # Try to extract detailed error information from the HTTP response
+        if ($_.Exception.Response) {
+            $response = $_.Exception.Response
+            if ($response -is [System.Net.HttpWebResponse]) {
+                $statusCode = "Status $($response.StatusCode) ($([int]$response.StatusCode)) - "
+                try {
+                    $responseStream = $response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($responseStream)
+                    $errorResponseBody = $reader.ReadToEnd()
+                    $reader.Close()
+                    $responseStream.Close()
+                } catch {
+                    # Could not read response body
+                }
+            }
         }
-        $responseBox.Text = "Error:`r`n$statusCode$errorMessage"
+        
+        # Build the display message
+        $displayMessage = "Error:`r`n$statusCode$errorMessage"
+        if ($errorResponseBody) {
+            # Try to format as JSON if possible
+            try {
+                $errorJson = $errorResponseBody | ConvertFrom-Json -ErrorAction Stop
+                $formattedError = $errorJson | ConvertTo-Json -Depth 5
+                $displayMessage += "`r`n`r`nResponse Body:`r`n$formattedError"
+            } catch {
+                $displayMessage += "`r`n`r`nResponse Body:`r`n$errorResponseBody"
+            }
+        }
+        
+        $responseBox.Text = $displayMessage
         $btnSave.IsEnabled = $false
         $statusText.Text = "Request failed - see log."
         $script:LastResponseRaw = ""
         $script:LastResponseFile = ""
+        
+        # Log detailed error information to the transparency log
         Add-LogEntry "Response error: $statusCode$errorMessage"
+        if ($errorResponseBody) {
+            # Truncate very long error responses for the log
+            $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) { 
+                $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)" 
+            } else { 
+                $errorResponseBody 
+            }
+            Add-LogEntry "Error response body: $logBody"
+        }
     }
 })
 
