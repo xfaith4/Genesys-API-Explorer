@@ -168,63 +168,19 @@ jobs:
         
         Write-Host "JobStatusIsPending logic test passed!"
         
-        # Test Format-ConversationReportText function logic
-        function Test-FormatConversationReportText {
-            param (
-                [Parameter(Mandatory = $true)]
-                $Report
-            )
-
-            $sb = [System.Text.StringBuilder]::new()
-
-            [void]$sb.AppendLine("=" * 60)
-            [void]$sb.AppendLine("CONVERSATION REPORT")
-            [void]$sb.AppendLine("=" * 60)
-            [void]$sb.AppendLine("")
-            [void]$sb.AppendLine("Conversation ID: $($Report.ConversationId)")
-            [void]$sb.AppendLine("Retrieved At: $($Report.RetrievedAt)")
-            [void]$sb.AppendLine("")
-
-            if ($Report.Errors -and $Report.Errors.Count -gt 0) {
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("ERRORS")
-                [void]$sb.AppendLine("-" * 40)
-                foreach ($err in $Report.Errors) {
-                    [void]$sb.AppendLine("  - $err")
-                }
-                [void]$sb.AppendLine("")
-            }
-
-            if ($Report.ConversationDetails) {
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("CONVERSATION DETAILS")
-                [void]$sb.AppendLine("-" * 40)
-            }
-            else {
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("CONVERSATION DETAILS: Not available")
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("")
-            }
-
-            if ($Report.AnalyticsDetails) {
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("ANALYTICS DETAILS")
-                [void]$sb.AppendLine("-" * 40)
-            }
-            else {
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("ANALYTICS DETAILS: Not available")
-                [void]$sb.AppendLine("-" * 40)
-                [void]$sb.AppendLine("")
-            }
-
-            [void]$sb.AppendLine("=" * 60)
-            [void]$sb.AppendLine("END OF REPORT")
-            [void]$sb.AppendLine("=" * 60)
-
-            return $sb.ToString()
+        # Test Format-ConversationReportText function by extracting it from the main script
+        # Extract the function definition using regex
+        $functionPattern = '(?ms)function Format-ConversationReportText \{.*?^    return \$sb\.ToString\(\)\r?\n\}'
+        $functionMatch = [regex]::Match($scriptContent, $functionPattern)
+        
+        if (-not $functionMatch.Success) {
+            Write-Host "::error::Could not extract Format-ConversationReportText function from script"
+            exit 1
         }
+        
+        # Create script block from extracted function and invoke
+        $functionCode = $functionMatch.Value
+        Invoke-Expression $functionCode
         
         # Test with empty report
         $testReport = [PSCustomObject]@{
@@ -235,7 +191,7 @@ jobs:
             Errors              = @()
         }
         
-        $reportText = Test-FormatConversationReportText -Report $testReport
+        $reportText = Format-ConversationReportText -Report $testReport
         
         if (-not $reportText.Contains("CONVERSATION REPORT")) {
             Write-Host "::error::Format-ConversationReportText should include CONVERSATION REPORT header"
@@ -268,7 +224,7 @@ jobs:
             Errors              = @("Test error 1", "Test error 2")
         }
         
-        $reportTextWithErrors = Test-FormatConversationReportText -Report $testReportWithErrors
+        $reportTextWithErrors = Format-ConversationReportText -Report $testReportWithErrors
         
         if (-not $reportTextWithErrors.Contains("ERRORS")) {
             Write-Host "::error::Format-ConversationReportText should include ERRORS section when errors exist"

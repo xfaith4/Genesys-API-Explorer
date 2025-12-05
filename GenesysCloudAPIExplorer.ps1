@@ -532,7 +532,8 @@ function Get-ConversationReport {
         [Parameter(Mandatory = $true)]
         [string]$ConversationId,
         [Parameter(Mandatory = $true)]
-        [hashtable]$Headers
+        [hashtable]$Headers,
+        [string]$BaseUrl = "https://api.mypurecloud.com/api/v2"
     )
 
     $result = [PSCustomObject]@{
@@ -543,10 +544,8 @@ function Get-ConversationReport {
         Errors              = @()
     }
 
-    $baseUrl = "https://api.mypurecloud.com/api/v2"
-
     # Fetch conversation details
-    $conversationUrl = "$baseUrl/conversations/$ConversationId"
+    $conversationUrl = "$BaseUrl/conversations/$ConversationId"
     try {
         $conversationResponse = Invoke-WebRequest -Uri $conversationUrl -Method Get -Headers $Headers -ErrorAction Stop
         $result.ConversationDetails = $conversationResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
@@ -556,7 +555,7 @@ function Get-ConversationReport {
     }
 
     # Fetch analytics details
-    $analyticsUrl = "$baseUrl/analytics/conversations/$ConversationId/details"
+    $analyticsUrl = "$BaseUrl/analytics/conversations/$ConversationId/details"
     try {
         $analyticsResponse = Invoke-WebRequest -Uri $analyticsUrl -Method Get -Headers $Headers -ErrorAction Stop
         $result.AnalyticsDetails = $analyticsResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
@@ -1485,7 +1484,7 @@ if ($runConversationReportButton) {
         Add-LogEntry "Generating conversation report for: $convId"
 
         try {
-            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers
+            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl
             $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
             
             $reportText = Format-ConversationReportText -Report $script:LastConversationReport
