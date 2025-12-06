@@ -101,8 +101,7 @@ function Show-SettingsDialog {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Endpoints Configuration" Height="300" Width="600"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="False">
   <StackPanel Margin="20" VerticalAlignment="Top">
     <TextBlock Text="Genesys Cloud API Endpoints Configuration" FontSize="14" FontWeight="Bold" Margin="0 0 0 15"/>
 
@@ -141,7 +140,8 @@ function Show-SettingsDialog {
 
     $currentPathText.Text = $CurrentJsonPath
 
-    $selectedFile = ""
+    # Use script scope for the selected file so closures can access/modify it
+    $script:SettingsDialogSelectedFile = ""
 
     $browseButton.Add_Click({
         $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
@@ -149,24 +149,24 @@ function Show-SettingsDialog {
         $openFileDialog.InitialDirectory = Split-Path -Parent $CurrentJsonPath
 
         if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $selectedFile = $openFileDialog.FileName
-            $selectedFileText.Text = $selectedFile
+            $script:SettingsDialogSelectedFile = $openFileDialog.FileName
+            $selectedFileText.Text = $script:SettingsDialogSelectedFile
         }
     })
 
     $applyButton.Add_Click({
-        if (-not $selectedFile) {
+        if (-not $script:SettingsDialogSelectedFile) {
             [System.Windows.MessageBox]::Show("Please select a JSON file.", "No File Selected", "OK", "Information")
             return
         }
 
-        if (-not (Test-Path -Path $selectedFile)) {
+        if (-not (Test-Path -Path $script:SettingsDialogSelectedFile)) {
             [System.Windows.MessageBox]::Show("The selected file does not exist.", "File Not Found", "OK", "Error")
             return
         }
 
         try {
-            $testJson = Get-Content -Path $selectedFile -Raw | ConvertFrom-Json -ErrorAction Stop
+            $testJson = Get-Content -Path $script:SettingsDialogSelectedFile -Raw | ConvertFrom-Json -ErrorAction Stop
 
             # Verify the JSON has required structure
             $hasPaths = $false
@@ -197,7 +197,7 @@ function Show-SettingsDialog {
     $settingsWindow.ShowDialog() | Out-Null
 
     if ($settingsWindow.DialogResult) {
-        return $selectedFile
+        return $script:SettingsDialogSelectedFile
     } else {
         return $null
     }
@@ -2500,7 +2500,7 @@ if (-not $ScriptRoot) {
 $UserProfileBase = if ($env:USERPROFILE) { $env:USERPROFILE } else { $ScriptRoot }
 $FavoritesFile = Join-Path -Path $UserProfileBase -ChildPath "GenesysApiExplorerFavorites.json"
 
-$JsonPath = Join-Path -Path $ScriptRoot -ChildPath "\GenesysCloudAPIEndpoints.json"
+$JsonPath = Join-Path -Path $ScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
 if (-not (Test-Path -Path $JsonPath)) {
     Write-Error "Required endpoint catalog not found at '$JsonPath'."
     return
@@ -2513,6 +2513,36 @@ $script:Definitions = if ($ApiCatalog.Definitions) { $ApiCatalog.Definitions } e
 $script:GroupMap = Build-GroupMap -Paths $script:ApiPaths
 $FavoritesData = Load-FavoritesFromDisk -Path $FavoritesFile
 $Favorites = Build-FavoritesCollection -Source $FavoritesData
+
+# Load example POST bodies for conversations endpoints
+$ExamplePostBodiesPath = Join-Path -Path $ScriptRoot -ChildPath "ExamplePostBodies.json"
+$script:ExamplePostBodies = @{}
+if (Test-Path -Path $ExamplePostBodiesPath) {
+    try {
+        $script:ExamplePostBodies = Get-Content -Path $ExamplePostBodiesPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Warning "Could not load example POST bodies from '$ExamplePostBodiesPath': $($_.Exception.Message)"
+    }
+}
+
+function Get-ExamplePostBody {
+    param (
+        [string]$Path,
+        [string]$Method
+    )
+    
+    if (-not $script:ExamplePostBodies) { return $null }
+    
+    $methodLower = $Method.ToLower()
+    
+    # Check if this path and method has an example
+    $pathData = $script:ExamplePostBodies.PSObject.Properties | Where-Object { $_.Name -eq $Path }
+    if ($pathData -and $pathData.Value.$methodLower -and $pathData.Value.$methodLower.example) {
+        return ($pathData.Value.$methodLower.example | ConvertTo-Json -Depth 10)
+    }
+    
+    return $null
+}
 
 $Xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -2924,6 +2954,22 @@ $methodCombo.Add_SelectionChanged({
     if ($pendingFavoriteParameters) {
         Populate-ParameterValues -ParameterSet $pendingFavoriteParameters
         $pendingFavoriteParameters = $null
+    } else {
+        # Try to populate body parameter with example template if available
+        $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
+        if ($exampleBody) {
+            # Find the body parameter input and populate it
+            foreach ($param in $params) {
+                if ($param.in -eq "body") {
+                    $bodyInput = $paramInputs[$param.name]
+                    if ($bodyInput) {
+                        $bodyInput.Text = $exampleBody
+                        $statusText.Text = "Example body template loaded. Modify as needed and submit."
+                    }
+                    break
+                }
+            }
+        }
     }
     $responseSchema = Get-ResponseSchema -MethodObject $methodObject
     Update-SchemaList -Schema $responseSchema
@@ -3043,7 +3089,7 @@ if ($settingsMenuItem) {
 
 if ($resetEndpointsMenuItem) {
     $resetEndpointsMenuItem.Add_Click({
-        $defaultPath = Join-Path -Path $ScriptRoot -ChildPath "\GenesysCloudAPIEndpoints.json"
+        $defaultPath = Join-Path -Path $ScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
         if (Test-Path -Path $defaultPath) {
             if (Invoke-ReloadEndpoints -JsonPath $defaultPath) {
                 [System.Windows.MessageBox]::Show("Endpoints reset to default configuration.", "Reset Complete", "OK", "Information")
