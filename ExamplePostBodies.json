@@ -1,0 +1,19 @@
+{
+  "/api/v2/users": {
+    "post": {
+      "example": {
+        "name": "Jane Doe",
+        "email": "jane.doe@example.com",
+        "password": "secret123"
+      }
+    }
+  },
+  "/api/v2/conversations/callbacks": {
+    "post": {
+      "example": {
+        "callbackNumbers": ["+13175551234"],
+        "queueId": "queue-id-goes-here"
+      }
+    }
+  }
+}
