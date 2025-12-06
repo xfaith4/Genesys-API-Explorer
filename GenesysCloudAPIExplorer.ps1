@@ -1092,6 +1092,795 @@ function Format-GCConversationSummaryText {
     return $sb.ToString()
 }
 
+<#
+.SYNOPSIS
+    Calculates duration statistics from conversation events and analytics data.
+.DESCRIPTION
+    Computes total duration, IVR time, queue wait time, agent talk time, hold time,
+    wrap-up time, and other timing metrics from the conversation data.
+#>
+function Get-GCConversationDurationAnalysis {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report,
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    $analysis = [PSCustomObject]@{
+        TotalDurationSeconds = 0
+        IvrTimeSeconds       = 0
+        QueueWaitSeconds     = 0
+        AgentTalkSeconds     = 0
+        HoldTimeSeconds      = 0
+        WrapUpSeconds        = 0
+        ConferenceSeconds    = 0
+        SystemTimeSeconds    = 0
+        InteractTimeSeconds  = 0
+        AlertTimeSeconds     = 0
+        ConversationStart    = $null
+        ConversationEnd      = $null
+        SegmentBreakdown     = @{}
+    }
+
+    # Get conversation start/end times from analytics or conversation details
+    if ($Report.AnalyticsDetails) {
+        if ($Report.AnalyticsDetails.conversationStart) {
+            $analysis.ConversationStart = [DateTime]::Parse($Report.AnalyticsDetails.conversationStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        }
+        if ($Report.AnalyticsDetails.conversationEnd) {
+            $analysis.ConversationEnd = [DateTime]::Parse($Report.AnalyticsDetails.conversationEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        }
+    }
+
+    # Calculate total duration
+    if ($analysis.ConversationStart -and $analysis.ConversationEnd) {
+        $analysis.TotalDurationSeconds = ($analysis.ConversationEnd - $analysis.ConversationStart).TotalSeconds
+    }
+
+    # Process segments from analytics to extract timing metrics
+    if ($Report.AnalyticsDetails -and $Report.AnalyticsDetails.participants) {
+        foreach ($participant in $Report.AnalyticsDetails.participants) {
+            if ($participant.sessions) {
+                foreach ($session in $participant.sessions) {
+                    # Extract metrics from session if available
+                    if ($session.metrics) {
+                        foreach ($metric in $session.metrics) {
+                            # Metrics are typically in milliseconds
+                            $valueSeconds = if ($metric.value) { $metric.value / 1000.0 } else { 0 }
+                            # Note: "Complete" metrics are cumulative totals; regular metrics may be emitted multiple times
+                            # For talk/held, we use the "Complete" values when available as they represent totals
+                            switch ($metric.name) {
+                                "tIvr" { $analysis.IvrTimeSeconds += $valueSeconds }
+                                "tAcd" { $analysis.QueueWaitSeconds += $valueSeconds }
+                                "tTalk" { 
+                                    # Regular tTalk may be emitted multiple times; track the max as a fallback
+                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) 
+                                }
+                                "tTalkComplete" { 
+                                    # Complete value is the authoritative total
+                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) 
+                                }
+                                "tHeld" { 
+                                    # Regular tHeld may be emitted multiple times; track the max as a fallback
+                                    $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds)
+                                }
+                                "tHeldComplete" { 
+                                    # Complete value is the authoritative total
+                                    $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds) 
+                                }
+                                "tAcw" { $analysis.WrapUpSeconds += $valueSeconds }
+                                "tAlert" { $analysis.AlertTimeSeconds += $valueSeconds }
+                            }
+                        }
+                    }
+
+                    # Calculate segment-based timing
+                    if ($session.segments) {
+                        foreach ($segment in $session.segments) {
+                            if ($segment.segmentStart -and $segment.segmentEnd) {
+                                $start = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $end = [DateTime]::Parse($segment.segmentEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $durationSec = ($end - $start).TotalSeconds
+
+                                $segType = if ($segment.segmentType) { $segment.segmentType } else { "unknown" }
+                                if (-not $analysis.SegmentBreakdown.ContainsKey($segType)) {
+                                    $analysis.SegmentBreakdown[$segType] = 0
+                                }
+                                $analysis.SegmentBreakdown[$segType] += $durationSec
+
+                                switch ($segType) {
+                                    "interact" { $analysis.InteractTimeSeconds += $durationSec }
+                                    "hold" { $analysis.HoldTimeSeconds += $durationSec }
+                                    "system" { $analysis.SystemTimeSeconds += $durationSec }
+                                    "ivr" { $analysis.IvrTimeSeconds += $durationSec }
+                                    "wrapup" { $analysis.WrapUpSeconds += $durationSec }
+                                    "alert" { $analysis.AlertTimeSeconds += $durationSec }
+                                }
+
+                                if ($segment.conference -eq $true) {
+                                    $analysis.ConferenceSeconds += $durationSec
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return $analysis
+}
+
+<#
+.SYNOPSIS
+    Generates participant statistics from conversation data.
+.DESCRIPTION
+    Calculates per-participant metrics including time in conversation,
+    segment counts, and role-specific information.
+#>
+function Get-GCParticipantStatistics {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    $stats = [System.Collections.ArrayList]::new()
+
+    if ($Report.AnalyticsDetails -and $Report.AnalyticsDetails.participants) {
+        foreach ($participant in $Report.AnalyticsDetails.participants) {
+            $participantName = if ($participant.participantName) { $participant.participantName } else { $participant.purpose }
+            $purpose = $participant.purpose
+
+            $participantStat = [PSCustomObject]@{
+                Name           = $participantName
+                ParticipantId  = $participant.participantId
+                Purpose        = $purpose
+                SessionCount   = 0
+                SegmentCount   = 0
+                TotalDurationSeconds = 0
+                MediaTypes     = [System.Collections.ArrayList]::new()
+                DisconnectType = $null
+                HasErrors      = $false
+                ErrorCodes     = [System.Collections.ArrayList]::new()
+                MosScores      = [System.Collections.ArrayList]::new()
+                FlowNames      = [System.Collections.ArrayList]::new()
+                QueueNames     = [System.Collections.ArrayList]::new()
+            }
+
+            if ($participant.sessions) {
+                $participantStat.SessionCount = $participant.sessions.Count
+
+                foreach ($session in $participant.sessions) {
+                    if ($session.mediaType -and $participantStat.MediaTypes -notcontains $session.mediaType) {
+                        [void]$participantStat.MediaTypes.Add($session.mediaType)
+                    }
+
+                    # Extract flow info
+                    if ($session.flow -and $session.flow.flowName) {
+                        if ($participantStat.FlowNames -notcontains $session.flow.flowName) {
+                            [void]$participantStat.FlowNames.Add($session.flow.flowName)
+                        }
+                    }
+
+                    if ($session.segments) {
+                        $participantStat.SegmentCount += $session.segments.Count
+
+                        foreach ($segment in $session.segments) {
+                            # Calculate segment duration
+                            if ($segment.segmentStart -and $segment.segmentEnd) {
+                                $start = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $end = [DateTime]::Parse($segment.segmentEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $participantStat.TotalDurationSeconds += ($end - $start).TotalSeconds
+                            }
+
+                            # Track disconnect type
+                            if ($segment.disconnectType -and -not $participantStat.DisconnectType) {
+                                $participantStat.DisconnectType = $segment.disconnectType
+                            }
+
+                            # Track errors
+                            if ($segment.errorCode) {
+                                $participantStat.HasErrors = $true
+                                if ($participantStat.ErrorCodes -notcontains $segment.errorCode) {
+                                    [void]$participantStat.ErrorCodes.Add($segment.errorCode)
+                                }
+                            }
+
+                            # Track queue names
+                            if ($segment.queueId) {
+                                # Note: queueId would need lookup for actual name
+                                if ($participantStat.QueueNames -notcontains $segment.queueId) {
+                                    [void]$participantStat.QueueNames.Add($segment.queueId)
+                                }
+                            }
+                        }
+                    }
+
+                    # Track MOS from media endpoint stats
+                    if ($session.mediaEndpointStats) {
+                        foreach ($stat in $session.mediaEndpointStats) {
+                            if ($stat.minMos) {
+                                [void]$participantStat.MosScores.Add($stat.minMos)
+                            }
+                        }
+                    }
+                }
+            }
+
+            [void]$stats.Add($participantStat)
+        }
+    }
+
+    return $stats
+}
+
+<#
+.SYNOPSIS
+    Analyzes the conversation flow and path.
+.DESCRIPTION
+    Creates a visual representation of the conversation path showing
+    how the call moved between IVR, queues, agents, and external parties.
+#>
+function Get-GCConversationFlowPath {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    $flowPath = [System.Collections.ArrayList]::new()
+
+    if ($Report.AnalyticsDetails -and $Report.AnalyticsDetails.participants) {
+        # Sort participants by their first segment start time
+        $participantOrder = @()
+        foreach ($participant in $Report.AnalyticsDetails.participants) {
+            $earliestTime = $null
+            if ($participant.sessions) {
+                foreach ($session in $participant.sessions) {
+                    if ($session.segments) {
+                        foreach ($segment in $session.segments) {
+                            if ($segment.segmentStart) {
+                                $segTime = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                if (-not $earliestTime -or $segTime -lt $earliestTime) {
+                                    $earliestTime = $segTime
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            $participantOrder += [PSCustomObject]@{
+                Participant = $participant
+                StartTime   = $earliestTime
+            }
+        }
+
+        $sortedParticipants = $participantOrder | Sort-Object -Property StartTime
+
+        foreach ($entry in $sortedParticipants) {
+            $participant = $entry.Participant
+            $participantName = if ($participant.participantName) { $participant.participantName } else { $participant.purpose }
+            $purpose = $participant.purpose
+
+            $flowStep = [PSCustomObject]@{
+                Order        = $flowPath.Count + 1
+                Name         = $participantName
+                Purpose      = $purpose
+                StartTime    = $entry.StartTime
+                FlowName     = $null
+                TransferType = $null
+                TransferTo   = $null
+            }
+
+            # Get flow info and transfer details
+            if ($participant.sessions) {
+                foreach ($session in $participant.sessions) {
+                    if ($session.flow) {
+                        $flowStep.FlowName = $session.flow.flowName
+                        $flowStep.TransferType = $session.flow.transferType
+                        $flowStep.TransferTo = $session.flow.transferTargetName
+                    }
+                }
+            }
+
+            [void]$flowPath.Add($flowStep)
+        }
+    }
+
+    return $flowPath
+}
+
+<#
+.SYNOPSIS
+    Generates key insights from the conversation analysis.
+.DESCRIPTION
+    Analyzes all conversation data to produce actionable insights and
+    highlights about quality issues, timing anomalies, and patterns.
+#>
+function Get-GCConversationKeyInsights {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report,
+        [Parameter(Mandatory = $true)]
+        $DurationAnalysis,
+        [Parameter(Mandatory = $true)]
+        $ParticipantStats,
+        [Parameter(Mandatory = $true)]
+        $Summary
+    )
+
+    $insights = [System.Collections.ArrayList]::new()
+
+    # Insight: Overall quality assessment
+    $minMos = $null
+    if ($Report.AnalyticsDetails -and $Report.AnalyticsDetails.mediaStatsMinConversationMos) {
+        $minMos = $Report.AnalyticsDetails.mediaStatsMinConversationMos
+        if ($minMos -lt 3.0) {
+            [void]$insights.Add([PSCustomObject]@{
+                Category = "CRITICAL"
+                Type     = "Quality"
+                Message  = "Very poor voice quality detected (MOS: $([Math]::Round($minMos, 2))). Call likely had significant audio issues."
+            })
+        }
+        elseif ($minMos -lt 3.5) {
+            [void]$insights.Add([PSCustomObject]@{
+                Category = "WARNING"
+                Type     = "Quality"
+                Message  = "Below-average voice quality detected (MOS: $([Math]::Round($minMos, 2))). Some audio degradation may have occurred."
+            })
+        }
+        elseif ($minMos -ge 4.0) {
+            [void]$insights.Add([PSCustomObject]@{
+                Category = "OK"
+                Type     = "Quality"
+                Message  = "Good voice quality maintained throughout (MOS: $([Math]::Round($minMos, 2)))."
+            })
+        }
+    }
+
+    # Insight: Long hold times
+    if ($DurationAnalysis.HoldTimeSeconds -gt 300) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "WARNING"
+            Type     = "Experience"
+            Message  = "Extended hold time detected ($([Math]::Round($DurationAnalysis.HoldTimeSeconds / 60, 1)) minutes). Customer may have experienced frustration."
+        })
+    }
+
+    # Insight: Long IVR time
+    if ($DurationAnalysis.IvrTimeSeconds -gt 180) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "INFO"
+            Type     = "Flow"
+            Message  = "Extended IVR navigation ($([Math]::Round($DurationAnalysis.IvrTimeSeconds / 60, 1)) minutes). Consider reviewing IVR flow complexity."
+        })
+    }
+
+    # Insight: Multiple transfers
+    $transferCount = 0
+    foreach ($stat in $ParticipantStats) {
+        if ($stat.Purpose -eq "agent" -or $stat.Purpose -eq "acd") {
+            $transferCount++
+        }
+    }
+    if ($transferCount -gt 2) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "WARNING"
+            Type     = "Flow"
+            Message  = "Multiple transfers occurred ($transferCount agent/queue handoffs). Customer experience may be affected."
+        })
+    }
+
+    # Insight: Error conditions
+    $hasErrors = $false
+    $errorTypes = [System.Collections.ArrayList]::new()
+    foreach ($stat in $ParticipantStats) {
+        if ($stat.HasErrors) {
+            $hasErrors = $true
+            foreach ($err in $stat.ErrorCodes) {
+                if ($errorTypes -notcontains $err) {
+                    [void]$errorTypes.Add($err)
+                }
+            }
+        }
+    }
+    if ($hasErrors) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "WARNING"
+            Type     = "Error"
+            Message  = "Technical errors occurred during the conversation: $($errorTypes -join ', ')"
+        })
+    }
+
+    # Insight: Abnormal disconnect
+    $abnormalDisconnects = @("error", "system", "timeout")
+    foreach ($stat in $ParticipantStats) {
+        if ($null -ne $stat.DisconnectType -and $stat.DisconnectType -ne "" -and $abnormalDisconnects -contains $stat.DisconnectType.ToLower()) {
+            [void]$insights.Add([PSCustomObject]@{
+                Category = "WARNING"
+                Type     = "Disconnect"
+                Message  = "$($stat.Name) disconnected abnormally ($($stat.DisconnectType)). May indicate technical issue."
+            })
+        }
+    }
+
+    # Insight: Conference call
+    if ($DurationAnalysis.ConferenceSeconds -gt 0) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "INFO"
+            Type     = "Flow"
+            Message  = "Conference call included ($([Math]::Round($DurationAnalysis.ConferenceSeconds / 60, 1)) minutes with multiple parties)."
+        })
+    }
+
+    # Insight: Long total duration
+    if ($DurationAnalysis.TotalDurationSeconds -gt 3600) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "INFO"
+            Type     = "Duration"
+            Message  = "Extended conversation duration ($([Math]::Round($DurationAnalysis.TotalDurationSeconds / 60, 0)) minutes). May require follow-up review."
+        })
+    }
+
+    # Insight: Short conversation (might be abandoned)
+    if ($DurationAnalysis.TotalDurationSeconds -gt 0 -and $DurationAnalysis.TotalDurationSeconds -lt 30) {
+        [void]$insights.Add([PSCustomObject]@{
+            Category = "INFO"
+            Type     = "Duration"
+            Message  = "Very short conversation ($([Math]::Round($DurationAnalysis.TotalDurationSeconds, 0)) seconds). May indicate abandoned call or quick resolution."
+        })
+    }
+
+    # Add a general quality rating
+    $qualityRating = "Unknown"
+    $ratingScore = 0
+    
+    # Score calculation based on various factors
+    if ($minMos) {
+        if ($minMos -ge 4.0) { $ratingScore += 3 }
+        elseif ($minMos -ge 3.5) { $ratingScore += 2 }
+        elseif ($minMos -ge 3.0) { $ratingScore += 1 }
+    }
+    if ($DurationAnalysis.HoldTimeSeconds -lt 60) { $ratingScore += 1 }
+    if ($transferCount -le 1) { $ratingScore += 1 }
+    if (-not $hasErrors) { $ratingScore += 2 }
+
+    if ($ratingScore -ge 6) { $qualityRating = "Excellent" }
+    elseif ($ratingScore -ge 4) { $qualityRating = "Good" }
+    elseif ($ratingScore -ge 2) { $qualityRating = "Fair" }
+    else { $qualityRating = "Needs Review" }
+
+    [void]$insights.Insert(0, [PSCustomObject]@{
+        Category = "OVERALL"
+        Type     = "Rating"
+        Message  = "Overall Quality: $qualityRating (Score: $ratingScore/8)"
+    })
+
+    return $insights
+}
+
+<#
+.SYNOPSIS
+    Provides human-readable explanations for common error codes.
+.DESCRIPTION
+    Maps Genesys Cloud error codes to user-friendly descriptions
+    and potential resolution steps.
+#>
+function Get-GCErrorExplanation {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ErrorCode
+    )
+
+    $explanations = @{
+        "error.ininedgecontrol.session.inactive"         = "Session became inactive, possibly due to network issues or timeout."
+        "error.ininedgecontrol.connection.media.endpoint.idle" = "Media endpoint went idle, often due to prolonged silence or network dropout."
+        "sip:400" = "Bad Request - The SIP request was malformed or invalid."
+        "sip:403" = "Forbidden - The request was understood but refused."
+        "sip:404" = "Not Found - The requested resource could not be found."
+        "sip:408" = "Request Timeout - The server timed out waiting for the request."
+        "sip:410" = "Gone - The resource is no longer available (often indicates transfer completion)."
+        "sip:480" = "Temporarily Unavailable - The callee is currently unavailable."
+        "sip:486" = "Busy Here - The callee is busy."
+        "sip:487" = "Request Terminated - The request was terminated by a BYE or CANCEL."
+        "sip:500" = "Server Internal Error - An internal server error occurred."
+        "sip:502" = "Bad Gateway - The gateway received an invalid response."
+        "sip:503" = "Service Unavailable - The service is temporarily unavailable."
+        "sip:504" = "Gateway Timeout - The gateway timed out."
+        "network.packetloss" = "Network packet loss detected, causing audio quality degradation."
+        "network.jitter" = "Network jitter detected, causing inconsistent audio delivery."
+    }
+
+    if ($explanations.ContainsKey($ErrorCode)) {
+        return $explanations[$ErrorCode]
+    }
+
+    # Try partial match for error codes
+    foreach ($key in $explanations.Keys) {
+        if ($ErrorCode -like "*$key*") {
+            return $explanations[$key]
+        }
+    }
+
+    return "Unknown error condition. Review system logs for details."
+}
+
+<#
+.SYNOPSIS
+    Formats the key insights section for the report.
+.DESCRIPTION
+    Creates a formatted text block with categorized insights
+    that appears at the top of the report for quick review.
+#>
+function Format-GCKeyInsightsText {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Insights
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("*" * 60)
+    [void]$sb.AppendLine("KEY INSIGHTS")
+    [void]$sb.AppendLine("*" * 60)
+    [void]$sb.AppendLine("")
+
+    foreach ($insight in $Insights) {
+        $icon = switch ($insight.Category) {
+            "CRITICAL" { "[!!!]" }
+            "WARNING"  { "[!]  " }
+            "INFO"     { "[i]  " }
+            "OK"       { "[OK] " }
+            "OVERALL"  { "[*]  " }
+            default    { "     " }
+        }
+        [void]$sb.AppendLine("$icon $($insight.Message)")
+    }
+
+    [void]$sb.AppendLine("")
+
+    return $sb.ToString()
+}
+
+<#
+.SYNOPSIS
+    Formats the duration analysis section for the report.
+.DESCRIPTION
+    Creates a formatted text block showing timing breakdown
+    with easy-to-read duration values.
+#>
+function Format-GCDurationAnalysisText {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Analysis
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    # Helper function to format seconds as human-readable duration
+    function Format-Duration {
+        param ([double]$Seconds)
+        if ($Seconds -lt 60) {
+            return "$([Math]::Round($Seconds, 0))s"
+        }
+        elseif ($Seconds -lt 3600) {
+            $mins = [Math]::Floor($Seconds / 60)
+            $secs = [Math]::Round($Seconds % 60, 0)
+            return "${mins}m ${secs}s"
+        }
+        else {
+            $hours = [Math]::Floor($Seconds / 3600)
+            $mins = [Math]::Floor(($Seconds % 3600) / 60)
+            return "${hours}h ${mins}m"
+        }
+    }
+
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("DURATION ANALYSIS")
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("")
+
+    if ($Analysis.ConversationStart -and $Analysis.ConversationEnd) {
+        [void]$sb.AppendLine("Start: $($Analysis.ConversationStart.ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')) UTC")
+        [void]$sb.AppendLine("End:   $($Analysis.ConversationEnd.ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')) UTC")
+        [void]$sb.AppendLine("")
+    }
+
+    [void]$sb.AppendLine("Timing Breakdown:")
+    [void]$sb.AppendLine("  Total Duration:   $(Format-Duration $Analysis.TotalDurationSeconds)")
+    
+    if ($Analysis.IvrTimeSeconds -gt 0) {
+        [void]$sb.AppendLine("  IVR Time:         $(Format-Duration $Analysis.IvrTimeSeconds)")
+    }
+    if ($Analysis.QueueWaitSeconds -gt 0) {
+        [void]$sb.AppendLine("  Queue Wait:       $(Format-Duration $Analysis.QueueWaitSeconds)")
+    }
+    if ($Analysis.AlertTimeSeconds -gt 0) {
+        [void]$sb.AppendLine("  Alert/Ring Time:  $(Format-Duration $Analysis.AlertTimeSeconds)")
+    }
+    if ($Analysis.InteractTimeSeconds -gt 0) {
+        [void]$sb.AppendLine("  Interaction Time: $(Format-Duration $Analysis.InteractTimeSeconds)")
+    }
+    if ($Analysis.AgentTalkSeconds -gt 0) {
+        [void]$sb.AppendLine("  Agent Talk Time:  $(Format-Duration $Analysis.AgentTalkSeconds)")
+    }
+    if ($Analysis.HoldTimeSeconds -gt 0) {
+        [void]$sb.AppendLine("  Hold Time:        $(Format-Duration $Analysis.HoldTimeSeconds)")
+    }
+    if ($Analysis.ConferenceSeconds -gt 0) {
+        [void]$sb.AppendLine("  Conference Time:  $(Format-Duration $Analysis.ConferenceSeconds)")
+    }
+    if ($Analysis.WrapUpSeconds -gt 0) {
+        [void]$sb.AppendLine("  Wrap-up Time:     $(Format-Duration $Analysis.WrapUpSeconds)")
+    }
+    if ($Analysis.SystemTimeSeconds -gt 0) {
+        [void]$sb.AppendLine("  System Time:      $(Format-Duration $Analysis.SystemTimeSeconds)")
+    }
+
+    # Segment type breakdown if available
+    if ($Analysis.SegmentBreakdown.Count -gt 0) {
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("Segment Type Distribution:")
+        foreach ($segType in $Analysis.SegmentBreakdown.Keys | Sort-Object) {
+            $duration = $Analysis.SegmentBreakdown[$segType]
+            $pct = if ($Analysis.TotalDurationSeconds -gt 0) { [Math]::Round(($duration / $Analysis.TotalDurationSeconds) * 100, 1) } else { 0 }
+            [void]$sb.AppendLine("  $($segType.PadRight(15)): $(Format-Duration $duration) ($pct%)")
+        }
+    }
+
+    [void]$sb.AppendLine("")
+
+    return $sb.ToString()
+}
+
+<#
+.SYNOPSIS
+    Formats the participant statistics section for the report.
+.DESCRIPTION
+    Creates a formatted text block with per-participant details
+    including timing, quality metrics, and flow information.
+#>
+function Format-GCParticipantStatisticsText {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Stats
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    # Helper function to format seconds as human-readable duration
+    function Format-Duration {
+        param ([double]$Seconds)
+        if ($Seconds -lt 60) {
+            return "$([Math]::Round($Seconds, 0))s"
+        }
+        elseif ($Seconds -lt 3600) {
+            $mins = [Math]::Floor($Seconds / 60)
+            $secs = [Math]::Round($Seconds % 60, 0)
+            return "${mins}m ${secs}s"
+        }
+        else {
+            $hours = [Math]::Floor($Seconds / 3600)
+            $mins = [Math]::Floor(($Seconds % 3600) / 60)
+            return "${hours}h ${mins}m"
+        }
+    }
+
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("PARTICIPANT STATISTICS")
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("")
+
+    foreach ($stat in $Stats) {
+        $roleIcon = switch ($stat.Purpose) {
+            "customer" { "[C]" }
+            "external" { "[E]" }
+            "agent"    { "[A]" }
+            "acd"      { "[Q]" }
+            "ivr"      { "[I]" }
+            "voicemail" { "[V]" }
+            default    { "[?]" }
+        }
+
+        [void]$sb.AppendLine("$roleIcon $($stat.Name)")
+        [void]$sb.AppendLine("    Role: $($stat.Purpose)")
+        [void]$sb.AppendLine("    Duration: $(Format-Duration $stat.TotalDurationSeconds)")
+        [void]$sb.AppendLine("    Sessions: $($stat.SessionCount) | Segments: $($stat.SegmentCount)")
+        
+        if ($stat.MediaTypes.Count -gt 0) {
+            [void]$sb.AppendLine("    Media: $($stat.MediaTypes -join ', ')")
+        }
+        
+        if ($stat.FlowNames.Count -gt 0) {
+            [void]$sb.AppendLine("    Flows: $($stat.FlowNames -join ', ')")
+        }
+
+        if ($stat.MosScores.Count -gt 0) {
+            $avgMos = ($stat.MosScores | Measure-Object -Average).Average
+            $minMos = ($stat.MosScores | Measure-Object -Minimum).Minimum
+            [void]$sb.AppendLine("    MOS: avg=$([Math]::Round($avgMos, 2)) min=$([Math]::Round($minMos, 2))")
+        }
+
+        if ($stat.DisconnectType) {
+            [void]$sb.AppendLine("    Disconnect: $($stat.DisconnectType)")
+        }
+
+        if ($stat.HasErrors) {
+            [void]$sb.AppendLine("    Errors: $($stat.ErrorCodes -join ', ')")
+        }
+
+        [void]$sb.AppendLine("")
+    }
+
+    [void]$sb.AppendLine("Legend: [C]=Customer [E]=External [A]=Agent [Q]=Queue/ACD [I]=IVR [V]=Voicemail")
+    [void]$sb.AppendLine("")
+
+    return $sb.ToString()
+}
+
+<#
+.SYNOPSIS
+    Formats the conversation flow path for the report.
+.DESCRIPTION
+    Creates a visual ASCII representation of the call flow
+    showing the path through IVR, queues, and agents.
+#>
+function Format-GCConversationFlowText {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$FlowPath
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("CONVERSATION FLOW PATH")
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("")
+
+    if ($FlowPath.Count -eq 0) {
+        [void]$sb.AppendLine("No flow path data available.")
+        [void]$sb.AppendLine("")
+        return $sb.ToString()
+    }
+
+    $lastPurpose = ""
+    foreach ($step in $FlowPath) {
+        $roleIcon = switch ($step.Purpose) {
+            "customer" { "[CUSTOMER]" }
+            "external" { "[EXTERNAL]" }
+            "agent"    { "[AGENT]   " }
+            "acd"      { "[QUEUE]   " }
+            "ivr"      { "[IVR]     " }
+            "voicemail" { "[VM]      " }
+            default    { "[OTHER]   " }
+        }
+
+        $connector = if ($lastPurpose) { "     |" } else { "" }
+        if ($connector) {
+            [void]$sb.AppendLine($connector)
+            [void]$sb.AppendLine("     v")
+        }
+
+        [void]$sb.AppendLine("$($step.Order). $roleIcon $($step.Name)")
+        
+        if ($step.FlowName) {
+            [void]$sb.AppendLine("              Flow: $($step.FlowName)")
+        }
+        
+        if ($step.TransferTo) {
+            [void]$sb.AppendLine("              -> Transfer to: $($step.TransferTo) ($($step.TransferType))")
+        }
+
+        $lastPurpose = $step.Purpose
+    }
+
+    [void]$sb.AppendLine("")
+
+    return $sb.ToString()
+}
+
 function Format-ConversationReportText {
     param (
         [Parameter(Mandatory = $true)]
@@ -1116,6 +1905,72 @@ function Format-ConversationReportText {
             [void]$sb.AppendLine("  - $err")
         }
         [void]$sb.AppendLine("")
+    }
+
+    # Generate insight data early so we can display key insights at the top
+    $events = $null
+    $sortedEvents = $null
+    $durationAnalysis = $null
+    $participantStats = $null
+    $summary = $null
+    $keyInsights = $null
+    $flowPath = $null
+    $analysisError = $null
+
+    try {
+        # Extract events from both API responses
+        $events = Get-GCConversationDetailsTimeline -Report $Report
+        
+        if ($events -and $events.Count -gt 0) {
+            # Merge and sort events chronologically
+            $sortedEvents = Merge-GCConversationEvents -Events $events
+            
+            # Generate analysis data
+            $durationAnalysis = Get-GCConversationDurationAnalysis -Report $Report -Events $sortedEvents
+            $participantStats = Get-GCParticipantStatistics -Report $Report
+            $summary = Get-GCConversationSummary -ConversationId $Report.ConversationId -Events $sortedEvents
+            $flowPath = Get-GCConversationFlowPath -Report $Report
+            
+            # Generate key insights (requires all other analyses)
+            $keyInsights = Get-GCConversationKeyInsights -Report $Report -DurationAnalysis $durationAnalysis -ParticipantStats $participantStats -Summary $summary
+        }
+    }
+    catch {
+        # Store error but continue with report using available data
+        $analysisError = $_.Exception.Message
+    }
+
+    # Display analysis error if one occurred
+    if ($analysisError) {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ANALYSIS NOTE")
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("Some analysis sections may be incomplete due to: $analysisError")
+        [void]$sb.AppendLine("")
+    }
+
+    # Display Key Insights at the top (most valuable information first)
+    if ($keyInsights -and $keyInsights.Count -gt 0) {
+        $insightsText = Format-GCKeyInsightsText -Insights $keyInsights
+        [void]$sb.Append($insightsText)
+    }
+
+    # Display Duration Analysis
+    if ($durationAnalysis) {
+        $durationText = Format-GCDurationAnalysisText -Analysis $durationAnalysis
+        [void]$sb.Append($durationText)
+    }
+
+    # Display Conversation Flow Path
+    if ($flowPath -and $flowPath.Count -gt 0) {
+        $flowText = Format-GCConversationFlowText -FlowPath $flowPath
+        [void]$sb.Append($flowText)
+    }
+
+    # Display Participant Statistics
+    if ($participantStats -and $participantStats.Count -gt 0) {
+        $participantText = Format-GCParticipantStatisticsText -Stats $participantStats
+        [void]$sb.Append($participantText)
     }
 
     # Conversation Details Section
@@ -1258,30 +2113,20 @@ function Format-ConversationReportText {
     [void]$sb.AppendLine("-" * 40)
     [void]$sb.AppendLine("")
 
-    try {
-        # Extract events from both API responses
-        $events = Get-GCConversationDetailsTimeline -Report $Report
+    # Use previously computed events if available
+    if ($sortedEvents -and $sortedEvents.Count -gt 0) {
+        # Format timeline text
+        $timelineText = Format-GCConversationTimelineText -Events $sortedEvents
+        [void]$sb.AppendLine($timelineText)
         
-        if ($events -and $events.Count -gt 0) {
-            # Merge and sort events chronologically
-            $sortedEvents = Merge-GCConversationEvents -Events $events
-            
-            # Format timeline text
-            $timelineText = Format-GCConversationTimelineText -Events $sortedEvents
-            [void]$sb.AppendLine($timelineText)
-            
-            # Generate and append summary
-            $summary = Get-GCConversationSummary -ConversationId $Report.ConversationId -Events $sortedEvents
+        # Generate and append summary (use pre-computed if available)
+        if ($summary) {
             $summaryText = Format-GCConversationSummaryText -Summary $summary
             [void]$sb.AppendLine($summaryText)
         }
-        else {
-            [void]$sb.AppendLine("No timeline events could be extracted from the available data.")
-            [void]$sb.AppendLine("")
-        }
     }
-    catch {
-        [void]$sb.AppendLine("Error generating timeline: $($_.Exception.Message)")
+    else {
+        [void]$sb.AppendLine("No timeline events could be extracted from the available data.")
         [void]$sb.AppendLine("")
     }
 
