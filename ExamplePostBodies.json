@@ -12,8 +12,130 @@
     "post": {
       "example": {
         "callbackNumbers": ["+13175551234"],
-        "queueId": "queue-id-goes-here"
+        "queueId": "queue-id-goes-here",
+        "routingData": {
+          "queueId": "queue-id-goes-here",
+          "priority": 2
+        },
+        "callbackUserName": "Customer Name",
+        "callbackScheduledTime": "2025-12-15T14:00:00.000Z",
+        "countryCode": "US"
       }
+    }
+  },
+  "/api/v2/conversations/calls": {
+    "post": {
+      "example": {
+        "phoneNumber": "+13175551234",
+        "callFromQueueId": "queue-id-goes-here",
+        "callQueueId": "queue-id-goes-here",
+        "callUserId": "user-id-goes-here",
+        "priority": 2,
+        "languageId": "language-id-goes-here",
+        "routingSkillsIds": [],
+        "conversationIds": [],
+        "participants": []
+      }
+    }
+  },
+  "/api/v2/conversations/chats": {
+    "post": {
+      "example": {
+        "queueId": "queue-id-goes-here",
+        "provider": "PureCloud Webchat v2",
+        "routingData": {
+          "queueId": "queue-id-goes-here",
+          "priority": 2
+        }
+      }
+    }
+  },
+  "/api/v2/conversations/emails": {
+    "post": {
+      "example": {
+        "queueId": "queue-id-goes-here",
+        "provider": "PureCloud Email",
+        "toAddress": "customer@example.com",
+        "fromAddress": "support@company.com",
+        "subject": "Your inquiry",
+        "direction": "outbound",
+        "routingData": {
+          "queueId": "queue-id-goes-here",
+          "priority": 2
+        }
+      }
+    }
+  },
+  "/api/v2/conversations/messages": {
+    "post": {
+      "example": {
+        "queueId": "queue-id-goes-here",
+        "toAddress": "+13175551234",
+        "toAddressMessengerType": "sms",
+        "useExistingConversation": false,
+        "externalContactId": "external-contact-id-goes-here",
+        "routingData": {
+          "queueId": "queue-id-goes-here",
+          "priority": 2
+        }
+      }
+    }
+  },
+  "/api/v2/analytics/conversations/details/query": {
+    "post": {
+      "example": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+        "order": "asc",
+        "orderBy": "conversationStart",
+        "paging": {
+          "pageSize": 100,
+          "pageNumber": 1
+        },
+        "segmentFilters": [],
+        "conversationFilters": []
+      }
+    }
+  },
+  "/api/v2/analytics/conversations/details/jobs": {
+    "post": {
+      "example": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+        "order": "asc",
+        "orderBy": "conversationStart"
+      }
+    }
+  },
+  "/api/v2/conversations/{conversationId}/participants/{participantId}/replace": {
+    "post": {
+      "example": {
+        "userId": "user-id-to-transfer-to",
+        "address": "+13175551234",
+        "userName": "Agent Name",
+        "queueId": "queue-id-goes-here",
+        "voicemail": false
+      }
+    }
+  },
+  "/api/v2/conversations/callbacks/bulk/disconnect": {
+    "post": {
+      "example": [
+        {
+          "conversationId": "conversation-id-1"
+        },
+        {
+          "conversationId": "conversation-id-2"
+        }
+      ]
+    }
+  },
+  "/api/v2/conversations/callbacks/bulk/update": {
+    "post": {
+      "example": [
+        {
+          "conversationId": "conversation-id-1",
+          "callbackScheduledTime": "2025-12-15T15:00:00.000Z"
+        }
+      ]
     }
   }
 }
