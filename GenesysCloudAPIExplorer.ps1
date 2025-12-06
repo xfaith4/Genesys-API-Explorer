@@ -92,6 +92,117 @@ function Show-HelpWindow {
     $helpWindow.ShowDialog() | Out-Null
 }
 
+function Show-SettingsDialog {
+    param (
+        [string]$CurrentJsonPath
+    )
+
+    $settingsXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Endpoints Configuration" Height="300" Width="600"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="20" VerticalAlignment="Top">
+    <TextBlock Text="Genesys Cloud API Endpoints Configuration" FontSize="14" FontWeight="Bold" Margin="0 0 0 15"/>
+
+    <StackPanel Margin="0 0 0 15">
+      <TextBlock Text="Current Endpoints File:" FontWeight="Bold" Margin="0 0 0 5"/>
+      <TextBox Name="CurrentPathText" IsReadOnly="True" Height="30" Padding="8" Background="#F5F5F5"/>
+    </StackPanel>
+
+    <StackPanel Margin="0 0 0 15">
+      <TextBlock Text="Upload Custom Endpoints JSON:" FontWeight="Bold" Margin="0 0 0 8"/>
+      <StackPanel Orientation="Horizontal">
+        <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="300"/>
+        <Button Name="BrowseButton" Content="Browse..." Width="100" Height="30"/>
+      </StackPanel>
+      <TextBlock Text="Select a JSON file containing Genesys Cloud API endpoint definitions." Foreground="Gray" Margin="0 8 0 0" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <StackPanel Margin="0 0 0 15">
+      <TextBlock Text="Note: The JSON file must contain a 'paths' property with API endpoint definitions." Foreground="#555555" TextWrapping="Wrap" FontSize="11" FontStyle="Italic"/>
+    </StackPanel>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 20 0 0">
+      <Button Name="ApplyButton" Content="Apply" Width="100" Height="32" Margin="0 0 10 0"/>
+      <Button Name="CancelButton" Content="Cancel" Width="100" Height="32"/>
+    </StackPanel>
+  </StackPanel>
+</Window>
+"@
+
+    $settingsWindow = [System.Windows.Markup.XamlReader]::Parse($settingsXaml)
+    $currentPathText = $settingsWindow.FindName("CurrentPathText")
+    $selectedFileText = $settingsWindow.FindName("SelectedFileText")
+    $browseButton = $settingsWindow.FindName("BrowseButton")
+    $applyButton = $settingsWindow.FindName("ApplyButton")
+    $cancelButton = $settingsWindow.FindName("CancelButton")
+
+    $currentPathText.Text = $CurrentJsonPath
+
+    $selectedFile = ""
+
+    $browseButton.Add_Click({
+        $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+        $openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+        $openFileDialog.InitialDirectory = Split-Path -Parent $CurrentJsonPath
+
+        if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            $selectedFile = $openFileDialog.FileName
+            $selectedFileText.Text = $selectedFile
+        }
+    })
+
+    $applyButton.Add_Click({
+        if (-not $selectedFile) {
+            [System.Windows.MessageBox]::Show("Please select a JSON file.", "No File Selected", "OK", "Information")
+            return
+        }
+
+        if (-not (Test-Path -Path $selectedFile)) {
+            [System.Windows.MessageBox]::Show("The selected file does not exist.", "File Not Found", "OK", "Error")
+            return
+        }
+
+        try {
+            $testJson = Get-Content -Path $selectedFile -Raw | ConvertFrom-Json -ErrorAction Stop
+
+            # Verify the JSON has required structure
+            $hasPaths = $false
+            foreach ($prop in $testJson.PSObject.Properties) {
+                if ($prop.Value -and $prop.Value.paths) {
+                    $hasPaths = $true
+                    break
+                }
+            }
+
+            if (-not $hasPaths) {
+                [System.Windows.MessageBox]::Show("The selected file does not contain valid Genesys Cloud API endpoint definitions (missing 'paths' property).", "Invalid Format", "OK", "Error")
+                return
+            }
+
+            $settingsWindow.DialogResult = $true
+            $settingsWindow.Close()
+        } catch {
+            [System.Windows.MessageBox]::Show("Error reading JSON file: $($_.Exception.Message)", "JSON Error", "OK", "Error")
+        }
+    })
+
+    $cancelButton.Add_Click({
+        $settingsWindow.DialogResult = $false
+        $settingsWindow.Close()
+    })
+
+    $settingsWindow.ShowDialog() | Out-Null
+
+    if ($settingsWindow.DialogResult) {
+        return $selectedFile
+    } else {
+        return $null
+    }
+}
+
 function Show-SplashScreen {
     $splashXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -392,7 +503,7 @@ function Populate-InspectorTree {
     )
 
     if (-not $Tree) { return }
-    
+
     # Check if we've exceeded the maximum node count to prevent freezing
     if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
         if ($Depth -eq 0) {
@@ -403,7 +514,7 @@ function Populate-InspectorTree {
         }
         return
     }
-    
+
     # Check if we've exceeded the maximum depth to prevent deep recursion
     if ($Depth -ge $script:InspectorMaxDepth) {
         $depthNode = New-Object System.Windows.Controls.TreeViewItem
@@ -906,7 +1017,7 @@ function Format-GCConversationTimelineText {
         # Format timestamp in UTC with proper ISO 8601 format
         $timestamp = $event.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
         $eventType = $event.EventType.PadRight(18)
-        
+
         # Build participant/context string
         $participantStr = ""
         if ($event.FlowName) {
@@ -987,13 +1098,13 @@ function Get-GCConversationSummary {
     # Count segments (SegmentEnd events contain the final MOS)
     $segmentEndEvents = $Events | Where-Object { $_.EventType -eq "SegmentEnd" -or ($_.EventType -eq "Disconnect" -and $_.SegmentId) }
     $segmentStartEvents = $Events | Where-Object { $_.EventType -eq "SegmentStart" }
-    
+
     $totalSegments = ($segmentStartEvents | Measure-Object).Count
-    
+
     # Get segments with MOS values
     $segmentsWithMos = $segmentEndEvents | Where-Object { $null -ne $_.Mos }
     $segmentsWithMosCount = ($segmentsWithMos | Measure-Object).Count
-    
+
     # Get degraded segments (MOS < 3.5) - use TryParse for safe conversion
     $degradedSegments = $segmentsWithMos | Where-Object {
         $mosValue = 0.0
@@ -1057,17 +1168,17 @@ function Format-GCConversationSummaryText {
             $startInfo = $Summary.SegmentDetails[$seg.SegmentId]
             $startTime = if ($startInfo) { $startInfo.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK") } else { "(unknown)" }
             $endTime = $seg.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
-            
+
             $participantStr = if ($seg.QueueName) { "Queue: $($seg.QueueName)" } `
                               elseif ($seg.FlowName) { "Flow: $($seg.FlowName)" } `
                               elseif ($seg.Participant) { $seg.Participant } `
                               else { "(unknown)" }
-            
+
             # Use TryParse for safe MOS value conversion
             $mosValue = 0.0
             [void][double]::TryParse($seg.Mos.ToString(), [ref]$mosValue)
             $errorStr = if ($seg.ErrorCode) { "errorCode=$($seg.ErrorCode)" } else { "errorCode=" }
-            
+
             [void]$sb.AppendLine("  - seg=$($seg.SegmentId) | $participantStr | MOS=$($mosValue.ToString('0.00')) | $startTime-$endTime | $errorStr")
         }
         [void]$sb.AppendLine("")
@@ -1081,7 +1192,7 @@ function Format-GCConversationSummaryText {
             $segStr = if ($disc.SegmentId) { "seg=$($disc.SegmentId)" } else { "(no segment)" }
             $disconnector = if ($disc.DisconnectType) { "$($disc.Participant) disconnected ($($disc.DisconnectType))" } else { "$($disc.Participant) disconnected" }
             $errorStr = if ($disc.ErrorCode) { "errorCode=$($disc.ErrorCode)" } else { "errorCode=" }
-            
+
             [void]$sb.AppendLine("  - $timestamp | $segStr | $disconnector | $errorStr")
         }
         [void]$sb.AppendLine("")
@@ -1153,21 +1264,21 @@ function Get-GCConversationDurationAnalysis {
                             switch ($metric.name) {
                                 "tIvr" { $analysis.IvrTimeSeconds += $valueSeconds }
                                 "tAcd" { $analysis.QueueWaitSeconds += $valueSeconds }
-                                "tTalk" { 
+                                "tTalk" {
                                     # Regular tTalk may be emitted multiple times; track the max as a fallback
-                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) 
+                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds)
                                 }
-                                "tTalkComplete" { 
+                                "tTalkComplete" {
                                     # Complete value is the authoritative total
-                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) 
+                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds)
                                 }
-                                "tHeld" { 
+                                "tHeld" {
                                     # Regular tHeld may be emitted multiple times; track the max as a fallback
                                     $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds)
                                 }
-                                "tHeldComplete" { 
+                                "tHeldComplete" {
                                     # Complete value is the authoritative total
-                                    $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds) 
+                                    $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds)
                                 }
                                 "tAcw" { $analysis.WrapUpSeconds += $valueSeconds }
                                 "tAlert" { $analysis.AlertTimeSeconds += $valueSeconds }
@@ -1562,7 +1673,7 @@ function Get-GCConversationKeyInsights {
     # Add a general quality rating
     $qualityRating = "Unknown"
     $ratingScore = 0
-    
+
     # Score calculation based on various factors
     if ($minMos) {
         if ($minMos -ge 4.0) { $ratingScore += 3 }
@@ -1717,7 +1828,7 @@ function Format-GCDurationAnalysisText {
 
     [void]$sb.AppendLine("Timing Breakdown:")
     [void]$sb.AppendLine("  Total Duration:   $(Format-Duration $Analysis.TotalDurationSeconds)")
-    
+
     if ($Analysis.IvrTimeSeconds -gt 0) {
         [void]$sb.AppendLine("  IVR Time:         $(Format-Duration $Analysis.IvrTimeSeconds)")
     }
@@ -1815,7 +1926,7 @@ function Format-GCParticipantStatisticsText {
         [void]$sb.AppendLine("    Role: $($stat.Purpose)")
         [void]$sb.AppendLine("    Duration: $(Format-Duration $stat.TotalDurationSeconds)")
         [void]$sb.AppendLine("    Sessions: $($stat.SessionCount) | Segments: $($stat.SegmentCount)")
-        
+
         if ($stat.MediaTypes.Count -gt 0) {
             [void]$sb.AppendLine("    Media: $($stat.MediaTypes -join ', ')")
         }
@@ -1832,7 +1943,7 @@ function Format-GCParticipantStatisticsText {
         if ($stat.RemoteName) {
             [void]$sb.AppendLine("    Remote: $($stat.RemoteName)")
         }
-        
+
         if ($stat.FlowNames.Count -gt 0) {
             [void]$sb.AppendLine("    Flows: $($stat.FlowNames -join ', ')")
         }
@@ -1915,11 +2026,11 @@ function Format-GCConversationFlowText {
         }
 
         [void]$sb.AppendLine("$($step.Order). $roleIcon $($step.Name)")
-        
+
         if ($step.FlowName) {
             [void]$sb.AppendLine("              Flow: $($step.FlowName)")
         }
-        
+
         if ($step.TransferTo) {
             [void]$sb.AppendLine("              -> Transfer to: $($step.TransferTo) ($($step.TransferType))")
         }
@@ -1971,17 +2082,17 @@ function Format-ConversationReportText {
     try {
         # Extract events from both API responses
         $events = Get-GCConversationDetailsTimeline -Report $Report
-        
+
         if ($events -and $events.Count -gt 0) {
             # Merge and sort events chronologically
             $sortedEvents = Merge-GCConversationEvents -Events $events
-            
+
             # Generate analysis data
             $durationAnalysis = Get-GCConversationDurationAnalysis -Report $Report -Events $sortedEvents
             $participantStats = Get-GCParticipantStatistics -Report $Report
             $summary = Get-GCConversationSummary -ConversationId $Report.ConversationId -Events $sortedEvents
             $flowPath = Get-GCConversationFlowPath -Report $Report
-            
+
             # Generate key insights (requires all other analyses)
             $keyInsights = Get-GCConversationKeyInsights -Report $Report -DurationAnalysis $durationAnalysis -ParticipantStats $participantStats -Summary $summary
         }
@@ -2030,7 +2141,7 @@ function Format-ConversationReportText {
         [void]$sb.AppendLine("-" * 40)
         [void]$sb.AppendLine("CONVERSATION DETAILS")
         [void]$sb.AppendLine("-" * 40)
-        
+
         if ($conv.startTime) {
             [void]$sb.AppendLine("Start Time: $($conv.startTime)")
         }
@@ -2052,7 +2163,7 @@ function Format-ConversationReportText {
         if ($conv.utilizationLabelId) {
             [void]$sb.AppendLine("Utilization Label ID: $($conv.utilizationLabelId)")
         }
-        
+
         # Participants
         if ($conv.participants -and $conv.participants.Count -gt 0) {
             [void]$sb.AppendLine("")
@@ -2097,7 +2208,7 @@ function Format-ConversationReportText {
         [void]$sb.AppendLine("-" * 40)
         [void]$sb.AppendLine("ANALYTICS DETAILS")
         [void]$sb.AppendLine("-" * 40)
-        
+
         if ($analytics.conversationStart) {
             [void]$sb.AppendLine("Conversation Start: $($analytics.conversationStart)")
         }
@@ -2116,7 +2227,7 @@ function Format-ConversationReportText {
         if ($analytics.mediaStatsMinConversationRFactor) {
             [void]$sb.AppendLine("Min R-Factor: $($analytics.mediaStatsMinConversationRFactor)")
         }
-        
+
         # Participant Sessions
         if ($analytics.participants -and $analytics.participants.Count -gt 0) {
             [void]$sb.AppendLine("")
@@ -2169,7 +2280,7 @@ function Format-ConversationReportText {
         # Format timeline text
         $timelineText = Format-GCConversationTimelineText -Events $sortedEvents
         [void]$sb.AppendLine($timelineText)
-        
+
         # Generate and append summary (use pre-computed if available)
         if ($summary) {
             $summaryText = Format-GCConversationSummaryText -Summary $summary
@@ -2235,7 +2346,7 @@ function Update-JobPanel {
     }
 
     if ($exportJobResultsButton) {
-        $exportJobResultsButton.IsEnabled = (Test-Path $JobTracker.ResultFile)
+        $exportJobResultsButton.IsEnabled = (($JobTracker.ResultFile) -and (Test-Path $JobTracker.ResultFile))
     }
 }
 
@@ -2389,16 +2500,17 @@ if (-not $ScriptRoot) {
 $UserProfileBase = if ($env:USERPROFILE) { $env:USERPROFILE } else { $ScriptRoot }
 $FavoritesFile = Join-Path -Path $UserProfileBase -ChildPath "GenesysApiExplorerFavorites.json"
 
-$JsonPath = Join-Path -Path $ScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
+$JsonPath = Join-Path -Path $ScriptRoot -ChildPath "\GenesysCloudAPIEndpoints.json"
 if (-not (Test-Path -Path $JsonPath)) {
     Write-Error "Required endpoint catalog not found at '$JsonPath'."
     return
 }
 
+$script:CurrentJsonPath = $JsonPath
 $ApiCatalog = Load-PathsFromJson -JsonPath $JsonPath
-$ApiPaths = $ApiCatalog.Paths
-$Definitions = if ($ApiCatalog.Definitions) { $ApiCatalog.Definitions } else { @{} }
-$GroupMap = Build-GroupMap -Paths $ApiPaths
+$script:ApiPaths = $ApiCatalog.Paths
+$script:Definitions = if ($ApiCatalog.Definitions) { $ApiCatalog.Definitions } else { @{} }
+$script:GroupMap = Build-GroupMap -Paths $script:ApiPaths
 $FavoritesData = Load-FavoritesFromDisk -Path $FavoritesFile
 $Favorites = Build-FavoritesCollection -Source $FavoritesData
 
@@ -2409,6 +2521,11 @@ $Xaml = @"
         WindowStartupLocation="CenterScreen">
   <DockPanel LastChildFill="True">
     <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_Settings">
+        <MenuItem Name="SettingsMenuItem" Header="Endpoints Configuration"/>
+        <Separator/>
+        <MenuItem Name="ResetEndpointsMenuItem" Header="Reset to Default"/>
+      </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Name="HelpMenuItem" Header="Show Help"/>
         <Separator/>
@@ -2607,8 +2724,59 @@ $exportConversationReportJsonButton = $Window.FindName("ExportConversationReport
 $exportConversationReportTextButton = $Window.FindName("ExportConversationReportTextButton")
 $conversationReportText = $Window.FindName("ConversationReportText")
 $conversationReportStatus = $Window.FindName("ConversationReportStatus")
+$settingsMenuItem = $Window.FindName("SettingsMenuItem")
+$resetEndpointsMenuItem = $Window.FindName("ResetEndpointsMenuItem")
 $script:LastConversationReport = $null
 $script:LastConversationReportJson = ""
+
+function Invoke-ReloadEndpoints {
+    param (
+        [string]$JsonPath
+    )
+
+    try {
+        if (-not (Test-Path -Path $JsonPath)) {
+            [System.Windows.MessageBox]::Show("The endpoints file does not exist at: $JsonPath", "File Not Found", "OK", "Error")
+            return $false
+        }
+
+        $newCatalog = Load-PathsFromJson -JsonPath $JsonPath
+
+        if (-not $newCatalog) {
+            [System.Windows.MessageBox]::Show("Failed to load endpoints from the selected file.", "Load Error", "OK", "Error")
+            return $false
+        }
+
+        # Update global variables
+        $script:ApiCatalog = $newCatalog
+        $script:ApiPaths = $newCatalog.Paths
+        $script:Definitions = if ($newCatalog.Definitions) { $newCatalog.Definitions } else { @{} }
+        $script:GroupMap = Build-GroupMap -Paths $script:ApiPaths
+        $script:CurrentJsonPath = $JsonPath
+
+        # Refresh UI
+        $groupCombo.Items.Clear()
+        $pathCombo.Items.Clear()
+        $methodCombo.Items.Clear()
+        $parameterPanel.Children.Clear()
+        $paramInputs.Clear()
+        $responseBox.Text = ""
+        $btnSave.IsEnabled = $false
+
+        foreach ($group in ($script:GroupMap.Keys | Sort-Object)) {
+            $groupCombo.Items.Add($group) | Out-Null
+        }
+
+        $statusText.Text = "Endpoints reloaded successfully from: $(Split-Path -Leaf $JsonPath)"
+        Add-LogEntry "Endpoints reloaded from: $JsonPath"
+
+        return $true
+    } catch {
+        [System.Windows.MessageBox]::Show("Error loading endpoints: $($_.Exception.Message)", "Load Error", "OK", "Error")
+        Add-LogEntry "Error reloading endpoints: $($_.Exception.Message)"
+        return $false
+    }
+}
 
 function Add-LogEntry {
     param ([string]$Message)
@@ -2631,7 +2799,7 @@ function Refresh-FavoritesList {
     $favoritesList.SelectedIndex = -1
 }
 
-foreach ($group in ($GroupMap.Keys | Sort-Object)) {
+foreach ($group in ($script:GroupMap.Keys | Sort-Object)) {
     $groupCombo.Items.Add($group)
 }
 
@@ -2661,7 +2829,7 @@ $groupCombo.Add_SelectionChanged({
         return
     }
 
-    $paths = $GroupMap[$selectedGroup]
+    $paths = $script:GroupMap[$selectedGroup]
     if (-not $paths) { return }
     foreach ($path in ($paths | Sort-Object)) {
         $pathCombo.Items.Add($path) | Out-Null
@@ -2680,7 +2848,7 @@ $pathCombo.Add_SelectionChanged({
     $selectedPath = $pathCombo.SelectedItem
     if (-not $selectedPath) { return }
 
-    $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+    $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
     if (-not $pathObject) { return }
 
     foreach ($method in $pathObject.PSObject.Properties | Select-Object -ExpandProperty Name) {
@@ -2702,7 +2870,7 @@ $methodCombo.Add_SelectionChanged({
         return
     }
 
-    $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+    $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
     $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
     if (-not $methodObject) {
         return
@@ -2864,6 +3032,28 @@ if ($inspectResponseButton) {
     })
 }
 
+if ($settingsMenuItem) {
+    $settingsMenuItem.Add_Click({
+        $selectedFile = Show-SettingsDialog -CurrentJsonPath $script:CurrentJsonPath
+        if ($selectedFile) {
+            Invoke-ReloadEndpoints -JsonPath $selectedFile
+        }
+    })
+}
+
+if ($resetEndpointsMenuItem) {
+    $resetEndpointsMenuItem.Add_Click({
+        $defaultPath = Join-Path -Path $ScriptRoot -ChildPath "\GenesysCloudAPIEndpoints.json"
+        if (Test-Path -Path $defaultPath) {
+            if (Invoke-ReloadEndpoints -JsonPath $defaultPath) {
+                [System.Windows.MessageBox]::Show("Endpoints reset to default configuration.", "Reset Complete", "OK", "Information")
+            }
+        } else {
+            [System.Windows.MessageBox]::Show("Default endpoints file not found at: $defaultPath", "File Not Found", "OK", "Error")
+        }
+    })
+}
+
 if ($helpMenuItem) {
     $helpMenuItem.Add_Click({
         Show-HelpWindow
@@ -2910,7 +3100,7 @@ if ($exportJobResultsButton) {
 if ($runConversationReportButton) {
     $runConversationReportButton.Add_Click({
         $convId = if ($conversationReportIdInput) { $conversationReportIdInput.Text.Trim() } else { "" }
-        
+
         if (-not $convId) {
             if ($conversationReportStatus) {
                 $conversationReportStatus.Text = "Please enter a conversation ID."
@@ -2941,13 +3131,13 @@ if ($runConversationReportButton) {
         try {
             $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl
             $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
-            
+
             $reportText = Format-ConversationReportText -Report $script:LastConversationReport
-            
+
             if ($conversationReportText) {
                 $conversationReportText.Text = $reportText
             }
-            
+
             if ($inspectConversationReportButton) {
                 $inspectConversationReportButton.IsEnabled = $true
             }
@@ -2957,7 +3147,7 @@ if ($runConversationReportButton) {
             if ($exportConversationReportTextButton) {
                 $exportConversationReportTextButton.IsEnabled = $true
             }
-            
+
             $errorCount = if ($script:LastConversationReport.Errors) { $script:LastConversationReport.Errors.Count } else { 0 }
             if ($errorCount -gt 0) {
                 if ($conversationReportStatus) {
@@ -3138,7 +3328,7 @@ $btnSubmit.Add_Click({
         $errorMessage = $_.Exception.Message
         $statusCode = ""
         $errorResponseBody = ""
-        
+
         # Try to extract detailed error information from the HTTP response
         if ($_.Exception.Response) {
             $response = $_.Exception.Response
@@ -3155,7 +3345,7 @@ $btnSubmit.Add_Click({
                 }
             }
         }
-        
+
         # Build the display message
         $displayMessage = "Error:`r`n$statusCode$errorMessage"
         if ($errorResponseBody) {
@@ -3168,21 +3358,21 @@ $btnSubmit.Add_Click({
                 $displayMessage += "`r`n`r`nResponse Body:`r`n$errorResponseBody"
             }
         }
-        
+
         $responseBox.Text = $displayMessage
         $btnSave.IsEnabled = $false
         $statusText.Text = "Request failed - see log."
         $script:LastResponseRaw = ""
         $script:LastResponseFile = ""
-        
+
         # Log detailed error information to the transparency log
         Add-LogEntry "Response error: $statusCode$errorMessage"
         if ($errorResponseBody) {
             # Truncate very long error responses for the log
-            $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) { 
-                $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)" 
-            } else { 
-                $errorResponseBody 
+            $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) {
+                $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)"
+            } else {
+                $errorResponseBody
             }
             Add-LogEntry "Error response body: $logBody"
         }
