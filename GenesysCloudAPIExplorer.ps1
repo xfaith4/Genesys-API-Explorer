@@ -1148,13 +1148,27 @@ function Get-GCConversationDurationAnalysis {
                         foreach ($metric in $session.metrics) {
                             # Metrics are typically in milliseconds
                             $valueSeconds = if ($metric.value) { $metric.value / 1000.0 } else { 0 }
+                            # Note: "Complete" metrics are cumulative totals; regular metrics may be emitted multiple times
+                            # For talk/held, we use the "Complete" values when available as they represent totals
                             switch ($metric.name) {
                                 "tIvr" { $analysis.IvrTimeSeconds += $valueSeconds }
                                 "tAcd" { $analysis.QueueWaitSeconds += $valueSeconds }
-                                "tTalk" { $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) }
-                                "tTalkComplete" { $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) }
-                                "tHeld" { $analysis.HoldTimeSeconds += $valueSeconds }
-                                "tHeldComplete" { $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds) }
+                                "tTalk" { 
+                                    # Regular tTalk may be emitted multiple times; track the max as a fallback
+                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) 
+                                }
+                                "tTalkComplete" { 
+                                    # Complete value is the authoritative total
+                                    $analysis.AgentTalkSeconds = [Math]::Max($analysis.AgentTalkSeconds, $valueSeconds) 
+                                }
+                                "tHeld" { 
+                                    # Regular tHeld may be emitted multiple times; track the max as a fallback
+                                    $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds)
+                                }
+                                "tHeldComplete" { 
+                                    # Complete value is the authoritative total
+                                    $analysis.HoldTimeSeconds = [Math]::Max($analysis.HoldTimeSeconds, $valueSeconds) 
+                                }
                                 "tAcw" { $analysis.WrapUpSeconds += $valueSeconds }
                                 "tAlert" { $analysis.AlertTimeSeconds += $valueSeconds }
                             }
@@ -1481,7 +1495,7 @@ function Get-GCConversationKeyInsights {
     # Insight: Abnormal disconnect
     $abnormalDisconnects = @("error", "system", "timeout")
     foreach ($stat in $ParticipantStats) {
-        if ($stat.DisconnectType -and $abnormalDisconnects -contains $stat.DisconnectType.ToLower()) {
+        if ($null -ne $stat.DisconnectType -and $stat.DisconnectType -ne "" -and $abnormalDisconnects -contains $stat.DisconnectType.ToLower()) {
             [void]$insights.Add([PSCustomObject]@{
                 Category = "WARNING"
                 Type     = "Disconnect"
@@ -1901,6 +1915,7 @@ function Format-ConversationReportText {
     $summary = $null
     $keyInsights = $null
     $flowPath = $null
+    $analysisError = $null
 
     try {
         # Extract events from both API responses
@@ -1921,7 +1936,17 @@ function Format-ConversationReportText {
         }
     }
     catch {
-        # Continue with report even if analysis fails
+        # Store error but continue with report using available data
+        $analysisError = $_.Exception.Message
+    }
+
+    # Display analysis error if one occurred
+    if ($analysisError) {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ANALYSIS NOTE")
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("Some analysis sections may be incomplete due to: $analysisError")
+        [void]$sb.AppendLine("")
     }
 
     # Display Key Insights at the top (most valuable information first)
