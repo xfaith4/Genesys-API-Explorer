@@ -1246,6 +1246,11 @@ function Get-GCParticipantStatistics {
                 MosScores      = [System.Collections.ArrayList]::new()
                 FlowNames      = [System.Collections.ArrayList]::new()
                 QueueNames     = [System.Collections.ArrayList]::new()
+                HasRecording   = $false
+                Providers      = [System.Collections.ArrayList]::new()
+                RemoteName     = $null
+                ANI            = $null
+                DNIS           = $null
             }
 
             if ($participant.sessions) {
@@ -1254,6 +1259,29 @@ function Get-GCParticipantStatistics {
                 foreach ($session in $participant.sessions) {
                     if ($session.mediaType -and $participantStat.MediaTypes -notcontains $session.mediaType) {
                         [void]$participantStat.MediaTypes.Add($session.mediaType)
+                    }
+
+                    # Extract recording info
+                    if ($session.recording -eq $true) {
+                        $participantStat.HasRecording = $true
+                    }
+
+                    # Extract provider info
+                    if ($session.provider -and $participantStat.Providers -notcontains $session.provider) {
+                        [void]$participantStat.Providers.Add($session.provider)
+                    }
+
+                    # Extract remote party name
+                    if ($session.remoteNameDisplayable -and -not $participantStat.RemoteName) {
+                        $participantStat.RemoteName = $session.remoteNameDisplayable
+                    }
+
+                    # Extract ANI/DNIS
+                    if ($session.ani -and -not $participantStat.ANI) {
+                        $participantStat.ANI = $session.ani
+                    }
+                    if ($session.dnis -and -not $participantStat.DNIS) {
+                        $participantStat.DNIS = $session.dnis
                     }
 
                     # Extract flow info
@@ -1791,15 +1819,38 @@ function Format-GCParticipantStatisticsText {
         if ($stat.MediaTypes.Count -gt 0) {
             [void]$sb.AppendLine("    Media: $($stat.MediaTypes -join ', ')")
         }
+
+        # Display ANI/DNIS for customer/external participants
+        if ($stat.ANI -or $stat.DNIS) {
+            $contactInfo = @()
+            if ($stat.ANI) { $contactInfo += "ANI: $($stat.ANI)" }
+            if ($stat.DNIS) { $contactInfo += "DNIS: $($stat.DNIS)" }
+            [void]$sb.AppendLine("    Contact: $($contactInfo -join ' | ')")
+        }
+
+        # Display remote party name if available
+        if ($stat.RemoteName) {
+            [void]$sb.AppendLine("    Remote: $($stat.RemoteName)")
+        }
         
         if ($stat.FlowNames.Count -gt 0) {
             [void]$sb.AppendLine("    Flows: $($stat.FlowNames -join ', ')")
+        }
+
+        # Display provider info
+        if ($stat.Providers.Count -gt 0) {
+            [void]$sb.AppendLine("    Provider: $($stat.Providers -join ', ')")
         }
 
         if ($stat.MosScores.Count -gt 0) {
             $avgMos = ($stat.MosScores | Measure-Object -Average).Average
             $minMos = ($stat.MosScores | Measure-Object -Minimum).Minimum
             [void]$sb.AppendLine("    MOS: avg=$([Math]::Round($avgMos, 2)) min=$([Math]::Round($minMos, 2))")
+        }
+
+        # Display recording indicator
+        if ($stat.HasRecording) {
+            [void]$sb.AppendLine("    Recording: Yes")
         }
 
         if ($stat.DisconnectType) {
@@ -2344,10 +2395,10 @@ if (-not (Test-Path -Path $JsonPath)) {
     return
 }
 
-$ApiCatalog = Load-APIPathsFromJson -JsonPath $JsonPath
+$ApiCatalog = Load-PathsFromJson -JsonPath $JsonPath
 $ApiPaths = $ApiCatalog.Paths
 $Definitions = if ($ApiCatalog.Definitions) { $ApiCatalog.Definitions } else { @{} }
-$GroupMap = Build-GroupMap -ApiPaths $ApiPaths
+$GroupMap = Build-GroupMap -Paths $ApiPaths
 $FavoritesData = Load-FavoritesFromDisk -Path $FavoritesFile
 $Favorites = Build-FavoritesCollection -Source $FavoritesData
 
