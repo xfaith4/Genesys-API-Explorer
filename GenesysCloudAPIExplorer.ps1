@@ -96,11 +96,11 @@ function Show-SplashScreen {
     $splashXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud API Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        Title="Genesys Cloud  Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True">
   <Border Margin="10" Padding="14" BorderBrush="#FF2C2C2C" BorderThickness="1" CornerRadius="6" Background="#FFF8F9FB">
     <StackPanel>
-      <TextBlock Text="Genesys Cloud API Explorer" FontSize="18" FontWeight="Bold"/>
+      <TextBlock Text="Genesys Cloud  Explorer" FontSize="18" FontWeight="Bold"/>
       <TextBlock Text="Instant access to every Genesys Cloud endpoint with schema insight, job tracking, and saved favorites." TextWrapping="Wrap" Margin="0 6"/>
       <TextBlock Text="Features in this release:" FontWeight="Bold" Margin="0 8 0 0"/>
       <TextBlock Text="• Grouped endpoint navigation with parameter assistance." Margin="0 2"/>
@@ -131,7 +131,7 @@ function Show-SplashScreen {
     $splashWindow.ShowDialog() | Out-Null
 }
 
-function Load-APIPathsFromJson {
+function Load-PathsFromJson {
     param ([Parameter(Mandatory = $true)] [string]$JsonPath)
 
     $json = Get-Content -Path $JsonPath -Raw | ConvertFrom-Json
@@ -148,12 +148,12 @@ function Load-APIPathsFromJson {
 }
 
 function Build-GroupMap {
-    param ([Parameter(Mandatory = $true)] $ApiPaths)
+    param ([Parameter(Mandatory = $true)] $Paths)
 
     $map = @{}
-    foreach ($prop in $ApiPaths.PSObject.Properties) {
+    foreach ($prop in $Paths.PSObject.Properties) {
         $path = $prop.Name
-        if ($path -match "^/api/v2/([^/]+)") {
+        if ($path -match "^//v2/([^/]+)") {
             $group = $Matches[1]
         }
         else {
@@ -375,6 +375,14 @@ function Update-SchemaList {
     }
 }
 
+# Script-level variables to track tree population progress
+$script:InspectorNodeCount = 0
+$script:InspectorMaxNodes = 2000
+$script:InspectorMaxDepth = 15
+
+# Maximum length for log message truncation
+$script:LogMaxMessageLength = 500
+
 function Populate-InspectorTree {
     param (
         $Tree,
@@ -384,12 +392,40 @@ function Populate-InspectorTree {
     )
 
     if (-not $Tree) { return }
+    
+    # Check if we've exceeded the maximum node count to prevent freezing
+    if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
+        if ($Depth -eq 0) {
+            $limitNode = New-Object System.Windows.Controls.TreeViewItem
+            $limitNode.Header = "[Maximum node limit reached ($($script:InspectorMaxNodes) nodes). Use Raw tab for full data.]"
+            $limitNode.Foreground = [System.Windows.Media.Brushes]::OrangeRed
+            $Tree.Items.Add($limitNode) | Out-Null
+        }
+        return
+    }
+    
+    # Check if we've exceeded the maximum depth to prevent deep recursion
+    if ($Depth -ge $script:InspectorMaxDepth) {
+        $depthNode = New-Object System.Windows.Controls.TreeViewItem
+        $depthNode.Header = "[Max depth reached - use Raw tab for full data]"
+        $depthNode.Foreground = [System.Windows.Media.Brushes]::Gray
+        $Tree.Items.Add($depthNode) | Out-Null
+        return
+    }
 
+    $script:InspectorNodeCount++
     $node = New-Object System.Windows.Controls.TreeViewItem
     $isEnumerable = ($Data -is [System.Collections.IEnumerable]) -and -not ($Data -is [string])
     if ($Data -and $Data.PSObject.Properties.Count -gt 0) {
         $node.Header = "$($Label) (object)"
         foreach ($prop in $Data.PSObject.Properties) {
+            if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
+                $ellipsis = New-Object System.Windows.Controls.TreeViewItem
+                $ellipsis.Header = "[... node limit reached]"
+                $ellipsis.Foreground = [System.Windows.Media.Brushes]::Gray
+                $node.Items.Add($ellipsis) | Out-Null
+                break
+            }
             Populate-InspectorTree -Tree $node -Data $prop.Value -Label "$($prop.Name)" -Depth ($Depth + 1)
         }
     }
@@ -399,7 +435,15 @@ function Populate-InspectorTree {
         foreach ($item in $Data) {
             if ($count -ge 150) {
                 $ellipsis = New-Object System.Windows.Controls.TreeViewItem
-                $ellipsis.Header = "[...]"
+                $ellipsis.Header = "[... $($Data.Count - 150) more items]"
+                $ellipsis.Foreground = [System.Windows.Media.Brushes]::Gray
+                $node.Items.Add($ellipsis) | Out-Null
+                break
+            }
+            if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
+                $ellipsis = New-Object System.Windows.Controls.TreeViewItem
+                $ellipsis.Header = "[... node limit reached]"
+                $ellipsis.Foreground = [System.Windows.Media.Brushes]::Gray
                 $node.Items.Add($ellipsis) | Out-Null
                 break
             }
@@ -486,7 +530,11 @@ function Show-DataInspector {
 
     if ($treeView) {
         $treeView.Items.Clear()
+        # Reset the node counter before populating
+        $script:InspectorNodeCount = 0
+        Add-LogEntry "Inspector: Building tree view for data (max $($script:InspectorMaxNodes) nodes, max depth $($script:InspectorMaxDepth))..."
         Populate-InspectorTree -Tree $treeView -Data $parsed -Label "root"
+        Add-LogEntry "Inspector: Tree view populated with $($script:InspectorNodeCount) nodes."
     }
 
     if ($copyButton) {
@@ -527,7 +575,724 @@ function Job-StatusIsPending {
     return $Status -match '^(pending|running|in[-]?progress|processing|created)$'
 }
 
-$ApiBaseUrl = "https://api.mypurecloud.com/api/v2"
+function Get-ConversationReport {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ConversationId,
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Headers,
+        [string]$BaseUrl = "https://api.usw2.pure.cloud"
+    )
+
+    $result = [PSCustomObject]@{
+        ConversationId      = $ConversationId
+        ConversationDetails = $null
+        AnalyticsDetails    = $null
+        RetrievedAt         = (Get-Date).ToString("o")
+        Errors              = @()
+    }
+
+    # Fetch conversation details
+    $conversationUrl = "$BaseUrl/conversations/$ConversationId"
+    try {
+        $conversationResponse = Invoke-WebRequest -Uri $conversationUrl -Method Get -Headers $Headers -ErrorAction Stop
+        $result.ConversationDetails = $conversationResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+    }
+    catch {
+        $result.Errors += "Conversation details: $($_.Exception.Message)"
+    }
+
+    # Fetch analytics details
+    $analyticsUrl = "$BaseUrl/analytics/conversations/$ConversationId/details"
+    try {
+        $analyticsResponse = Invoke-WebRequest -Uri $analyticsUrl -Method Get -Headers $Headers -ErrorAction Stop
+        $result.AnalyticsDetails = $analyticsResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+    }
+    catch {
+        $result.Errors += "Analytics details: $($_.Exception.Message)"
+    }
+
+    return $result
+}
+
+<#
+.SYNOPSIS
+    Extracts timeline events from analytics and conversation details.
+.DESCRIPTION
+    Parses both API responses and creates a unified list of events with timestamps,
+    participant info, segment IDs, MOS scores, error codes, and event types.
+#>
+function Get-GCConversationDetailsTimeline {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    # Use ArrayList for efficient appending instead of array += which creates new arrays
+    $events = [System.Collections.ArrayList]::new()
+    $segmentCounter = 0
+
+    # Extract events from analytics details (segments with MOS, errorCodes, etc.)
+    if ($Report.AnalyticsDetails -and $Report.AnalyticsDetails.participants) {
+        foreach ($participant in $Report.AnalyticsDetails.participants) {
+            $participantName = if ($participant.participantName) { $participant.participantName } else { $participant.purpose }
+            $participantId = $participant.participantId
+
+            if ($participant.sessions) {
+                foreach ($session in $participant.sessions) {
+                    $mediaType = $session.mediaType
+                    $direction = $session.direction
+                    $ani = $session.ani
+                    $dnis = $session.dnis
+                    $sessionId = $session.sessionId
+
+                    if ($session.segments) {
+                        foreach ($segment in $session.segments) {
+                            $segmentCounter++
+                            $segmentId = $segmentCounter
+                            $segmentType = $segment.segmentType
+                            $queueId = $segment.queueId
+                            $flowId = $segment.flowId
+                            $flowName = $segment.flowName
+                            $queueName = $segment.queueName
+                            $wrapUpCode = $segment.wrapUpCode
+                            $wrapUpNote = $segment.wrapUpNote
+
+                            # Extract MOS and error codes from metrics
+                            # Use specific MOS metric names to avoid false matches
+                            $mos = $null
+                            $errorCode = $null
+                            if ($segment.metrics) {
+                                foreach ($metric in $segment.metrics) {
+                                    if ($metric.name -eq "nMos" -or $metric.name -eq "mos" -or $metric.name -eq "MOS") {
+                                        $mos = $metric.value
+                                    }
+                                }
+                            }
+                            if ($segment.errorCode) {
+                                $errorCode = $segment.errorCode
+                            }
+                            # Also check for sipResponseCode as an error indicator
+                            if ($segment.sipResponseCode -and -not $errorCode) {
+                                $errorCode = "sip:$($segment.sipResponseCode)"
+                            }
+
+                            # Segment start event - parse with InvariantCulture for reliable ISO 8601 parsing
+                            if ($segment.segmentStart) {
+                                [void]$events.Add([PSCustomObject]@{
+                                    Timestamp    = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                    Source       = "AnalyticsDetails"
+                                    Participant  = $participantName
+                                    ParticipantId = $participantId
+                                    SegmentId    = $segmentId
+                                    EventType    = "SegmentStart"
+                                    SegmentType  = $segmentType
+                                    MediaType    = $mediaType
+                                    Direction    = $direction
+                                    QueueName    = $queueName
+                                    FlowName     = $flowName
+                                    Mos          = $null
+                                    ErrorCode    = $null
+                                    Context      = "ANI: $ani, DNIS: $dnis"
+                                    DisconnectType = $null
+                                })
+                            }
+
+                            # Segment end event - parse with InvariantCulture
+                            if ($segment.segmentEnd) {
+                                $disconnectType = $segment.disconnectType
+                                [void]$events.Add([PSCustomObject]@{
+                                    Timestamp    = [DateTime]::Parse($segment.segmentEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                    Source       = "AnalyticsDetails"
+                                    Participant  = $participantName
+                                    ParticipantId = $participantId
+                                    SegmentId    = $segmentId
+                                    EventType    = if ($disconnectType) { "Disconnect" } else { "SegmentEnd" }
+                                    SegmentType  = $segmentType
+                                    MediaType    = $mediaType
+                                    Direction    = $direction
+                                    QueueName    = $queueName
+                                    FlowName     = $flowName
+                                    Mos          = $mos
+                                    ErrorCode    = $errorCode
+                                    Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
+                                    DisconnectType = $disconnectType
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    # Extract events from conversation details (state transitions, etc.)
+    if ($Report.ConversationDetails -and $Report.ConversationDetails.participants) {
+        foreach ($participant in $Report.ConversationDetails.participants) {
+            $participantName = if ($participant.name) { $participant.name } else { $participant.purpose }
+            $participantId = $participant.id
+
+            # Start time event - parse with InvariantCulture
+            if ($participant.startTime) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp    = [DateTime]::Parse($participant.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source       = "Conversations"
+                    Participant  = $participantName
+                    ParticipantId = $participantId
+                    SegmentId    = $null
+                    EventType    = "ParticipantJoined"
+                    SegmentType  = $null
+                    MediaType    = $null
+                    Direction    = $null
+                    QueueName    = $null
+                    FlowName     = $null
+                    Mos          = $null
+                    ErrorCode    = $null
+                    Context      = "Purpose: $($participant.purpose)"
+                    DisconnectType = $null
+                })
+            }
+
+            # End time / disconnect event - parse with InvariantCulture
+            if ($participant.endTime) {
+                $disconnectType = $participant.disconnectType
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp    = [DateTime]::Parse($participant.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source       = "Conversations"
+                    Participant  = $participantName
+                    ParticipantId = $participantId
+                    SegmentId    = $null
+                    EventType    = if ($disconnectType) { "Disconnect" } else { "ParticipantLeft" }
+                    SegmentType  = $null
+                    MediaType    = $null
+                    Direction    = $null
+                    QueueName    = $null
+                    FlowName     = $null
+                    Mos          = $null
+                    ErrorCode    = $null
+                    Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
+                    DisconnectType = $disconnectType
+                })
+            }
+
+            # Process calls/chats for state changes
+            if ($participant.calls) {
+                foreach ($call in $participant.calls) {
+                    if ($call.state -and $call.connectedTime) {
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($call.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "StateChange"
+                            SegmentType  = $null
+                            MediaType    = "voice"
+                            Direction    = $call.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: connected"
+                            DisconnectType = $null
+                        })
+                    }
+                    if ($call.disconnectedTime) {
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($call.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "Disconnect"
+                            SegmentType  = $null
+                            MediaType    = "voice"
+                            Direction    = $call.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: disconnected"
+                            DisconnectType = $call.disconnectType
+                        })
+                    }
+                }
+            }
+
+            # Process chats
+            if ($participant.chats) {
+                foreach ($chat in $participant.chats) {
+                    if ($chat.state -and $chat.connectedTime) {
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($chat.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "StateChange"
+                            SegmentType  = $null
+                            MediaType    = "chat"
+                            Direction    = $chat.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: connected"
+                            DisconnectType = $null
+                        })
+                    }
+                    if ($chat.disconnectedTime) {
+                        [void]$events.Add([PSCustomObject]@{
+                            Timestamp    = [DateTime]::Parse($chat.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                            Source       = "Conversations"
+                            Participant  = $participantName
+                            ParticipantId = $participantId
+                            SegmentId    = $null
+                            EventType    = "Disconnect"
+                            SegmentType  = $null
+                            MediaType    = "chat"
+                            Direction    = $chat.direction
+                            QueueName    = $null
+                            FlowName     = $null
+                            Mos          = $null
+                            ErrorCode    = $null
+                            Context      = "State: disconnected"
+                            DisconnectType = $chat.disconnectType
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    return $events
+}
+
+<#
+.SYNOPSIS
+    Merges and sorts conversation events chronologically.
+.DESCRIPTION
+    Takes events from Get-GCConversationDetailsTimeline and sorts them by timestamp
+    to create a unified, chronological view of the conversation.
+#>
+function Merge-GCConversationEvents {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    # Sort events by timestamp ascending
+    $sortedEvents = $Events | Sort-Object -Property Timestamp
+
+    return $sortedEvents
+}
+
+<#
+.SYNOPSIS
+    Formats the chronological timeline as text output.
+.DESCRIPTION
+    Creates a text-based timeline with each event on a line showing timestamp,
+    event type, participant, segment ID, MOS score, and error code.
+#>
+function Format-GCConversationTimelineText {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    foreach ($event in $Events) {
+        # Format timestamp in UTC with proper ISO 8601 format
+        $timestamp = $event.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
+        $eventType = $event.EventType.PadRight(18)
+        
+        # Build participant/context string
+        $participantStr = ""
+        if ($event.FlowName) {
+            $participantStr = "Flow: $($event.FlowName)"
+        } elseif ($event.QueueName) {
+            $participantStr = "Queue: $($event.QueueName)"
+        } elseif ($event.Participant) {
+            $participantStr = $event.Participant
+        } else {
+            $participantStr = "(unknown)"
+        }
+
+        # Build segment string
+        $segmentStr = if ($event.SegmentId) { "seg=$($event.SegmentId)" } else { "" }
+
+        # Build media/direction string
+        $mediaStr = ""
+        if ($event.MediaType -or $event.Direction) {
+            $parts = @()
+            if ($event.MediaType) { $parts += "media=$($event.MediaType)" }
+            if ($event.Direction) { $parts += "dir=$($event.Direction)" }
+            $mediaStr = $parts -join " | "
+        }
+
+        # Build MOS string with degraded marker - use TryParse for safe conversion
+        $mosStr = ""
+        if ($null -ne $event.Mos) {
+            $mosValue = 0.0
+            if ([double]::TryParse($event.Mos.ToString(), [ref]$mosValue)) {
+                if ($mosValue -lt 3.5) {
+                    $mosStr = "MOS=$($mosValue.ToString('0.00')) (DEGRADED)"
+                } else {
+                    $mosStr = "MOS=$($mosValue.ToString('0.00'))"
+                }
+            }
+        }
+
+        # Build error code string
+        $errorStr = if ($event.ErrorCode) { "errorCode=$($event.ErrorCode)" } else { "" }
+
+        # Build disconnect info
+        $disconnectStr = ""
+        if ($event.EventType -eq "Disconnect" -and $event.DisconnectType) {
+            $disconnectStr = "$($event.Participant) disconnected ($($event.DisconnectType))"
+        }
+
+        # Construct the line
+        $lineParts = @($timestamp, "|", $eventType, "|", $participantStr)
+        if ($segmentStr) { $lineParts += "| $segmentStr" }
+        if ($mediaStr) { $lineParts += "| $mediaStr" }
+        if ($mosStr) { $lineParts += "| $mosStr" }
+        if ($errorStr) { $lineParts += "| $errorStr" }
+        if ($disconnectStr) { $lineParts += "| $disconnectStr" }
+
+        $line = $lineParts -join " "
+        [void]$sb.AppendLine($line.Trim())
+    }
+
+    return $sb.ToString()
+}
+
+<#
+.SYNOPSIS
+    Generates a summary of degraded segments and disconnects.
+.DESCRIPTION
+    Analyzes the timeline events to produce summary statistics including
+    total segments, segments with MOS values, degraded segments (MOS < 3.5),
+    and all disconnect events.
+#>
+function Get-GCConversationSummary {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ConversationId,
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    # Count segments (SegmentEnd events contain the final MOS)
+    $segmentEndEvents = $Events | Where-Object { $_.EventType -eq "SegmentEnd" -or ($_.EventType -eq "Disconnect" -and $_.SegmentId) }
+    $segmentStartEvents = $Events | Where-Object { $_.EventType -eq "SegmentStart" }
+    
+    $totalSegments = ($segmentStartEvents | Measure-Object).Count
+    
+    # Get segments with MOS values
+    $segmentsWithMos = $segmentEndEvents | Where-Object { $null -ne $_.Mos }
+    $segmentsWithMosCount = ($segmentsWithMos | Measure-Object).Count
+    
+    # Get degraded segments (MOS < 3.5) - use TryParse for safe conversion
+    $degradedSegments = $segmentsWithMos | Where-Object {
+        $mosValue = 0.0
+        if ([double]::TryParse($_.Mos.ToString(), [ref]$mosValue)) {
+            return $mosValue -lt 3.5
+        }
+        return $false
+    }
+    $degradedCount = ($degradedSegments | Measure-Object).Count
+
+    # Get all disconnect events
+    $disconnectEvents = $Events | Where-Object { $_.EventType -eq "Disconnect" }
+
+    # Build segment details lookup (start times)
+    $segmentDetails = @{}
+    foreach ($startEvent in $segmentStartEvents) {
+        if ($startEvent.SegmentId) {
+            $segmentDetails[$startEvent.SegmentId] = $startEvent
+        }
+    }
+
+    return [PSCustomObject]@{
+        ConversationId       = $ConversationId
+        TotalSegments        = $totalSegments
+        SegmentsWithMos      = $segmentsWithMosCount
+        DegradedSegmentCount = $degradedCount
+        DegradedSegments     = $degradedSegments
+        DisconnectEvents     = $disconnectEvents
+        SegmentDetails       = $segmentDetails
+    }
+}
+
+<#
+.SYNOPSIS
+    Formats the conversation summary as text output.
+.DESCRIPTION
+    Creates a text block with summary statistics and lists of degraded
+    segments and disconnect events.
+#>
+function Format-GCConversationSummaryText {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Summary
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("=" * 50 + " Summary " + "=" * 50)
+    [void]$sb.AppendLine("ConversationId: $($Summary.ConversationId)")
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("Segments:          $($Summary.TotalSegments)")
+    [void]$sb.AppendLine("Segments with MOS: $($Summary.SegmentsWithMos)")
+    [void]$sb.AppendLine("Degraded segments (MOS < 3.5): $($Summary.DegradedSegmentCount)")
+    [void]$sb.AppendLine("")
+
+    # List degraded segments
+    if ($Summary.DegradedSegments -and ($Summary.DegradedSegments | Measure-Object).Count -gt 0) {
+        [void]$sb.AppendLine("Degraded segments:")
+        foreach ($seg in $Summary.DegradedSegments) {
+            $startInfo = $Summary.SegmentDetails[$seg.SegmentId]
+            $startTime = if ($startInfo) { $startInfo.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK") } else { "(unknown)" }
+            $endTime = $seg.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
+            
+            $participantStr = if ($seg.QueueName) { "Queue: $($seg.QueueName)" } `
+                              elseif ($seg.FlowName) { "Flow: $($seg.FlowName)" } `
+                              elseif ($seg.Participant) { $seg.Participant } `
+                              else { "(unknown)" }
+            
+            # Use TryParse for safe MOS value conversion
+            $mosValue = 0.0
+            [void][double]::TryParse($seg.Mos.ToString(), [ref]$mosValue)
+            $errorStr = if ($seg.ErrorCode) { "errorCode=$($seg.ErrorCode)" } else { "errorCode=" }
+            
+            [void]$sb.AppendLine("  - seg=$($seg.SegmentId) | $participantStr | MOS=$($mosValue.ToString('0.00')) | $startTime-$endTime | $errorStr")
+        }
+        [void]$sb.AppendLine("")
+    }
+
+    # List disconnect events
+    if ($Summary.DisconnectEvents -and ($Summary.DisconnectEvents | Measure-Object).Count -gt 0) {
+        [void]$sb.AppendLine("Disconnects:")
+        foreach ($disc in $Summary.DisconnectEvents) {
+            $timestamp = $disc.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
+            $segStr = if ($disc.SegmentId) { "seg=$($disc.SegmentId)" } else { "(no segment)" }
+            $disconnector = if ($disc.DisconnectType) { "$($disc.Participant) disconnected ($($disc.DisconnectType))" } else { "$($disc.Participant) disconnected" }
+            $errorStr = if ($disc.ErrorCode) { "errorCode=$($disc.ErrorCode)" } else { "errorCode=" }
+            
+            [void]$sb.AppendLine("  - $timestamp | $segStr | $disconnector | $errorStr")
+        }
+        [void]$sb.AppendLine("")
+    }
+
+    [void]$sb.AppendLine("=" * 109)
+
+    return $sb.ToString()
+}
+
+function Format-ConversationReportText {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    [void]$sb.AppendLine("=" * 60)
+    [void]$sb.AppendLine("CONVERSATION REPORT")
+    [void]$sb.AppendLine("=" * 60)
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("Conversation ID: $($Report.ConversationId)")
+    [void]$sb.AppendLine("Retrieved At: $($Report.RetrievedAt)")
+    [void]$sb.AppendLine("")
+
+    if ($Report.Errors -and $Report.Errors.Count -gt 0) {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ERRORS")
+        [void]$sb.AppendLine("-" * 40)
+        foreach ($err in $Report.Errors) {
+            [void]$sb.AppendLine("  - $err")
+        }
+        [void]$sb.AppendLine("")
+    }
+
+    # Conversation Details Section
+    if ($Report.ConversationDetails) {
+        $conv = $Report.ConversationDetails
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("CONVERSATION DETAILS")
+        [void]$sb.AppendLine("-" * 40)
+        
+        if ($conv.startTime) {
+            [void]$sb.AppendLine("Start Time: $($conv.startTime)")
+        }
+        if ($conv.endTime) {
+            [void]$sb.AppendLine("End Time: $($conv.endTime)")
+        }
+        if ($conv.conversationStart) {
+            [void]$sb.AppendLine("Conversation Start: $($conv.conversationStart)")
+        }
+        if ($conv.conversationEnd) {
+            [void]$sb.AppendLine("Conversation End: $($conv.conversationEnd)")
+        }
+        if ($conv.state) {
+            [void]$sb.AppendLine("State: $($conv.state)")
+        }
+        if ($conv.externalTag) {
+            [void]$sb.AppendLine("External Tag: $($conv.externalTag)")
+        }
+        if ($conv.utilizationLabelId) {
+            [void]$sb.AppendLine("Utilization Label ID: $($conv.utilizationLabelId)")
+        }
+        
+        # Participants
+        if ($conv.participants -and $conv.participants.Count -gt 0) {
+            [void]$sb.AppendLine("")
+            [void]$sb.AppendLine("Participants ($($conv.participants.Count)):")
+            foreach ($participant in $conv.participants) {
+                [void]$sb.AppendLine("  - Purpose: $($participant.purpose)")
+                if ($participant.userId) {
+                    [void]$sb.AppendLine("    User ID: $($participant.userId)")
+                }
+                if ($participant.name) {
+                    [void]$sb.AppendLine("    Name: $($participant.name)")
+                }
+                if ($participant.queueId) {
+                    [void]$sb.AppendLine("    Queue ID: $($participant.queueId)")
+                }
+                if ($participant.address) {
+                    [void]$sb.AppendLine("    Address: $($participant.address)")
+                }
+                if ($participant.startTime) {
+                    [void]$sb.AppendLine("    Start Time: $($participant.startTime)")
+                }
+                if ($participant.endTime) {
+                    [void]$sb.AppendLine("    End Time: $($participant.endTime)")
+                }
+                if ($participant.wrapupRequired -ne $null) {
+                    [void]$sb.AppendLine("    Wrapup Required: $($participant.wrapupRequired)")
+                }
+            }
+        }
+        [void]$sb.AppendLine("")
+    }
+    else {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("CONVERSATION DETAILS: Not available")
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("")
+    }
+
+    # Analytics Details Section
+    if ($Report.AnalyticsDetails) {
+        $analytics = $Report.AnalyticsDetails
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ANALYTICS DETAILS")
+        [void]$sb.AppendLine("-" * 40)
+        
+        if ($analytics.conversationStart) {
+            [void]$sb.AppendLine("Conversation Start: $($analytics.conversationStart)")
+        }
+        if ($analytics.conversationEnd) {
+            [void]$sb.AppendLine("Conversation End: $($analytics.conversationEnd)")
+        }
+        if ($analytics.originatingDirection) {
+            [void]$sb.AppendLine("Originating Direction: $($analytics.originatingDirection)")
+        }
+        if ($analytics.divisionIds -and $analytics.divisionIds.Count -gt 0) {
+            [void]$sb.AppendLine("Division IDs: $($analytics.divisionIds -join ', ')")
+        }
+        if ($analytics.mediaStatsMinConversationMos) {
+            [void]$sb.AppendLine("Min MOS: $($analytics.mediaStatsMinConversationMos)")
+        }
+        if ($analytics.mediaStatsMinConversationRFactor) {
+            [void]$sb.AppendLine("Min R-Factor: $($analytics.mediaStatsMinConversationRFactor)")
+        }
+        
+        # Participant Sessions
+        if ($analytics.participants -and $analytics.participants.Count -gt 0) {
+            [void]$sb.AppendLine("")
+            [void]$sb.AppendLine("Analytics Participants ($($analytics.participants.Count)):")
+            foreach ($participant in $analytics.participants) {
+                [void]$sb.AppendLine("  - Participant ID: $($participant.participantId)")
+                if ($participant.participantName) {
+                    [void]$sb.AppendLine("    Name: $($participant.participantName)")
+                }
+                if ($participant.purpose) {
+                    [void]$sb.AppendLine("    Purpose: $($participant.purpose)")
+                }
+                if ($participant.sessions -and $participant.sessions.Count -gt 0) {
+                    [void]$sb.AppendLine("    Sessions: $($participant.sessions.Count)")
+                    foreach ($session in $participant.sessions) {
+                        if ($session.mediaType) {
+                            [void]$sb.AppendLine("      Media Type: $($session.mediaType)")
+                        }
+                        if ($session.direction) {
+                            [void]$sb.AppendLine("      Direction: $($session.direction)")
+                        }
+                        if ($session.ani) {
+                            [void]$sb.AppendLine("      ANI: $($session.ani)")
+                        }
+                        if ($session.dnis) {
+                            [void]$sb.AppendLine("      DNIS: $($session.dnis)")
+                        }
+                    }
+                }
+            }
+        }
+        [void]$sb.AppendLine("")
+    }
+    else {
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("ANALYTICS DETAILS: Not available")
+        [void]$sb.AppendLine("-" * 40)
+        [void]$sb.AppendLine("")
+    }
+
+    # Generate chronological timeline by extracting events from both endpoints
+    # and interlacing them in time order
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("CHRONOLOGICAL TIMELINE")
+    [void]$sb.AppendLine("-" * 40)
+    [void]$sb.AppendLine("")
+
+    try {
+        # Extract events from both API responses
+        $events = Get-GCConversationDetailsTimeline -Report $Report
+        
+        if ($events -and $events.Count -gt 0) {
+            # Merge and sort events chronologically
+            $sortedEvents = Merge-GCConversationEvents -Events $events
+            
+            # Format timeline text
+            $timelineText = Format-GCConversationTimelineText -Events $sortedEvents
+            [void]$sb.AppendLine($timelineText)
+            
+            # Generate and append summary
+            $summary = Get-GCConversationSummary -ConversationId $Report.ConversationId -Events $sortedEvents
+            $summaryText = Format-GCConversationSummaryText -Summary $summary
+            [void]$sb.AppendLine($summaryText)
+        }
+        else {
+            [void]$sb.AppendLine("No timeline events could be extracted from the available data.")
+            [void]$sb.AppendLine("")
+        }
+    }
+    catch {
+        [void]$sb.AppendLine("Error generating timeline: $($_.Exception.Message)")
+        [void]$sb.AppendLine("")
+    }
+
+    [void]$sb.AppendLine("=" * 60)
+    [void]$sb.AppendLine("END OF REPORT")
+    [void]$sb.AppendLine("=" * 60)
+
+    return $sb.ToString()
+}
+
+$ApiBaseUrl = "https://api.usw2.pure.cloud"
 $JobTracker = [PSCustomObject]@{
     Timer      = $null
     JobId      = $null
@@ -879,6 +1644,30 @@ $Xaml = @"
           <TextBlock Name="JobResultsPath" Text="Results file: (not available yet)" TextWrapping="Wrap"/>
         </StackPanel>
       </TabItem>
+      <TabItem Header="Conversation Report">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0 0 0 10">
+            <TextBlock Text="Conversation ID:" VerticalAlignment="Center" FontWeight="Bold" Margin="0 0 8 0"/>
+            <TextBox Name="ConversationReportIdInput" Width="350" Height="28" VerticalContentAlignment="Center"
+                     ToolTip="Enter the conversation ID to generate a report"/>
+            <Button Name="RunConversationReportButton" Width="120" Height="30" Content="Run Report" Margin="10 0 0 0"/>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0 0 0 10">
+            <Button Name="InspectConversationReportButton" Width="140" Height="30" Content="Inspect Result" IsEnabled="False"/>
+            <Button Name="ExportConversationReportJsonButton" Width="140" Height="30" Content="Export JSON" Margin="10 0 0 0" IsEnabled="False"/>
+            <Button Name="ExportConversationReportTextButton" Width="140" Height="30" Content="Export Text" Margin="10 0 0 0" IsEnabled="False"/>
+            <TextBlock Name="ConversationReportStatus" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
+          </StackPanel>
+          <TextBox Grid.Row="2" Name="ConversationReportText" TextWrapping="Wrap" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="180"
+                   FontFamily="Consolas" FontSize="11"/>
+        </Grid>
+      </TabItem>
     </TabControl>
   </Grid>
 </DockPanel>
@@ -915,6 +1704,15 @@ $exportJobResultsButton = $Window.FindName("ExportJobResultsButton")
 $helpMenuItem = $Window.FindName("HelpMenuItem")
 $helpDevLink = $Window.FindName("HelpDevLink")
 $helpSupportLink = $Window.FindName("HelpSupportLink")
+$conversationReportIdInput = $Window.FindName("ConversationReportIdInput")
+$runConversationReportButton = $Window.FindName("RunConversationReportButton")
+$inspectConversationReportButton = $Window.FindName("InspectConversationReportButton")
+$exportConversationReportJsonButton = $Window.FindName("ExportConversationReportJsonButton")
+$exportConversationReportTextButton = $Window.FindName("ExportConversationReportTextButton")
+$conversationReportText = $Window.FindName("ConversationReportText")
+$conversationReportStatus = $Window.FindName("ConversationReportStatus")
+$script:LastConversationReport = $null
+$script:LastConversationReportJson = ""
 
 function Add-LogEntry {
     param ([string]$Message)
@@ -1213,6 +2011,138 @@ if ($exportJobResultsButton) {
     })
 }
 
+if ($runConversationReportButton) {
+    $runConversationReportButton.Add_Click({
+        $convId = if ($conversationReportIdInput) { $conversationReportIdInput.Text.Trim() } else { "" }
+        
+        if (-not $convId) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Please enter a conversation ID."
+            }
+            Add-LogEntry "Conversation report blocked: no conversation ID."
+            return
+        }
+
+        $token = $tokenBox.Text.Trim()
+        if (-not $token) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Please provide an OAuth token."
+            }
+            Add-LogEntry "Conversation report blocked: no OAuth token."
+            return
+        }
+
+        $headers = @{
+            "Content-Type"  = "application/json"
+            "Authorization" = "Bearer $token"
+        }
+
+        if ($conversationReportStatus) {
+            $conversationReportStatus.Text = "Fetching report..."
+        }
+        Add-LogEntry "Generating conversation report for: $convId"
+
+        try {
+            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl
+            $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
+            
+            $reportText = Format-ConversationReportText -Report $script:LastConversationReport
+            
+            if ($conversationReportText) {
+                $conversationReportText.Text = $reportText
+            }
+            
+            if ($inspectConversationReportButton) {
+                $inspectConversationReportButton.IsEnabled = $true
+            }
+            if ($exportConversationReportJsonButton) {
+                $exportConversationReportJsonButton.IsEnabled = $true
+            }
+            if ($exportConversationReportTextButton) {
+                $exportConversationReportTextButton.IsEnabled = $true
+            }
+            
+            $errorCount = if ($script:LastConversationReport.Errors) { $script:LastConversationReport.Errors.Count } else { 0 }
+            if ($errorCount -gt 0) {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Report generated with $errorCount error(s)."
+                }
+                Add-LogEntry "Conversation report completed with $errorCount error(s)."
+            }
+            else {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Report generated successfully."
+                }
+                Add-LogEntry "Conversation report generated successfully."
+            }
+        }
+        catch {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Report failed: $($_.Exception.Message)"
+            }
+            Add-LogEntry "Conversation report failed: $($_.Exception.Message)"
+        }
+    })
+}
+
+if ($inspectConversationReportButton) {
+    $inspectConversationReportButton.Add_Click({
+        if ($script:LastConversationReportJson) {
+            Show-DataInspector -JsonText $script:LastConversationReportJson
+        }
+        else {
+            Add-LogEntry "No conversation report data to inspect."
+        }
+    })
+}
+
+if ($exportConversationReportJsonButton) {
+    $exportConversationReportJsonButton.Add_Click({
+        if (-not $script:LastConversationReportJson) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "No report data to export."
+            }
+            return
+        }
+
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+        $dialog.Title = "Export Conversation Report JSON"
+        $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).json"
+        if ($dialog.ShowDialog() -eq $true) {
+            $script:LastConversationReportJson | Out-File -FilePath $dialog.FileName -Encoding utf8
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "JSON exported to $($dialog.FileName)"
+            }
+            Add-LogEntry "Conversation report JSON exported to $($dialog.FileName)"
+        }
+    })
+}
+
+if ($exportConversationReportTextButton) {
+    $exportConversationReportTextButton.Add_Click({
+        if (-not $script:LastConversationReport) {
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "No report data to export."
+            }
+            return
+        }
+
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+        $dialog.Title = "Export Conversation Report Text"
+        $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).txt"
+        if ($dialog.ShowDialog() -eq $true) {
+            $reportText = Format-ConversationReportText -Report $script:LastConversationReport
+            $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
+            if ($conversationReportStatus) {
+                $conversationReportStatus.Text = "Text exported to $($dialog.FileName)"
+            }
+            Add-LogEntry "Conversation report text exported to $($dialog.FileName)"
+        }
+    })
+}
+
 $btnSubmit.Add_Click({
     $selectedPath = $pathCombo.SelectedItem
     $selectedMethod = $methodCombo.SelectedItem
@@ -1263,7 +2193,7 @@ $btnSubmit.Add_Click({
         }
     }
 
-    $baseUrl = "https://api.mypurecloud.com/api/v2"
+    $baseUrl = "https://api.usw2.pure.cloud"
     $pathWithReplacements = $selectedPath
     foreach ($key in $pathParams.Keys) {
         $escaped = [uri]::EscapeDataString($pathParams[$key])
@@ -1311,15 +2241,55 @@ $btnSubmit.Add_Click({
     } catch {
         $errorMessage = $_.Exception.Message
         $statusCode = ""
-        if ($_.Exception.Response -is [System.Net.HttpWebResponse]) {
-            $statusCode = "Status $($($_.Exception.Response.StatusCode)) - "
+        $errorResponseBody = ""
+        
+        # Try to extract detailed error information from the HTTP response
+        if ($_.Exception.Response) {
+            $response = $_.Exception.Response
+            if ($response -is [System.Net.HttpWebResponse]) {
+                $statusCode = "Status $($response.StatusCode) ($([int]$response.StatusCode)) - "
+                try {
+                    $responseStream = $response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($responseStream)
+                    $errorResponseBody = $reader.ReadToEnd()
+                    $reader.Close()
+                    $responseStream.Close()
+                } catch {
+                    # Could not read response body
+                }
+            }
         }
-        $responseBox.Text = "Error:`r`n$statusCode$errorMessage"
+        
+        # Build the display message
+        $displayMessage = "Error:`r`n$statusCode$errorMessage"
+        if ($errorResponseBody) {
+            # Try to format as JSON if possible
+            try {
+                $errorJson = $errorResponseBody | ConvertFrom-Json -ErrorAction Stop
+                $formattedError = $errorJson | ConvertTo-Json -Depth 5
+                $displayMessage += "`r`n`r`nResponse Body:`r`n$formattedError"
+            } catch {
+                $displayMessage += "`r`n`r`nResponse Body:`r`n$errorResponseBody"
+            }
+        }
+        
+        $responseBox.Text = $displayMessage
         $btnSave.IsEnabled = $false
         $statusText.Text = "Request failed - see log."
         $script:LastResponseRaw = ""
         $script:LastResponseFile = ""
+        
+        # Log detailed error information to the transparency log
         Add-LogEntry "Response error: $statusCode$errorMessage"
+        if ($errorResponseBody) {
+            # Truncate very long error responses for the log
+            $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) { 
+                $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)" 
+            } else { 
+                $errorResponseBody 
+            }
+            Add-LogEntry "Error response body: $logBody"
+        }
     }
 })
 
