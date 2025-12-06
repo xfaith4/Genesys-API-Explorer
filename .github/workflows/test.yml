@@ -184,7 +184,16 @@ jobs:
             "Format-GCConversationTimelineText",
             "Get-GCConversationSummary",
             "Format-GCConversationSummaryText",
-            "Format-ConversationReportText"
+            "Format-ConversationReportText",
+            "Get-GCConversationDurationAnalysis",
+            "Get-GCParticipantStatistics",
+            "Get-GCConversationFlowPath",
+            "Get-GCConversationKeyInsights",
+            "Get-GCErrorExplanation",
+            "Format-GCKeyInsightsText",
+            "Format-GCDurationAnalysisText",
+            "Format-GCParticipantStatisticsText",
+            "Format-GCConversationFlowText"
         )
         
         # Extract each function by finding its start position and then the next function or end
@@ -442,6 +451,100 @@ jobs:
         }
         
         Write-Host "Full report with timeline test passed!"
+        
+        # Test new insight functions
+        Write-Host ""
+        Write-Host "Testing new insight functions..."
+        
+        # Test Get-GCConversationDurationAnalysis
+        $durationAnalysis = Get-GCConversationDurationAnalysis -Report $mockReport -Events $sortedEvents
+        if (-not $durationAnalysis) {
+            Write-Host "::error::Get-GCConversationDurationAnalysis should return analysis"
+            exit 1
+        }
+        Write-Host "Get-GCConversationDurationAnalysis test passed!"
+        
+        # Test Get-GCParticipantStatistics
+        $participantStats = Get-GCParticipantStatistics -Report $mockReport
+        if (-not $participantStats) {
+            Write-Host "::error::Get-GCParticipantStatistics should return participant stats"
+            exit 1
+        }
+        Write-Host "Get-GCParticipantStatistics test passed!"
+        
+        # Test Get-GCConversationFlowPath
+        $flowPath = Get-GCConversationFlowPath -Report $mockReport
+        if (-not $flowPath) {
+            Write-Host "::error::Get-GCConversationFlowPath should return flow path"
+            exit 1
+        }
+        Write-Host "Get-GCConversationFlowPath test passed!"
+        
+        # Test Get-GCConversationKeyInsights
+        $keyInsights = Get-GCConversationKeyInsights -Report $mockReport -DurationAnalysis $durationAnalysis -ParticipantStats $participantStats -Summary $summary
+        if (-not $keyInsights) {
+            Write-Host "::error::Get-GCConversationKeyInsights should return insights"
+            exit 1
+        }
+        Write-Host "Get-GCConversationKeyInsights test passed!"
+        
+        # Test Get-GCErrorExplanation
+        $explanation = Get-GCErrorExplanation -ErrorCode "sip:503"
+        if (-not $explanation) {
+            Write-Host "::error::Get-GCErrorExplanation should return explanation"
+            exit 1
+        }
+        Write-Host "Get-GCErrorExplanation test passed!"
+        
+        # Test Format-GCKeyInsightsText
+        $insightsText = Format-GCKeyInsightsText -Insights $keyInsights
+        if (-not $insightsText.Contains("KEY INSIGHTS")) {
+            Write-Host "::error::Format-GCKeyInsightsText should include KEY INSIGHTS header"
+            exit 1
+        }
+        Write-Host "Format-GCKeyInsightsText test passed!"
+        
+        # Test Format-GCDurationAnalysisText
+        $durationText = Format-GCDurationAnalysisText -Analysis $durationAnalysis
+        if (-not $durationText.Contains("DURATION ANALYSIS")) {
+            Write-Host "::error::Format-GCDurationAnalysisText should include DURATION ANALYSIS header"
+            exit 1
+        }
+        Write-Host "Format-GCDurationAnalysisText test passed!"
+        
+        # Test Format-GCParticipantStatisticsText
+        $participantText = Format-GCParticipantStatisticsText -Stats $participantStats
+        if (-not $participantText.Contains("PARTICIPANT STATISTICS")) {
+            Write-Host "::error::Format-GCParticipantStatisticsText should include header"
+            exit 1
+        }
+        Write-Host "Format-GCParticipantStatisticsText test passed!"
+        
+        # Test Format-GCConversationFlowText
+        $flowText = Format-GCConversationFlowText -FlowPath $flowPath
+        if (-not $flowText.Contains("CONVERSATION FLOW PATH")) {
+            Write-Host "::error::Format-GCConversationFlowText should include header"
+            exit 1
+        }
+        Write-Host "Format-GCConversationFlowText test passed!"
+        
+        # Test that full report includes new sections when data is available
+        if (-not $fullReport.Contains("KEY INSIGHTS")) {
+            Write-Host "::error::Full report should include KEY INSIGHTS section"
+            exit 1
+        }
+        
+        if (-not $fullReport.Contains("DURATION ANALYSIS")) {
+            Write-Host "::error::Full report should include DURATION ANALYSIS section"
+            exit 1
+        }
+        
+        if (-not $fullReport.Contains("PARTICIPANT STATISTICS")) {
+            Write-Host "::error::Full report should include PARTICIPANT STATISTICS section"
+            exit 1
+        }
+        
+        Write-Host "All new insight function tests passed!"
         
         Write-Host ""
         Write-Host "All helper function tests passed!"

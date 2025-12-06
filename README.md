@@ -61,6 +61,19 @@ The **Conversation Report** tab allows you to generate comprehensive reports for
 5. Use "Inspect Result" to view the merged JSON data in the tree inspector
 6. Export results as JSON or text files using the export buttons
 
+#### Report Sections
+
+The conversation report includes the following insight-focused sections:
+
+- **Key Insights** - Quick takeaways including overall quality rating, quality issues, timing anomalies, and actionable observations
+- **Duration Analysis** - Breakdown of time spent in IVR, queue, hold, talk, and wrap-up phases with human-readable durations
+- **Conversation Flow Path** - Visual representation of the call path through IVR, queues, and agents showing transfers
+- **Participant Statistics** - Per-participant metrics including time in conversation, MOS quality scores, session counts, and disconnect information
+- **Chronological Timeline** - Detailed event-by-event timeline with timestamps, participants, and segment information
+- **Summary** - Statistics on segments, degraded quality segments (MOS < 3.5), and disconnect events
+
+The report is designed to provide actionable insights at a glance, with the most important information (Key Insights) appearing first.
+
 ---
 
 ## Testing
