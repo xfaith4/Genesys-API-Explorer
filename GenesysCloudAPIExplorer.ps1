@@ -3565,7 +3565,6 @@ $btnSubmit.Add_Click({
         Add-LogEntry "Response: $($response.StatusCode) returned ${($formattedContent.Length)} chars in {0:N0} ms." -f $requestDuration
         
         # Add to request history
-        $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
         $historyEntry = [PSCustomObject]@{
             Timestamp = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
             Method = $selectedMethod.ToUpper()
