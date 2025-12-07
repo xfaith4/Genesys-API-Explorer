@@ -393,6 +393,168 @@ function Test-JsonString {
     }
 }
 
+function Export-PowerShellScript {
+    param (
+        [string]$Method,
+        [string]$Path,
+        [hashtable]$Parameters,
+        [string]$Token,
+        [string]$Region = "mypurecloud.com"
+    )
+    
+    $script = @"
+# Generated PowerShell script for Genesys Cloud API
+# Endpoint: $Method $Path
+# Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+
+`$token = "$Token"
+`$region = "$Region"
+`$baseUrl = "https://api.`$region"
+`$path = "$Path"
+
+"@
+    
+    # Build headers
+    $script += @"
+`$headers = @{
+    "Authorization" = "Bearer `$token"
+    "Content-Type" = "application/json"
+}
+
+"@
+    
+    # Build query parameters
+    $queryParams = @()
+    $pathParams = @{}
+    $bodyContent = ""
+    
+    if ($Parameters) {
+        foreach ($paramName in $Parameters.Keys) {
+            $paramValue = $Parameters[$paramName]
+            if ([string]::IsNullOrWhiteSpace($paramValue)) { continue }
+            
+            # Determine parameter type based on name and path
+            $pattern = "{$paramName}"
+            if ($Path -match [regex]::Escape($pattern)) {
+                # Path parameter
+                $pathParams[$paramName] = $paramValue
+            }
+            elseif ($paramName -eq "body") {
+                # Body parameter
+                $bodyContent = $paramValue
+            }
+            else {
+                # Query parameter
+                $queryParams += "$paramName=$([System.Uri]::EscapeDataString($paramValue))"
+            }
+        }
+    }
+    
+    # Replace path parameters
+    foreach ($paramName in $pathParams.Keys) {
+        $escapedParam = [regex]::Escape("{$paramName}")
+        $script += "`$path = `$path -replace '$escapedParam', '$($pathParams[$paramName])'`r`n"
+    }
+    
+    # Build full URL with query parameters
+    if ($queryParams.Count -gt 0) {
+        $script += "`$url = `"`$baseUrl`$path?$($queryParams -join '&')`"`r`n"
+    }
+    else {
+        $script += "`$url = `"`$baseUrl`$path`"`r`n"
+    }
+    
+    $script += "`r`n"
+    
+    # Build the Invoke-WebRequest command
+    if ($bodyContent) {
+        $script += "`$body = @'`r`n"
+        $script += $bodyContent
+        $script += "`r`n'@`r`n`r`n"
+        $script += @"
+try {
+    `$response = Invoke-WebRequest -Uri `$url -Method $Method -Headers `$headers -Body `$body -ContentType "application/json"
+    Write-Host "Success: `$(`$response.StatusCode)"
+    `$response.Content | ConvertFrom-Json | ConvertTo-Json -Depth 10
+} catch {
+    Write-Error "Request failed: `$(`$_.Exception.Message)"
+}
+"@
+    }
+    else {
+        $script += @"
+try {
+    `$response = Invoke-WebRequest -Uri `$url -Method $Method -Headers `$headers
+    Write-Host "Success: `$(`$response.StatusCode)"
+    `$response.Content | ConvertFrom-Json | ConvertTo-Json -Depth 10
+} catch {
+    Write-Error "Request failed: `$(`$_.Exception.Message)"
+}
+"@
+    }
+    
+    return $script
+}
+
+function Export-CurlCommand {
+    param (
+        [string]$Method,
+        [string]$Path,
+        [hashtable]$Parameters,
+        [string]$Token,
+        [string]$Region = "mypurecloud.com"
+    )
+    
+    $baseUrl = "https://api.$Region"
+    $fullPath = $Path
+    
+    # Build query parameters and handle path parameters
+    $queryParams = @()
+    $bodyContent = ""
+    
+    if ($Parameters) {
+        foreach ($paramName in $Parameters.Keys) {
+            $paramValue = $Parameters[$paramName]
+            if ([string]::IsNullOrWhiteSpace($paramValue)) { continue }
+            
+            $pattern = "{$paramName}"
+            if ($fullPath -match [regex]::Escape($pattern)) {
+                # Path parameter
+                $fullPath = $fullPath -replace [regex]::Escape($pattern), $paramValue
+            }
+            elseif ($paramName -eq "body") {
+                # Body parameter
+                $bodyContent = $paramValue
+            }
+            else {
+                # Query parameter - escape for URL
+                $encodedValue = [System.Uri]::EscapeDataString($paramValue)
+                $queryParams += "$paramName=$encodedValue"
+            }
+        }
+    }
+    
+    # Build full URL
+    $url = "$baseUrl$fullPath"
+    if ($queryParams.Count -gt 0) {
+        $url += "?" + ($queryParams -join "&")
+    }
+    
+    # Build cURL command
+    $curl = "curl -X $($Method.ToUpper()) `"$url`" ``"
+    $curl += "`r`n  -H `"Authorization: Bearer $Token`" ``"
+    $curl += "`r`n  -H `"Content-Type: application/json`""
+    
+    if ($bodyContent) {
+        # Escape body for shell - single quotes are safest for JSON
+        $escapedBody = $bodyContent -replace "'", "'\\''"
+        $curl += " ``"
+        $curl += "`r`n  -d '$escapedBody'"
+    }
+    
+    return $curl
+}
+
 function Populate-ParameterValues {
     param ([Parameter(ValueFromPipeline)] $ParameterSet)
 
@@ -2569,6 +2731,39 @@ function Build-FavoritesCollection {
     return $list
 }
 
+function Load-TemplatesFromDisk {
+    param ([string]$Path)
+
+    if (-not (Test-Path -Path $Path)) {
+        return @()
+    }
+
+    try {
+        $content = Get-Content -Path $Path -Raw
+        if (-not $content) {
+            return @()
+        }
+
+        return $content | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Warning "Unable to load templates: $($_.Exception.Message)"
+        return @()
+    }
+}
+
+function Save-TemplatesToDisk {
+    param (
+        [string]$Path,
+        [Parameter(Mandatory)][System.Collections.IEnumerable]$Templates
+    )
+
+    try {
+        $Templates | ConvertTo-Json -Depth 5 | Set-Content -Path $Path -Encoding utf8
+    } catch {
+        Write-Warning "Unable to save templates: $($_.Exception.Message)"
+    }
+}
+
 $script:LastResponseText = ""
 $script:LastResponseRaw = ""
 $paramInputs = @{}
@@ -2595,6 +2790,10 @@ $script:Definitions = if ($ApiCatalog.Definitions) { $ApiCatalog.Definitions } e
 $script:GroupMap = Build-GroupMap -Paths $script:ApiPaths
 $FavoritesData = Load-FavoritesFromDisk -Path $FavoritesFile
 $Favorites = Build-FavoritesCollection -Source $FavoritesData
+
+# Load templates at startup
+$TemplatesFilePath = Join-Path -Path $UserProfileBase -ChildPath "GenesysApiExplorerTemplates.json"
+$TemplatesData = Load-TemplatesFromDisk -Path $TemplatesFilePath
 
 # Load example POST bodies for conversations endpoints
 $ExamplePostBodiesPath = Join-Path -Path $ScriptRoot -ChildPath "ExamplePostBodies.json"
@@ -2718,7 +2917,9 @@ $Xaml = @"
 
     <StackPanel Grid.Row="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
       <Button Name="SubmitButton" Width="150" Height="34" Content="Submit API Call" Margin="0 0 10 0"/>
-      <Button Name="SaveButton" Width="150" Height="34" Content="Save Response" IsEnabled="False"/>
+      <Button Name="SaveButton" Width="150" Height="34" Content="Save Response" IsEnabled="False" Margin="0 0 10 0"/>
+      <Button Name="ExportPowerShellButton" Width="150" Height="34" Content="Export PowerShell" Margin="0 0 10 0" ToolTip="Generate PowerShell script for this request"/>
+      <Button Name="ExportCurlButton" Width="120" Height="34" Content="Export cURL" ToolTip="Generate cURL command for this request"/>
       <TextBlock Name="ProgressIndicator" VerticalAlignment="Center" Foreground="Blue" Margin="10 0 5 0" Visibility="Collapsed">⏳</TextBlock>
       <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="5 0 0 0"/>
     </StackPanel>
@@ -2797,6 +2998,43 @@ $Xaml = @"
           </StackPanel>
         </Grid>
       </TabItem>
+      <TabItem Header="Templates">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="Request Templates - Save and reuse API request configurations" FontWeight="Bold" Margin="0 0 0 10"/>
+          <ListView Grid.Row="1" Name="TemplatesList" Height="180"
+                    VirtualizingStackPanel.IsVirtualizing="True"
+                    VirtualizingStackPanel.VirtualizationMode="Recycling">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="200"/>
+                <GridViewColumn Header="Method" DisplayMemberBinding="{Binding Method}" Width="70"/>
+                <GridViewColumn Header="Path" DisplayMemberBinding="{Binding Path}" Width="300"/>
+                <GridViewColumn Header="Created" DisplayMemberBinding="{Binding Created}" Width="150"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+          <Grid Grid.Row="2" Margin="0 10 0 0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+              <Button Name="SaveTemplateButton" Width="120" Height="30" Content="Save Template" ToolTip="Save current request as a template"/>
+              <Button Name="LoadTemplateButton" Width="120" Height="30" Content="Load Template" Margin="10 0 0 0" IsEnabled="False" ToolTip="Load selected template into the main form"/>
+              <Button Name="DeleteTemplateButton" Width="120" Height="30" Content="Delete Template" Margin="10 0 0 0" IsEnabled="False" ToolTip="Delete selected template"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+              <Button Name="ExportTemplatesButton" Width="140" Height="30" Content="Export Templates" ToolTip="Export all templates to JSON file"/>
+              <Button Name="ImportTemplatesButton" Width="140" Height="30" Content="Import Templates" Margin="10 0 0 0" ToolTip="Import templates from JSON file"/>
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </TabItem>
       <TabItem Header="Conversation Report">
         <Grid Margin="10">
           <Grid.RowDefinitions>
@@ -2873,10 +3111,20 @@ $resetEndpointsMenuItem = $Window.FindName("ResetEndpointsMenuItem")
 $requestHistoryList = $Window.FindName("RequestHistoryList")
 $replayRequestButton = $Window.FindName("ReplayRequestButton")
 $clearHistoryButton = $Window.FindName("ClearHistoryButton")
+$exportPowerShellButton = $Window.FindName("ExportPowerShellButton")
+$exportCurlButton = $Window.FindName("ExportCurlButton")
+$templatesList = $Window.FindName("TemplatesList")
+$saveTemplateButton = $Window.FindName("SaveTemplateButton")
+$loadTemplateButton = $Window.FindName("LoadTemplateButton")
+$deleteTemplateButton = $Window.FindName("DeleteTemplateButton")
+$exportTemplatesButton = $Window.FindName("ExportTemplatesButton")
+$importTemplatesButton = $Window.FindName("ImportTemplatesButton")
 $script:LastConversationReport = $null
 $script:LastConversationReportJson = ""
 $script:RequestHistory = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
 $script:ResponseViewMode = "Formatted"  # Can be "Formatted" or "Raw"
+$script:Templates = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
+$script:TemplatesFilePath = Join-Path -Path $env:USERPROFILE -ChildPath "GenesysApiExplorerTemplates.json"
 
 function Invoke-ReloadEndpoints {
     param (
@@ -3616,6 +3864,332 @@ if ($clearHistoryButton) {
             $script:RequestHistory.Clear()
             Add-LogEntry "Request history cleared."
             $statusText.Text = "History cleared."
+        }
+    })
+}
+
+# Export PowerShell Script button
+if ($exportPowerShellButton) {
+    $exportPowerShellButton.Add_Click({
+        $selectedPath = $pathCombo.SelectedItem
+        $selectedMethod = $methodCombo.SelectedItem
+        $token = $tokenBox.Text
+
+        if (-not $selectedPath -or -not $selectedMethod) {
+            $statusText.Text = "Select a path and method first."
+            return
+        }
+
+        # Collect current parameters
+        $requestParams = @{}
+        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+        if ($methodObject -and $methodObject.parameters) {
+            foreach ($param in $methodObject.parameters) {
+                $input = $paramInputs[$param.name]
+                if ($input) {
+                    $value = Get-ParameterControlValue -Control $input
+                    if (-not [string]::IsNullOrWhiteSpace($value)) {
+                        $requestParams[$param.name] = $value
+                    }
+                }
+            }
+        }
+
+        # Generate PowerShell script
+        $script = Export-PowerShellScript -Method $selectedMethod -Path $selectedPath -Parameters $requestParams -Token $token
+
+        # Show in dialog with copy/save options
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "PowerShell Scripts (*.ps1)|*.ps1|All Files (*.*)|*.*"
+        $dialog.Title = "Save PowerShell Script"
+        $dialog.FileName = "GenesysAPI_$($selectedMethod)_Script.ps1"
+        
+        if ($dialog.ShowDialog() -eq $true) {
+            $script | Out-File -FilePath $dialog.FileName -Encoding utf8
+            $statusText.Text = "PowerShell script exported to $($dialog.FileName)"
+            Add-LogEntry "PowerShell script exported to $($dialog.FileName)"
+            
+            # Copy to clipboard as well
+            [System.Windows.Clipboard]::SetText($script)
+            [System.Windows.MessageBox]::Show(
+                "PowerShell script saved to $($dialog.FileName) and copied to clipboard.",
+                "Script Exported",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+        }
+    })
+}
+
+# Export cURL Command button
+if ($exportCurlButton) {
+    $exportCurlButton.Add_Click({
+        $selectedPath = $pathCombo.SelectedItem
+        $selectedMethod = $methodCombo.SelectedItem
+        $token = $tokenBox.Text
+
+        if (-not $selectedPath -or -not $selectedMethod) {
+            $statusText.Text = "Select a path and method first."
+            return
+        }
+
+        # Collect current parameters
+        $requestParams = @{}
+        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+        if ($methodObject -and $methodObject.parameters) {
+            foreach ($param in $methodObject.parameters) {
+                $input = $paramInputs[$param.name]
+                if ($input) {
+                    $value = Get-ParameterControlValue -Control $input
+                    if (-not [string]::IsNullOrWhiteSpace($value)) {
+                        $requestParams[$param.name] = $value
+                    }
+                }
+            }
+        }
+
+        # Generate cURL command
+        $curlCommand = Export-CurlCommand -Method $selectedMethod -Path $selectedPath -Parameters $requestParams -Token $token
+
+        # Copy to clipboard and show confirmation
+        [System.Windows.Clipboard]::SetText($curlCommand)
+        [System.Windows.MessageBox]::Show(
+            "cURL command copied to clipboard:`r`n`r`n$curlCommand",
+            "cURL Exported",
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Information
+        )
+        $statusText.Text = "cURL command copied to clipboard."
+        Add-LogEntry "cURL command generated and copied to clipboard"
+    })
+}
+
+# Templates list selection changed
+if ($templatesList) {
+    $templatesList.ItemsSource = $script:Templates
+    
+    # Load templates from disk into the collection
+    if ($TemplatesData) {
+        foreach ($template in $TemplatesData) {
+            $script:Templates.Add($template)
+        }
+    }
+    
+    $templatesList.Add_SelectionChanged({
+        if ($templatesList.SelectedItem) {
+            $loadTemplateButton.IsEnabled = $true
+            $deleteTemplateButton.IsEnabled = $true
+        } else {
+            $loadTemplateButton.IsEnabled = $false
+            $deleteTemplateButton.IsEnabled = $false
+        }
+    })
+}
+
+# Save Template button
+if ($saveTemplateButton) {
+    $saveTemplateButton.Add_Click({
+        $selectedPath = $pathCombo.SelectedItem
+        $selectedMethod = $methodCombo.SelectedItem
+
+        if (-not $selectedPath -or -not $selectedMethod) {
+            [System.Windows.MessageBox]::Show(
+                "Please select a path and method before saving a template.",
+                "Missing Information",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Warning
+            )
+            return
+        }
+
+        # Prompt for template name
+        $inputDialog = New-Object Microsoft.VisualBasic.Interaction
+        Add-Type -AssemblyName Microsoft.VisualBasic
+        $templateName = [Microsoft.VisualBasic.Interaction]::InputBox(
+            "Enter a name for this template:",
+            "Save Template",
+            "$selectedMethod $selectedPath"
+        )
+
+        if ([string]::IsNullOrWhiteSpace($templateName)) {
+            return
+        }
+
+        # Collect current parameters
+        $requestParams = @{}
+        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+        if ($methodObject -and $methodObject.parameters) {
+            foreach ($param in $methodObject.parameters) {
+                $input = $paramInputs[$param.name]
+                if ($input) {
+                    $value = Get-ParameterControlValue -Control $input
+                    if (-not [string]::IsNullOrWhiteSpace($value)) {
+                        $requestParams[$param.name] = $value
+                    }
+                }
+            }
+        }
+
+        # Create template object
+        $template = [PSCustomObject]@{
+            Name = $templateName
+            Method = $selectedMethod.ToUpper()
+            Path = $selectedPath
+            Group = $groupCombo.SelectedItem
+            Parameters = $requestParams
+            Created = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        }
+
+        # Add to collection and save
+        $script:Templates.Add($template)
+        Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
+        
+        Add-LogEntry "Template saved: $templateName"
+        $statusText.Text = "Template '$templateName' saved successfully."
+    })
+}
+
+# Load Template button
+if ($loadTemplateButton) {
+    $loadTemplateButton.Add_Click({
+        $selectedTemplate = $templatesList.SelectedItem
+        if (-not $selectedTemplate) {
+            return
+        }
+
+        # Set the group, path, and method
+        $groupCombo.SelectedItem = $selectedTemplate.Group
+        $pathCombo.SelectedItem = $selectedTemplate.Path
+        $methodCombo.SelectedItem = $selectedTemplate.Method
+
+        # Restore parameters using Dispatcher
+        if ($selectedTemplate.Parameters) {
+            $Window.Dispatcher.Invoke([Action]{
+                foreach ($paramName in $selectedTemplate.Parameters.PSObject.Properties.Name) {
+                    if ($paramInputs.ContainsKey($paramName)) {
+                        Set-ParameterControlValue -Control $paramInputs[$paramName] -Value $selectedTemplate.Parameters.$paramName
+                    }
+                }
+            }, [System.Windows.Threading.DispatcherPriority]::Background)
+        }
+
+        Add-LogEntry "Template loaded: $($selectedTemplate.Name)"
+        $statusText.Text = "Template loaded: $($selectedTemplate.Name)"
+    })
+}
+
+# Delete Template button
+if ($deleteTemplateButton) {
+    $deleteTemplateButton.Add_Click({
+        $selectedTemplate = $templatesList.SelectedItem
+        if (-not $selectedTemplate) {
+            return
+        }
+
+        $result = [System.Windows.MessageBox]::Show(
+            "Are you sure you want to delete the template '$($selectedTemplate.Name)'?",
+            "Delete Template",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Question
+        )
+        
+        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+            $script:Templates.Remove($selectedTemplate)
+            Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
+            Add-LogEntry "Template deleted: $($selectedTemplate.Name)"
+            $statusText.Text = "Template deleted."
+        }
+    })
+}
+
+# Export Templates button
+if ($exportTemplatesButton) {
+    $exportTemplatesButton.Add_Click({
+        if ($script:Templates.Count -eq 0) {
+            [System.Windows.MessageBox]::Show(
+                "No templates to export.",
+                "Export Templates",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+            return
+        }
+
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+        $dialog.Title = "Export Templates"
+        $dialog.FileName = "GenesysAPIExplorerTemplates.json"
+        
+        if ($dialog.ShowDialog() -eq $true) {
+            Save-TemplatesToDisk -Path $dialog.FileName -Templates $script:Templates
+            $statusText.Text = "Templates exported to $($dialog.FileName)"
+            Add-LogEntry "Templates exported to $($dialog.FileName)"
+            [System.Windows.MessageBox]::Show(
+                "Templates exported successfully to $($dialog.FileName)",
+                "Export Complete",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+        }
+    })
+}
+
+# Import Templates button
+if ($importTemplatesButton) {
+    $importTemplatesButton.Add_Click({
+        $dialog = New-Object Microsoft.Win32.OpenFileDialog
+        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+        $dialog.Title = "Import Templates"
+        
+        if ($dialog.ShowDialog() -eq $true) {
+            $importedTemplates = Load-TemplatesFromDisk -Path $dialog.FileName
+            if ($importedTemplates -and $importedTemplates.Count -gt 0) {
+                $importCount = 0
+                foreach ($template in $importedTemplates) {
+                    # Check if template already exists by name
+                    $exists = $false
+                    foreach ($existingTemplate in $script:Templates) {
+                        if ($existingTemplate.Name -eq $template.Name) {
+                            $exists = $true
+                            break
+                        }
+                    }
+                    
+                    if (-not $exists) {
+                        $script:Templates.Add($template)
+                        $importCount++
+                    }
+                }
+                
+                if ($importCount -gt 0) {
+                    Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
+                    $statusText.Text = "Imported $importCount template(s)."
+                    Add-LogEntry "Imported $importCount template(s) from $($dialog.FileName)"
+                    [System.Windows.MessageBox]::Show(
+                        "Successfully imported $importCount template(s). Duplicates were skipped.",
+                        "Import Complete",
+                        [System.Windows.MessageBoxButton]::OK,
+                        [System.Windows.MessageBoxImage]::Information
+                    )
+                } else {
+                    [System.Windows.MessageBox]::Show(
+                        "No new templates imported. All templates already exist.",
+                        "Import Complete",
+                        [System.Windows.MessageBoxButton]::OK,
+                        [System.Windows.MessageBoxImage]::Information
+                    )
+                }
+            } else {
+                [System.Windows.MessageBox]::Show(
+                    "No templates found in the selected file.",
+                    "Import Failed",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Warning
+                )
+            }
         }
     })
 }
