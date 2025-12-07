@@ -2795,6 +2795,23 @@ $Favorites = Build-FavoritesCollection -Source $FavoritesData
 $TemplatesFilePath = Join-Path -Path $UserProfileBase -ChildPath "GenesysApiExplorerTemplates.json"
 $TemplatesData = Load-TemplatesFromDisk -Path $TemplatesFilePath
 
+# If no user templates exist, load default templates
+if (-not $TemplatesData -or $TemplatesData.Count -eq 0) {
+    $DefaultTemplatesPath = Join-Path -Path $ScriptRoot -ChildPath "DefaultTemplates.json"
+    if (Test-Path -Path $DefaultTemplatesPath) {
+        try {
+            $TemplatesData = Load-TemplatesFromDisk -Path $DefaultTemplatesPath
+            if ($TemplatesData -and $TemplatesData.Count -gt 0) {
+                # Save default templates to user's template file
+                Save-TemplatesToDisk -Path $TemplatesFilePath -Templates $TemplatesData
+                Write-Host "Initialized with $($TemplatesData.Count) default conversation templates."
+            }
+        } catch {
+            Write-Warning "Could not load default templates from '$DefaultTemplatesPath': $($_.Exception.Message)"
+        }
+    }
+}
+
 # Load example POST bodies for conversations endpoints
 $ExamplePostBodiesPath = Join-Path -Path $ScriptRoot -ChildPath "ExamplePostBodies.json"
 $script:ExamplePostBodies = @{}

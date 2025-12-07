@@ -188,6 +188,38 @@ The **Templates** tab provides powerful request template functionality:
    - Others can import to use your pre-configured requests
    - Great for onboarding and standardizing API usage
 
+#### Pre-Configured POST Conversation Templates
+
+On first launch, the application automatically includes 12 ready-to-use templates for common POST conversation operations:
+
+**Conversation Management Templates:**
+- **Create Callback - Basic**: Schedule a callback with customer information
+- **Create Outbound Call**: Initiate an outbound call to a customer
+- **Create Web Chat Conversation**: Start a new web chat interaction
+- **Create Email Conversation**: Initiate an outbound email conversation
+- **Create Outbound Message (SMS)**: Send an SMS message to a customer
+- **Replace Participant with User**: Transfer a participant to a specific user
+- **Bulk Disconnect Callbacks**: Disconnect multiple scheduled callbacks at once
+- **Force Disconnect Conversation**: Emergency conversation teardown
+- **Create Participant Callback**: Create a callback for an existing participant
+
+**Analytics Templates:**
+- **Query Conversation Details - Last 7 Days**: Fetch conversation analytics data
+
+**Messaging Templates:**
+- **Send Agentless Outbound Message**: Send automated messages without agent assignment
+
+**Quality Templates:**
+- **Create Quality Evaluation**: Create a quality evaluation for a conversation
+
+These templates include:
+- Complete request body JSON with placeholder values
+- All required parameters pre-configured
+- Descriptive names for easy identification
+- Proper structure for immediate use or customization
+
+Simply load a template, replace placeholder values (like `queue-id-goes-here`) with your actual IDs, and submit the request.
+
 ### Response Viewer
 
 Enhanced response viewing capabilities:
