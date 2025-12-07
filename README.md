@@ -6,6 +6,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 
 ## Features
 
+### Core Capabilities
 - WPF shell with OAuth token field, Help menu, splash screen, grouped path/method selection, jobs watcher tab, schema viewer, inspector, and favorites panel
 - Dynamically generated parameter editors (query/path/body/header) with required-field hints and schema preview powered by the Genesys OpenAPI definitions
 - Dispatches requests with `Invoke-WebRequest`, logs every request/response, and formats big JSON results in the inspector/export dialogs
@@ -13,6 +14,13 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - **Conversation Report tab** merges real-time conversation details with analytics data into a unified report, with export options for JSON and human-readable text formats
 - Favorites persist under `%USERPROFILE%\GenesysApiExplorerFavorites.json` and capture endpoint + payload details for reuse
 - Inspector lets you explore large responses via tree view, raw text, clipboard/export, and warns before parsing huge files
+
+### Phase 1 Enhancements (New!)
+- **Enhanced Token Management**: Test Token button to instantly verify OAuth token validity with clear status indicators (✓ Valid, ✗ Invalid, ⚠ Unknown)
+- **Request History**: Automatically tracks the last 50 API requests with timestamp, method, path, status, and duration. Easily replay previous requests with one click
+- **Progress Indicators**: Visual progress indicator (⏳) during API calls with elapsed time tracking and responsive UI
+- **Enhanced Response Viewer**: Toggle between raw and formatted JSON views, with improved response display
+- **Detailed Error Display**: Comprehensive error information including HTTP status codes, headers, and response body for better troubleshooting
 
 ---
 
@@ -46,9 +54,39 @@ Genesys-API-Explorer/
    .\GenesysCloudAPIExplorer.ps1
    ```
 2. When prompted, paste your Genesys Cloud OAuth token into the token field
-3. Select an API group, endpoint path, and HTTP method from the dropdowns
-4. Fill in any required parameters and click "Submit API Call"
-5. View responses in the Response tab and use the Inspector for large results
+3. Click "Test Token" to verify your token is valid
+4. Select an API group, endpoint path, and HTTP method from the dropdowns
+5. Fill in any required parameters and click "Submit API Call"
+6. View responses in the Response tab and use the Inspector for large results
+
+### Token Management
+
+The enhanced token management feature helps ensure your OAuth token is valid before making API calls:
+
+- **Test Token Button**: Click to instantly verify your token validity
+- **Status Indicator**: Shows token status with clear visual feedback:
+  - ✓ Valid (green) - Token is valid and ready to use
+  - ✗ Invalid (red) - Token is invalid or expired
+  - ⚠ Unknown (orange) - Unable to determine token status
+  - Not tested (gray) - Token hasn't been tested yet
+
+### Request History
+
+The **Request History** tab automatically tracks your API requests:
+
+1. Navigate to the "Request History" tab to view recent requests
+2. Each entry shows: timestamp, method, path, status code, and duration
+3. Select any request and click "Replay Request" to load it back into the main form
+4. Click "Clear History" to remove all tracked requests
+5. History is limited to the last 50 requests for performance
+
+### Response Viewer
+
+Enhanced response viewing capabilities:
+
+- **Toggle Raw/Formatted**: Switch between formatted JSON and raw response text
+- **Response Inspector**: Click "Inspect Result" to explore large responses in a tree view
+- **Progress Indicator**: Visual feedback during API calls with elapsed time display
 
 ### Conversation Report
 
