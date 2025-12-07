@@ -393,6 +393,78 @@ function Test-JsonString {
     }
 }
 
+function Test-ParameterValue {
+    param (
+        [string]$Value,
+        [object]$ValidationMetadata
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @{ Valid = $true }  # Empty values handled by required field check
+    }
+    
+    if (-not $ValidationMetadata) {
+        return @{ Valid = $true }
+    }
+    
+    $errors = @()
+    
+    # Validate integer type
+    if ($ValidationMetadata.Type -eq "integer") {
+        $intValue = $null
+        if (-not [int]::TryParse($Value, [ref]$intValue)) {
+            $errors += "Must be an integer value"
+        } else {
+            if ($ValidationMetadata.Minimum -ne $null -and $intValue -lt $ValidationMetadata.Minimum) {
+                $errors += "Must be at least $($ValidationMetadata.Minimum)"
+            }
+            if ($ValidationMetadata.Maximum -ne $null -and $intValue -gt $ValidationMetadata.Maximum) {
+                $errors += "Must be at most $($ValidationMetadata.Maximum)"
+            }
+        }
+    }
+    
+    # Validate number type (float/double)
+    if ($ValidationMetadata.Type -eq "number") {
+        $numValue = $null
+        if (-not [double]::TryParse($Value, [ref]$numValue)) {
+            $errors += "Must be a numeric value"
+        } else {
+            if ($ValidationMetadata.Minimum -ne $null -and $numValue -lt $ValidationMetadata.Minimum) {
+                $errors += "Must be at least $($ValidationMetadata.Minimum)"
+            }
+            if ($ValidationMetadata.Maximum -ne $null -and $numValue -gt $ValidationMetadata.Maximum) {
+                $errors += "Must be at most $($ValidationMetadata.Maximum)"
+            }
+        }
+    }
+    
+    # Validate array type (comma-separated values)
+    if ($ValidationMetadata.Type -eq "array") {
+        # Arrays are entered as comma-separated values
+        # Just validate that it's not completely malformed
+        # Individual item validation could be added for specific item types
+        if ($ValidationMetadata.ItemType -eq "integer") {
+            $items = $Value -split ',' | ForEach-Object { $_.Trim() }
+            foreach ($item in $items) {
+                if (-not [string]::IsNullOrWhiteSpace($item)) {
+                    $intValue = $null
+                    if (-not [int]::TryParse($item, [ref]$intValue)) {
+                        $errors += "Array item '$item' must be an integer"
+                        break
+                    }
+                }
+            }
+        }
+    }
+    
+    if ($errors.Count -gt 0) {
+        return @{ Valid = $false; Errors = $errors }
+    }
+    
+    return @{ Valid = $true }
+}
+
 function Export-PowerShellScript {
     param (
         [string]$Method,
@@ -3318,8 +3390,36 @@ $methodCombo.Add_SelectionChanged({
         # Create appropriate control based on parameter type and metadata
         $inputControl = $null
         
+        # Check if parameter is array type (special handling)
+        if ($param.type -eq "array") {
+            $textbox = New-Object System.Windows.Controls.TextBox
+            $textbox.MinWidth = 360
+            $textbox.HorizontalAlignment = "Stretch"
+            $textbox.TextWrapping = "Wrap"
+            $textbox.Height = 28
+            if ($param.required) {
+                $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+            }
+            
+            # Build enhanced tooltip with array information
+            $arrayTooltip = $param.description
+            if ($param.items -and $param.items.type) {
+                $arrayTooltip += "`n`nArray of: $($param.items.type)"
+            }
+            $arrayTooltip += "`n`nEnter comma-separated values (e.g., value1, value2, value3)"
+            $textbox.ToolTip = $arrayTooltip
+            
+            # Store metadata for validation
+            $textbox.Tag = @{
+                Type = "array"
+                ItemType = if ($param.items) { $param.items.type } else { "string" }
+            }
+            
+            [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+            $inputControl = $textbox
+        }
         # Check if parameter has enum values (dropdown)
-        if ($param.enum -and $param.enum.Count -gt 0) {
+        elseif ($param.enum -and $param.enum.Count -gt 0) {
             $comboBox = New-Object System.Windows.Controls.ComboBox
             $comboBox.MinWidth = 360
             $comboBox.HorizontalAlignment = "Stretch"
@@ -3389,11 +3489,40 @@ $methodCombo.Add_SelectionChanged({
             if ($param.required) {
                 $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
-            $textbox.ToolTip = $param.description
+            
+            # Build enhanced tooltip with validation constraints
+            $enhancedTooltip = $param.description
+            if ($param.type -eq "integer" -or $param.type -eq "number") {
+                if ($param.minimum -ne $null) {
+                    $enhancedTooltip += "`n`nMinimum: $($param.minimum)"
+                }
+                if ($param.maximum -ne $null) {
+                    $enhancedTooltip += "`n`nMaximum: $($param.maximum)"
+                }
+                if ($param.format) {
+                    $enhancedTooltip += "`n`nFormat: $($param.format)"
+                }
+            }
+            if ($param.default -ne $null) {
+                $enhancedTooltip += "`n`nDefault: $($param.default)"
+            }
+            $textbox.ToolTip = $enhancedTooltip
+            
+            # Store parameter metadata for validation
+            if ($param.in -eq "body") {
+                $textbox.Tag = "body"
+            } else {
+                # Store type and validation constraints
+                $textbox.Tag = @{
+                    Type = $param.type
+                    Format = $param.format
+                    Minimum = $param.minimum
+                    Maximum = $param.maximum
+                }
+            }
             
             # Add real-time JSON validation for body parameters
             if ($param.in -eq "body") {
-                $textbox.Tag = "body"
                 $textbox.Add_TextChanged({
                     param($sender, $e)
                     $text = $sender.Text.Trim()
@@ -4249,6 +4378,16 @@ $btnSubmit.Add_Click({
             if ($param.in -eq "body" -and $value) {
                 if (-not (Test-JsonString -JsonString $value)) {
                     $validationErrors += "$($param.name) contains invalid JSON"
+                }
+            }
+            
+            # Validate type and constraints for non-body parameters
+            if ($param.in -ne "body" -and $value -and $input.Tag -is [hashtable]) {
+                $validationResult = Test-ParameterValue -Value $value -ValidationMetadata $input.Tag
+                if (-not $validationResult.Valid) {
+                    foreach ($error in $validationResult.Errors) {
+                        $validationErrors += "$($param.name): $error"
+                    }
                 }
             }
         } elseif ($param.required) {
