@@ -311,6 +311,73 @@ function Get-GroupForPath {
     return "Other"
 }
 
+function Get-ParameterControlValue {
+    param ($Control)
+    
+    if (-not $Control) { return $null }
+    
+    # Handle CheckBox (wrapped in StackPanel)
+    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
+        $checkBox = $Control.ValueControl
+        if ($checkBox.IsChecked -eq $true) {
+            return "true"
+        } elseif ($checkBox.IsChecked -eq $false) {
+            return "false"
+        }
+        return $null
+    }
+    
+    # Handle ComboBox
+    if ($Control -is [System.Windows.Controls.ComboBox]) {
+        $value = $Control.SelectedItem
+        if ($value) {
+            return $value.ToString()
+        }
+        return $null
+    }
+    
+    # Handle TextBox
+    if ($Control -is [System.Windows.Controls.TextBox]) {
+        return $Control.Text
+    }
+    
+    return $null
+}
+
+function Set-ParameterControlValue {
+    param (
+        $Control,
+        $Value
+    )
+    
+    if (-not $Control) { return }
+    
+    # Handle CheckBox (wrapped in StackPanel)
+    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
+        $checkBox = $Control.ValueControl
+        if ($Value -eq "true" -or $Value -eq $true) {
+            $checkBox.IsChecked = $true
+        } elseif ($Value -eq "false" -or $Value -eq $false) {
+            $checkBox.IsChecked = $false
+        } else {
+            $checkBox.IsChecked = $null
+        }
+        return
+    }
+    
+    # Handle ComboBox
+    if ($Control -is [System.Windows.Controls.ComboBox]) {
+        $Control.SelectedItem = $Value
+        return
+    }
+    
+    # Handle TextBox
+    if ($Control -is [System.Windows.Controls.TextBox]) {
+        $Control.Text = $Value
+        return
+    }
+}
+
 function Populate-ParameterValues {
     param ([Parameter(ValueFromPipeline)] $ParameterSet)
 
@@ -321,7 +388,7 @@ function Populate-ParameterValues {
 
         $input = $paramInputs[$name]
         if ($input -and $null -ne $entry.value) {
-            $input.Text = $entry.value
+            Set-ParameterControlValue -Control $input -Value $entry.value
         }
     }
 }
@@ -2968,23 +3035,96 @@ $methodCombo.Add_SelectionChanged({
         $label.Margin = New-Object System.Windows.Thickness 0,0,10,0
         [System.Windows.Controls.Grid]::SetColumn($label, 0)
 
-        $textbox = New-Object System.Windows.Controls.TextBox
-        $textbox.MinWidth = 360
-        $textbox.HorizontalAlignment = "Stretch"
-        $textbox.TextWrapping = "Wrap"
-        $textbox.AcceptsReturn = ($param.in -eq "body")
-        $textbox.Height = if ($param.in -eq "body") { 80 } else { 28 }
-        if ($param.required) {
-            $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+        # Create appropriate control based on parameter type and metadata
+        $inputControl = $null
+        
+        # Check if parameter has enum values (dropdown)
+        if ($param.enum -and $param.enum.Count -gt 0) {
+            $comboBox = New-Object System.Windows.Controls.ComboBox
+            $comboBox.MinWidth = 360
+            $comboBox.HorizontalAlignment = "Stretch"
+            $comboBox.Height = 28
+            if ($param.required) {
+                $comboBox.Background = [System.Windows.Media.Brushes]::LightYellow
+            }
+            $comboBox.ToolTip = $param.description
+            
+            # Add empty option for optional parameters
+            if (-not $param.required) {
+                $comboBox.Items.Add("") | Out-Null
+            }
+            
+            # Add enum values
+            foreach ($enumValue in $param.enum) {
+                $comboBox.Items.Add($enumValue) | Out-Null
+            }
+            
+            # Set default value if exists
+            if ($param.default) {
+                $comboBox.SelectedItem = $param.default
+            }
+            
+            [System.Windows.Controls.Grid]::SetColumn($comboBox, 1)
+            $inputControl = $comboBox
         }
-        $textbox.ToolTip = $param.description
-        [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+        # Check if parameter is boolean type (checkbox)
+        elseif ($param.type -eq "boolean") {
+            $checkBoxPanel = New-Object System.Windows.Controls.StackPanel
+            $checkBoxPanel.Orientation = "Horizontal"
+            
+            $checkBox = New-Object System.Windows.Controls.CheckBox
+            $checkBox.VerticalAlignment = "Center"
+            $checkBox.ToolTip = $param.description
+            $checkBox.Margin = New-Object System.Windows.Thickness 0,0,10,0
+            
+            # Set default value if exists
+            if ($param.default -ne $null) {
+                if ($param.default -eq $true -or $param.default -eq "true") {
+                    $checkBox.IsChecked = $true
+                }
+            }
+            
+            $checkBoxLabel = New-Object System.Windows.Controls.TextBlock
+            $checkBoxLabel.Text = if ($param.default -ne $null) { "(default: $($param.default))" } else { "" }
+            $checkBoxLabel.VerticalAlignment = "Center"
+            $checkBoxLabel.Foreground = [System.Windows.Media.Brushes]::Gray
+            $checkBoxLabel.FontSize = 11
+            
+            $checkBoxPanel.Children.Add($checkBox) | Out-Null
+            $checkBoxPanel.Children.Add($checkBoxLabel) | Out-Null
+            
+            [System.Windows.Controls.Grid]::SetColumn($checkBoxPanel, 1)
+            $inputControl = $checkBoxPanel
+            # Store reference to the checkbox itself for value retrieval
+            $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $checkBox
+        }
+        # Default: use textbox
+        else {
+            $textbox = New-Object System.Windows.Controls.TextBox
+            $textbox.MinWidth = 360
+            $textbox.HorizontalAlignment = "Stretch"
+            $textbox.TextWrapping = "Wrap"
+            $textbox.AcceptsReturn = ($param.in -eq "body")
+            $textbox.Height = if ($param.in -eq "body") { 80 } else { 28 }
+            if ($param.required) {
+                $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+            }
+            $textbox.ToolTip = $param.description
+            
+            # Add placeholder text for body parameters
+            if ($param.in -eq "body") {
+                $textbox.Tag = "Enter JSON body"
+            }
+            
+            [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+            $inputControl = $textbox
+        }
 
         $row.Children.Add($label) | Out-Null
-        $row.Children.Add($textbox) | Out-Null
+        $row.Children.Add($inputControl) | Out-Null
 
         $parameterPanel.Children.Add($row) | Out-Null
-        $paramInputs[$param.name] = $textbox
+        $paramInputs[$param.name] = $inputControl
     }
 
     $statusText.Text = "Provide values for the parameters and submit."
@@ -3420,7 +3560,7 @@ if ($replayRequestButton) {
             $Window.Dispatcher.Invoke([Action]{
                 foreach ($paramName in $selectedHistory.Parameters.Keys) {
                     if ($paramInputs.ContainsKey($paramName)) {
-                        $paramInputs[$paramName].Text = $selectedHistory.Parameters[$paramName]
+                        Set-ParameterControlValue -Control $paramInputs[$paramName] -Value $selectedHistory.Parameters[$paramName]
                     }
                 }
             }, [System.Windows.Threading.DispatcherPriority]::Background)
@@ -3468,6 +3608,33 @@ $btnSubmit.Add_Click({
 
     $params = $methodObject.parameters
 
+    # Validate required parameters
+    $validationErrors = @()
+    foreach ($param in $params) {
+        if ($param.required) {
+            $input = $paramInputs[$param.name]
+            if ($input) {
+                $value = Get-ParameterControlValue -Control $input
+                if ($value -and $value.GetType().Name -eq "String") {
+                    $value = $value.Trim()
+                }
+                if (-not $value) {
+                    $validationErrors += "$($param.name) is required"
+                }
+            } else {
+                $validationErrors += "$($param.name) is required but control not found"
+            }
+        }
+    }
+
+    if ($validationErrors.Count -gt 0) {
+        $errorMessage = "Validation errors:`n" + ($validationErrors -join "`n")
+        $statusText.Text = "Validation failed: " + ($validationErrors -join ", ")
+        Add-LogEntry "Submit blocked: $errorMessage"
+        [System.Windows.MessageBox]::Show($errorMessage, "Validation Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
+        return
+    }
+
     $queryParams = @{}
     $pathParams = @{}
     $bodyParams = @{}
@@ -3487,7 +3654,10 @@ $btnSubmit.Add_Click({
         $input = $paramInputs[$param.name]
         if (-not $input) { continue }
 
-        $value = $input.Text.Trim()
+        $value = Get-ParameterControlValue -Control $input
+        if ($value -and $value.GetType().Name -eq "String") {
+            $value = $value.Trim()
+        }
         if (-not $value) { continue }
 
         switch ($param.in) {
@@ -3530,8 +3700,14 @@ $btnSubmit.Add_Click({
     $requestParams = @{}
     foreach ($param in $params) {
         $input = $paramInputs[$param.name]
-        if ($input -and $input.Text.Trim()) {
-            $requestParams[$param.name] = $input.Text.Trim()
+        if ($input) {
+            $value = Get-ParameterControlValue -Control $input
+            if ($value -and $value.GetType().Name -eq "String") {
+                $value = $value.Trim()
+            }
+            if ($value) {
+                $requestParams[$param.name] = $value
+            }
         }
     }
 
