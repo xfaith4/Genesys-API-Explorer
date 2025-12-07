@@ -2578,8 +2578,9 @@ $Xaml = @"
 
     <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
       <TextBlock Text="OAuth Token:" VerticalAlignment="Center" Margin="0 0 5 0"/>
-      <TextBox Name="TokenInput" Width="500" Margin="0 0 10 0" ToolTip="Paste your Genesys Cloud OAuth token here."/>
-      <TextBlock Text="(kept in memory only)" VerticalAlignment="Center" Foreground="Gray"/>
+      <TextBox Name="TokenInput" Width="450" Margin="0 0 10 0" ToolTip="Paste your Genesys Cloud OAuth token here."/>
+      <Button Name="TestTokenButton" Width="90" Height="26" Content="Test Token" Margin="0 0 10 0" ToolTip="Verify token validity"/>
+      <TextBlock Name="TokenStatusText" VerticalAlignment="Center" Foreground="Gray" Text="Not tested"/>
     </StackPanel>
 
     <Grid Grid.Row="2" Margin="0 0 0 10">
@@ -2636,7 +2637,8 @@ $Xaml = @"
     <StackPanel Grid.Row="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
       <Button Name="SubmitButton" Width="150" Height="34" Content="Submit API Call" Margin="0 0 10 0"/>
       <Button Name="SaveButton" Width="150" Height="34" Content="Save Response" IsEnabled="False"/>
-      <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
+      <TextBlock Name="ProgressIndicator" VerticalAlignment="Center" Foreground="Blue" Margin="10 0 5 0" Visibility="Collapsed">⏳</TextBlock>
+      <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="5 0 0 0"/>
     </StackPanel>
 
     <TabControl Grid.Row="6">
@@ -2647,6 +2649,7 @@ $Xaml = @"
             <RowDefinition Height="*"/>
           </Grid.RowDefinitions>
           <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 0 0 6">
+            <Button Name="ToggleResponseViewButton" Width="140" Height="30" Content="Toggle Raw/Formatted" Margin="0 0 10 0" IsEnabled="False"/>
             <Button Name="InspectResponseButton" Width="140" Height="30" Content="Inspect Result"/>
           </StackPanel>
           <TextBox Grid.Row="1" Name="ResponseText" TextWrapping="Wrap" AcceptsReturn="True"
@@ -2686,6 +2689,31 @@ $Xaml = @"
           </StackPanel>
           <TextBlock Name="JobResultsPath" Text="Results file: (not available yet)" TextWrapping="Wrap"/>
         </StackPanel>
+      </TabItem>
+      <TabItem Header="Request History">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <ListView Grid.Row="0" Name="RequestHistoryList" Height="200"
+                    VirtualizingStackPanel.IsVirtualizing="True"
+                    VirtualizingStackPanel.VirtualizationMode="Recycling">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn Header="Time" DisplayMemberBinding="{Binding Timestamp}" Width="140"/>
+                <GridViewColumn Header="Method" DisplayMemberBinding="{Binding Method}" Width="70"/>
+                <GridViewColumn Header="Path" DisplayMemberBinding="{Binding Path}" Width="280"/>
+                <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="70"/>
+                <GridViewColumn Header="Duration" DisplayMemberBinding="{Binding Duration}" Width="90"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0 10 0 0">
+            <Button Name="ReplayRequestButton" Width="140" Height="30" Content="Replay Request" IsEnabled="False" ToolTip="Load the selected request into the main form"/>
+            <Button Name="ClearHistoryButton" Width="140" Height="30" Content="Clear History" Margin="10 0 0 0" ToolTip="Clear all request history"/>
+          </StackPanel>
+        </Grid>
       </TabItem>
       <TabItem Header="Conversation Report">
         <Grid Margin="10">
@@ -2732,12 +2760,16 @@ $btnSave = $Window.FindName("SaveButton")
 $responseBox = $Window.FindName("ResponseText")
 $logBox = $Window.FindName("LogText")
 $tokenBox = $Window.FindName("TokenInput")
+$testTokenButton = $Window.FindName("TestTokenButton")
+$tokenStatusText = $Window.FindName("TokenStatusText")
+$progressIndicator = $Window.FindName("ProgressIndicator")
 $statusText = $Window.FindName("StatusText")
 $favoritesList = $Window.FindName("FavoritesList")
 $favoriteNameInput = $Window.FindName("FavoriteNameInput")
 $saveFavoriteButton = $Window.FindName("SaveFavoriteButton")
 $schemaList = $Window.FindName("SchemaList")
 $inspectResponseButton = $Window.FindName("InspectResponseButton")
+$toggleResponseViewButton = $Window.FindName("ToggleResponseViewButton")
 $jobIdText = $Window.FindName("JobIdText")
 $jobStatusText = $Window.FindName("JobStatusText")
 $jobUpdatedText = $Window.FindName("JobUpdatedText")
@@ -2756,8 +2788,13 @@ $conversationReportText = $Window.FindName("ConversationReportText")
 $conversationReportStatus = $Window.FindName("ConversationReportStatus")
 $settingsMenuItem = $Window.FindName("SettingsMenuItem")
 $resetEndpointsMenuItem = $Window.FindName("ResetEndpointsMenuItem")
+$requestHistoryList = $Window.FindName("RequestHistoryList")
+$replayRequestButton = $Window.FindName("ReplayRequestButton")
+$clearHistoryButton = $Window.FindName("ClearHistoryButton")
 $script:LastConversationReport = $null
 $script:LastConversationReportJson = ""
+$script:RequestHistory = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
+$script:ResponseViewMode = "Formatted"  # Can be "Formatted" or "Raw"
 
 function Invoke-ReloadEndpoints {
     param (
@@ -3072,6 +3109,38 @@ if ($saveFavoriteButton) {
     })
 }
 
+if ($toggleResponseViewButton) {
+    $toggleResponseViewButton.Add_Click({
+        if ($script:ResponseViewMode -eq "Formatted") {
+            # Switch to raw
+            $script:ResponseViewMode = "Raw"
+            if ($script:LastResponseRaw) {
+                $statusCode = if ($responseBox.Text -match "Status\s+(\d+)") { $matches[1] } else { "" }
+                if ($statusCode) {
+                    $newLine = [System.Environment]::NewLine
+                    $responseBox.Text = "Status $statusCode (Raw):$newLine$($script:LastResponseRaw)"
+                } else {
+                    $responseBox.Text = $script:LastResponseRaw
+                }
+            }
+            Add-LogEntry "Response view switched to Raw."
+        } else {
+            # Switch to formatted
+            $script:ResponseViewMode = "Formatted"
+            if ($script:LastResponseText) {
+                $statusCode = if ($responseBox.Text -match "Status\s+(\d+)") { $matches[1] } else { "" }
+                if ($statusCode) {
+                    $newLine = [System.Environment]::NewLine
+                    $responseBox.Text = "Status ${statusCode}:$newLine$($script:LastResponseText)"
+                } else {
+                    $responseBox.Text = $script:LastResponseText
+                }
+            }
+            Add-LogEntry "Response view switched to Formatted."
+        }
+    })
+}
+
 if ($inspectResponseButton) {
     $inspectResponseButton.Add_Click({
         Show-DataInspector -JsonText $script:LastResponseRaw
@@ -3096,6 +3165,51 @@ if ($resetEndpointsMenuItem) {
             }
         } else {
             [System.Windows.MessageBox]::Show("Default endpoints file not found at: $defaultPath", "File Not Found", "OK", "Error")
+        }
+    })
+}
+
+if ($testTokenButton) {
+    $testTokenButton.Add_Click({
+        $token = $tokenBox.Text.Trim()
+        if (-not $token) {
+            $tokenStatusText.Text = "No token provided"
+            $tokenStatusText.Foreground = "Red"
+            Add-LogEntry "Token test failed: No token provided."
+            return
+        }
+
+        $testTokenButton.IsEnabled = $false
+        $tokenStatusText.Text = "Testing..."
+        $tokenStatusText.Foreground = "Gray"
+        Add-LogEntry "Testing OAuth token validity..."
+
+        try {
+            # Test token with a simple API call to /api/v2/users/me
+            $headers = @{
+                "Authorization" = "Bearer $token"
+                "Content-Type" = "application/json"
+            }
+            $testUrl = "https://api.usw2.pure.cloud/api/v2/users/me"
+            
+            $response = Invoke-WebRequest -Uri $testUrl -Method GET -Headers $headers -ErrorAction Stop
+            
+            if ($response.StatusCode -eq 200) {
+                $tokenStatusText.Text = "✓ Valid"
+                $tokenStatusText.Foreground = "Green"
+                Add-LogEntry "Token test successful: Token is valid."
+            } else {
+                $tokenStatusText.Text = "⚠ Unknown status"
+                $tokenStatusText.Foreground = "Orange"
+                Add-LogEntry "Token test returned unexpected status: $($response.StatusCode)"
+            }
+        } catch {
+            $tokenStatusText.Text = "✗ Invalid"
+            $tokenStatusText.Foreground = "Red"
+            $errorMsg = $_.Exception.Message
+            Add-LogEntry "Token test failed: $errorMsg"
+        } finally {
+            $testTokenButton.IsEnabled = $true
         }
     })
 }
@@ -3275,6 +3389,65 @@ if ($exportConversationReportTextButton) {
     })
 }
 
+if ($requestHistoryList) {
+    $requestHistoryList.ItemsSource = $script:RequestHistory
+    
+    $requestHistoryList.Add_SelectionChanged({
+        if ($requestHistoryList.SelectedItem) {
+            $replayRequestButton.IsEnabled = $true
+        } else {
+            $replayRequestButton.IsEnabled = $false
+        }
+    })
+}
+
+if ($replayRequestButton) {
+    $replayRequestButton.Add_Click({
+        $selectedHistory = $requestHistoryList.SelectedItem
+        if (-not $selectedHistory) {
+            Add-LogEntry "No request selected to replay."
+            return
+        }
+
+        # Set the group, path, and method
+        $groupCombo.SelectedItem = $selectedHistory.Group
+        $pathCombo.SelectedItem = $selectedHistory.Path
+        $methodCombo.SelectedItem = $selectedHistory.Method
+
+        # Restore parameters
+        if ($selectedHistory.Parameters) {
+            # Use Dispatcher.Invoke to ensure UI is updated before setting parameters
+            $Window.Dispatcher.Invoke([Action]{
+                foreach ($paramName in $selectedHistory.Parameters.Keys) {
+                    if ($paramInputs.ContainsKey($paramName)) {
+                        $paramInputs[$paramName].Text = $selectedHistory.Parameters[$paramName]
+                    }
+                }
+            }, [System.Windows.Threading.DispatcherPriority]::Background)
+        }
+
+        Add-LogEntry "Request loaded from history: $($selectedHistory.Method) $($selectedHistory.Path)"
+        $statusText.Text = "Request loaded from history."
+    })
+}
+
+if ($clearHistoryButton) {
+    $clearHistoryButton.Add_Click({
+        $result = [System.Windows.MessageBox]::Show(
+            "Are you sure you want to clear all request history?",
+            "Clear History",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Question
+        )
+        
+        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+            $script:RequestHistory.Clear()
+            Add-LogEntry "Request history cleared."
+            $statusText.Text = "History cleared."
+        }
+    })
+}
+
 $btnSubmit.Add_Click({
     $selectedPath = $pathCombo.SelectedItem
     $selectedMethod = $methodCombo.SelectedItem
@@ -3345,6 +3518,22 @@ $btnSubmit.Add_Click({
 
     Add-LogEntry "Request $($selectedMethod.ToUpper()) $fullUrl"
     $statusText.Text = "Sending request..."
+    $btnSubmit.IsEnabled = $false
+    if ($progressIndicator) {
+        $progressIndicator.Visibility = "Visible"
+    }
+
+    # Track request start time
+    $requestStartTime = Get-Date
+
+    # Store parameters for history
+    $requestParams = @{}
+    foreach ($param in $params) {
+        $input = $paramInputs[$param.name]
+        if ($input -and $input.Text.Trim()) {
+            $requestParams[$param.name] = $input.Text.Trim()
+        }
+    }
 
     try {
         $response = Invoke-WebRequest -Uri $fullUrl -Method $selectedMethod.ToUpper() -Headers $headers -Body $body -ErrorAction Stop
@@ -3360,10 +3549,38 @@ $btnSubmit.Add_Click({
         $script:LastResponseText = $formattedContent
         $script:LastResponseRaw = $rawContent
         $script:LastResponseFile = ""
+        $script:ResponseViewMode = "Formatted"
         $responseBox.Text = "Status $($response.StatusCode):`r`n$formattedContent"
         $btnSave.IsEnabled = $true
-        $statusText.Text = "Last call succeeded ($($response.StatusCode))."
-        Add-LogEntry "Response: $($response.StatusCode) returned ${($formattedContent.Length)} chars."
+        $btnSubmit.IsEnabled = $true
+        if ($toggleResponseViewButton) {
+            $toggleResponseViewButton.IsEnabled = $true
+        }
+        if ($progressIndicator) {
+            $progressIndicator.Visibility = "Collapsed"
+        }
+        
+        # Calculate duration and update status
+        $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
+        $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms" -f $requestDuration
+        Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms." -f $response.StatusCode, $formattedContent.Length, $requestDuration)
+        
+        # Add to request history
+        $historyEntry = [PSCustomObject]@{
+            Timestamp = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
+            Method = $selectedMethod.ToUpper()
+            Path = $selectedPath
+            Group = $groupCombo.SelectedItem
+            Status = $response.StatusCode
+            Duration = "{0:N0} ms" -f $requestDuration
+            Parameters = $requestParams
+        }
+        $script:RequestHistory.Insert(0, $historyEntry)
+        # Keep only last 50 requests
+        while ($script:RequestHistory.Count -gt 50) {
+            $script:RequestHistory.RemoveAt(50)
+        }
+        
         if ($selectedMethod -eq "post" -and $selectedPath -match "/jobs/?$" -and $json) {
             $jobId = if ($json.id) { $json.id } elseif ($json.jobId) { $json.jobId } else { $null }
             if ($jobId) {
@@ -3407,9 +3624,38 @@ $btnSubmit.Add_Click({
 
         $responseBox.Text = $displayMessage
         $btnSave.IsEnabled = $false
+        $btnSubmit.IsEnabled = $true
+        if ($toggleResponseViewButton) {
+            $toggleResponseViewButton.IsEnabled = $false
+        }
+        if ($progressIndicator) {
+            $progressIndicator.Visibility = "Collapsed"
+        }
         $statusText.Text = "Request failed - see log."
         $script:LastResponseRaw = ""
         $script:LastResponseFile = ""
+
+        # Add to request history
+        $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
+        $statusForHistory = if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+            [int]$_.Exception.Response.StatusCode
+        } else {
+            "Error"
+        }
+        $historyEntry = [PSCustomObject]@{
+            Timestamp = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
+            Method = $selectedMethod.ToUpper()
+            Path = $selectedPath
+            Group = $groupCombo.SelectedItem
+            Status = $statusForHistory
+            Duration = "{0:N0} ms" -f $requestDuration
+            Parameters = $requestParams
+        }
+        $script:RequestHistory.Insert(0, $historyEntry)
+        # Keep only last 50 requests
+        while ($script:RequestHistory.Count -gt 50) {
+            $script:RequestHistory.RemoveAt(50)
+        }
 
         # Log detailed error information to the transparency log
         Add-LogEntry "Response error: $statusCode$errorMessage"
