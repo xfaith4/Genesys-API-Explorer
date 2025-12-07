@@ -4005,7 +4005,6 @@ if ($saveTemplateButton) {
         }
 
         # Prompt for template name
-        $inputDialog = New-Object Microsoft.VisualBasic.Interaction
         Add-Type -AssemblyName Microsoft.VisualBasic
         $templateName = [Microsoft.VisualBasic.Interaction]::InputBox(
             "Enter a name for this template:",
