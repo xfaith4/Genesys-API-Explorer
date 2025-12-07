@@ -3416,13 +3416,14 @@ if ($replayRequestButton) {
 
         # Restore parameters
         if ($selectedHistory.Parameters) {
-            # Wait for parameter panel to be populated
-            Start-Sleep -Milliseconds 200
-            foreach ($paramName in $selectedHistory.Parameters.Keys) {
-                if ($script:ParamInputs.ContainsKey($paramName)) {
-                    $script:ParamInputs[$paramName].Text = $selectedHistory.Parameters[$paramName]
+            # Use Dispatcher.Invoke to ensure UI is updated before setting parameters
+            $Window.Dispatcher.Invoke([Action]{
+                foreach ($paramName in $selectedHistory.Parameters.Keys) {
+                    if ($paramInputs.ContainsKey($paramName)) {
+                        $paramInputs[$paramName].Text = $selectedHistory.Parameters[$paramName]
+                    }
                 }
-            }
+            }, [System.Windows.Threading.DispatcherPriority]::Background)
         }
 
         Add-LogEntry "Request loaded from history: $($selectedHistory.Method) $($selectedHistory.Path)"
@@ -3562,7 +3563,7 @@ $btnSubmit.Add_Click({
         # Calculate duration and update status
         $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
         $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms" -f $requestDuration
-        Add-LogEntry "Response: $($response.StatusCode) returned ${($formattedContent.Length)} chars in {0:N0} ms." -f $requestDuration
+        Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms." -f $response.StatusCode, $formattedContent.Length, $requestDuration)
         
         # Add to request history
         $historyEntry = [PSCustomObject]@{
