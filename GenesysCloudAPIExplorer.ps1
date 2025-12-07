@@ -378,6 +378,21 @@ function Set-ParameterControlValue {
     }
 }
 
+function Test-JsonString {
+    param ([string]$JsonString)
+    
+    if ([string]::IsNullOrWhiteSpace($JsonString)) {
+        return $true  # Empty is valid (will be handled by required check)
+    }
+    
+    try {
+        $null = $JsonString | ConvertFrom-Json -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 function Populate-ParameterValues {
     param ([Parameter(ValueFromPipeline)] $ParameterSet)
 
@@ -3111,9 +3126,26 @@ $methodCombo.Add_SelectionChanged({
             }
             $textbox.ToolTip = $param.description
             
-            # Add placeholder text for body parameters
+            # Add real-time JSON validation for body parameters
             if ($param.in -eq "body") {
-                $textbox.Tag = "Enter JSON body"
+                $textbox.Tag = "body"
+                $textbox.Add_TextChanged({
+                    param($sender, $e)
+                    $text = $sender.Text.Trim()
+                    if ([string]::IsNullOrWhiteSpace($text)) {
+                        # Empty is OK - will be checked as required field
+                        $sender.BorderBrush = $null
+                        $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                    } elseif (Test-JsonString -JsonString $text) {
+                        # Valid JSON - green border
+                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
+                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                    } else {
+                        # Invalid JSON - red border
+                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
+                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                    }
+                })
             }
             
             [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
@@ -3608,22 +3640,29 @@ $btnSubmit.Add_Click({
 
     $params = $methodObject.parameters
 
-    # Validate required parameters
+    # Validate required parameters and JSON body parameters
     $validationErrors = @()
     foreach ($param in $params) {
-        if ($param.required) {
-            $input = $paramInputs[$param.name]
-            if ($input) {
-                $value = Get-ParameterControlValue -Control $input
-                if ($value -and $value.GetType().Name -eq "String") {
-                    $value = $value.Trim()
-                }
-                if (-not $value) {
-                    $validationErrors += "$($param.name) is required"
-                }
-            } else {
-                $validationErrors += "$($param.name) is required but control not found"
+        $input = $paramInputs[$param.name]
+        if ($input) {
+            $value = Get-ParameterControlValue -Control $input
+            if ($value -and $value.GetType().Name -eq "String") {
+                $value = $value.Trim()
             }
+            
+            # Check required fields
+            if ($param.required -and -not $value) {
+                $validationErrors += "$($param.name) is required"
+            }
+            
+            # Validate JSON format for body parameters
+            if ($param.in -eq "body" -and $value) {
+                if (-not (Test-JsonString -JsonString $value)) {
+                    $validationErrors += "$($param.name) contains invalid JSON"
+                }
+            }
+        } elseif ($param.required) {
+            $validationErrors += "$($param.name) is required but control not found"
         }
     }
 

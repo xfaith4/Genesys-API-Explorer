@@ -15,12 +15,26 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - Favorites persist under `%USERPROFILE%\GenesysApiExplorerFavorites.json` and capture endpoint + payload details for reuse
 - Inspector lets you explore large responses via tree view, raw text, clipboard/export, and warns before parsing huge files
 
-### Phase 1 Enhancements (New!)
+### Phase 1 Enhancements
 - **Enhanced Token Management**: Test Token button to instantly verify OAuth token validity with clear status indicators (✓ Valid, ✗ Invalid, ⚠ Unknown)
 - **Request History**: Automatically tracks the last 50 API requests with timestamp, method, path, status, and duration. Easily replay previous requests with one click
 - **Progress Indicators**: Visual progress indicator (⏳) during API calls with elapsed time tracking and responsive UI
 - **Enhanced Response Viewer**: Toggle between raw and formatted JSON views, with improved response display
 - **Detailed Error Display**: Comprehensive error information including HTTP status codes, headers, and response body for better troubleshooting
+
+### Phase 2 Enhancements (New!)
+- **Type-Aware Parameter Controls**: Intelligent input controls that adapt based on parameter type
+  - Dropdown (ComboBox) for enum parameters with predefined values
+  - Checkbox for boolean parameters with visual default value indication
+  - Multi-line text editor for JSON body parameters with real-time validation
+- **Real-Time Validation**: Instant feedback on parameter values
+  - Required field validation before submission with clear error messages
+  - JSON syntax validation for body parameters with visual border feedback (green=valid, red=invalid)
+  - Comprehensive validation summary dialog for all errors
+- **Enhanced User Experience**: 
+  - Parameter descriptions shown as tooltips on all input types
+  - Required fields highlighted with light yellow background
+  - Default values automatically populated for enum and boolean parameters
 
 ---
 
@@ -79,6 +93,33 @@ The **Request History** tab automatically tracks your API requests:
 3. Select any request and click "Replay Request" to load it back into the main form
 4. Click "Clear History" to remove all tracked requests
 5. History is limited to the last 50 requests for performance
+
+### Parameter Input Controls
+
+Phase 2 introduces intelligent parameter controls that adapt to the type of data being entered:
+
+- **Enum Parameters (Dropdowns)**: Parameters with predefined values are shown as dropdown menus
+  - Example: `dashboardType` offers "All", "Public", "Favorites"
+  - Empty option available for optional parameters
+  - Default values automatically selected
+  
+- **Boolean Parameters (Checkboxes)**: True/false parameters use checkboxes
+  - Example: `objectCount`, `force`
+  - Default value displayed next to checkbox
+  - More intuitive than typing "true" or "false"
+  
+- **Body Parameters (JSON Editor)**: JSON body inputs include real-time validation
+  - Multi-line text editor with syntax checking
+  - Border color indicates validation status:
+    - Green border = Valid JSON
+    - Red border = Invalid JSON syntax
+    - No border = Empty (checked separately for required fields)
+  - Validation errors shown before submission
+  
+- **Validation Messages**: 
+  - Required fields are highlighted with light yellow background
+  - Missing required fields trigger a validation error dialog
+  - Invalid JSON in body parameters prevents submission
 
 ### Response Viewer
 
