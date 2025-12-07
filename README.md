@@ -22,7 +22,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - **Enhanced Response Viewer**: Toggle between raw and formatted JSON views, with improved response display
 - **Detailed Error Display**: Comprehensive error information including HTTP status codes, headers, and response body for better troubleshooting
 
-### Phase 2 Enhancements (New!)
+### Phase 2 Enhancements
 - **Type-Aware Parameter Controls**: Intelligent input controls that adapt based on parameter type
   - Dropdown (ComboBox) for enum parameters with predefined values
   - Checkbox for boolean parameters with visual default value indication
@@ -35,6 +35,29 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
   - Parameter descriptions shown as tooltips on all input types
   - Required fields highlighted with light yellow background
   - Default values automatically populated for enum and boolean parameters
+
+### Phase 3 Enhancements (New!)
+- **PowerShell Script Generation**: Export ready-to-run PowerShell scripts
+  - Generate complete PowerShell script with all parameters and authentication
+  - Automatic handling of query, path, and body parameters
+  - Save to file and copy to clipboard in one action
+  - Includes error handling and response formatting
+  
+- **cURL Command Export**: Cross-platform command generation
+  - Generate cURL commands compatible with Linux, macOS, and Windows
+  - Properly escaped parameters and JSON bodies
+  - Copy to clipboard for immediate use
+  - Perfect for sharing with non-PowerShell users
+
+- **Request Template Management**: Save and reuse API configurations
+  - Save current request configuration as a named template
+  - Templates include path, method, and all parameters
+  - Load templates to instantly recreate requests
+  - Template library with sortable list view
+  - Import/export template collections as JSON files
+  - Templates persist to `%USERPROFILE%\GenesysApiExplorerTemplates.json`
+  - Delete unwanted templates with confirmation
+  - Share templates with team members via JSON export
 
 ---
 
@@ -120,6 +143,50 @@ Phase 2 introduces intelligent parameter controls that adapt to the type of data
   - Required fields are highlighted with light yellow background
   - Missing required fields trigger a validation error dialog
   - Invalid JSON in body parameters prevents submission
+
+### Script Generation & Export
+
+Phase 3 adds the ability to export requests as reusable scripts:
+
+- **Export PowerShell**: Click the "Export PowerShell" button to generate a ready-to-run PowerShell script
+  - Complete script includes token, headers, and all parameters
+  - Saves to file and copies to clipboard automatically
+  - Generated scripts are standalone and fully functional
+  - Perfect for automation, documentation, or sharing with team
+  
+- **Export cURL**: Click the "Export cURL" button to generate a cURL command
+  - Cross-platform compatible format
+  - Copies to clipboard immediately
+  - Includes proper escaping for shell environments
+  - Great for testing in different environments or sharing with non-Windows users
+
+### Template Management
+
+The **Templates** tab provides powerful request template functionality:
+
+1. **Saving Templates**:
+   - Configure your API request with all desired parameters
+   - Click "Save Template" button in the Templates tab
+   - Enter a descriptive name for the template
+   - Template is saved with method, path, and all parameter values
+   
+2. **Loading Templates**:
+   - Navigate to the "Templates" tab
+   - Select a template from the list
+   - Click "Load Template" to restore the request configuration
+   - All parameters will be automatically filled in
+   
+3. **Managing Templates**:
+   - **Delete**: Select a template and click "Delete Template" to remove it
+   - **Export**: Click "Export Templates" to save all templates to a JSON file
+   - **Import**: Click "Import Templates" to load templates from a JSON file
+   - Templates persist across sessions in `%USERPROFILE%\GenesysApiExplorerTemplates.json`
+   
+4. **Sharing Templates**:
+   - Export your template collection as JSON
+   - Share the JSON file with team members
+   - Others can import to use your pre-configured requests
+   - Great for onboarding and standardizing API usage
 
 ### Response Viewer
 
