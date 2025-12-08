@@ -102,10 +102,12 @@ Genesys-API-Explorer/
 ├── docs/                                 # Documentation directory
 │   ├── DEVELOPMENT_HISTORY.md            # Complete development timeline and feature history
 │   ├── PROJECT_PLAN.md                   # 8-phase enhancement plan
+│   ├── TEMPLATE_CATALOG.md               # Complete reference of all 31 templates
 │   ├── PHASE1_SUMMARY.md                 # Phase 1 implementation details
 │   ├── PHASE2_SUMMARY.md                 # Phase 2 implementation details
 │   ├── PHASE2_DEFERRED_SUMMARY.md        # Phase 2 extended features
 │   ├── PHASE3_SUMMARY.md                 # Phase 3 implementation details
+│   ├── PHASE4_SUMMARY.md                 # Phase 4 implementation details
 │   ├── POST_CONVERSATIONS_TEMPLATES.md   # Template documentation
 │   └── AI_RECREATION_PROMPT.md           # Project context for AI assistants
 └── .github/
@@ -344,13 +346,19 @@ The report is designed to provide actionable insights at a glance, with the most
 
 Comprehensive project documentation is available in the `docs/` directory:
 
+- **[TEMPLATE_CATALOG.md](docs/TEMPLATE_CATALOG.md)** - Complete reference for all 31 templates
+  - Organized by category (Conversations, Analytics, Speech Analytics, Telephony, Routing, Users)
+  - Detailed description of each template
+  - Parameter requirements and placeholder values
+  - Usage examples and use cases
+  - **Start here** for understanding available templates
+
 - **[DEVELOPMENT_HISTORY.md](docs/DEVELOPMENT_HISTORY.md)** - Complete chronological development story
   - Project overview and philosophy
   - Development timeline across all phases
   - Detailed feature descriptions with user impact
   - Technical architecture and design decisions
   - Future roadmap and planned enhancements
-  - **Start here** for understanding the full project evolution
 
 - **[PROJECT_PLAN.md](docs/PROJECT_PLAN.md)** - 8-phase enhancement plan
   - Structured roadmap for future development
@@ -362,6 +370,7 @@ Comprehensive project documentation is available in the `docs/` directory:
   - [PHASE2_SUMMARY.md](docs/PHASE2_SUMMARY.md) - Advanced parameters & validation
   - [PHASE2_DEFERRED_SUMMARY.md](docs/PHASE2_DEFERRED_SUMMARY.md) - Extended validation features
   - [PHASE3_SUMMARY.md](docs/PHASE3_SUMMARY.md) - Scripting & automation
+  - [PHASE4_SUMMARY.md](docs/PHASE4_SUMMARY.md) - Read-only mode & template expansion
 
 - **[POST_CONVERSATIONS_TEMPLATES.md](docs/POST_CONVERSATIONS_TEMPLATES.md)** - Pre-configured template documentation
 
