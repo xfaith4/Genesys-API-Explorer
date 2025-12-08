@@ -44,7 +44,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
   - **Character count and line numbers** for JSON body parameters
   - **Inline validation hints** for array, numeric, and format-validated parameters
 
-### Phase 3 Enhancements (New!)
+### Phase 3 Enhancements
 - **PowerShell Script Generation**: Export ready-to-run PowerShell scripts
   - Generate complete PowerShell script with all parameters and authentication
   - Automatic handling of query, path, and body parameters
@@ -66,6 +66,18 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
   - Templates persist to `%USERPROFILE%\GenesysApiExplorerTemplates.json`
   - Delete unwanted templates with confirmation
   - Share templates with team members via JSON export
+
+### Phase 4 Enhancements (New!)
+- **Read-Only Mode**: Application now focuses exclusively on data retrieval and analysis
+  - PUT, PATCH, and DELETE methods are filtered out and not available
+  - Ensures the application cannot modify your Genesys Cloud organization
+  - Only GET and POST methods are available for safe data querying
+  
+- **Expanded Template Library**: 20 pre-configured templates focused on conversation data analysis
+  - **11 GET templates** for retrieving conversation data, call history, and active conversations
+  - **9 POST templates** for advanced analytics queries and aggregates
+  - Templates cover conversation details, analytics aggregates, transcripts, and job-based queries
+  - All templates are read-only and designed for data analysis and reporting
 
 ---
 
@@ -236,37 +248,42 @@ The **Templates** tab provides powerful request template functionality:
    - Others can import to use your pre-configured requests
    - Great for onboarding and standardizing API usage
 
-#### Pre-Configured POST Conversation Templates
+#### Pre-Configured Conversation Data Templates
 
-On first launch, the application automatically includes 12 ready-to-use templates for common POST conversation operations:
+On first launch, the application automatically includes 20 ready-to-use templates focused on retrieving and analyzing conversation data:
 
-**Conversation Management Templates:**
-- **Create Callback - Basic**: Schedule a callback with customer information
-- **Create Outbound Call**: Initiate an outbound call to a customer
-- **Create Web Chat Conversation**: Start a new web chat interaction
-- **Create Email Conversation**: Initiate an outbound email conversation
-- **Create Outbound Message (SMS)**: Send an SMS message to a customer
-- **Replace Participant with User**: Transfer a participant to a specific user
-- **Bulk Disconnect Callbacks**: Disconnect multiple scheduled callbacks at once
-- **Force Disconnect Conversation**: Emergency conversation teardown
-- **Create Participant Callback**: Create a callback for an existing participant
+**GET Templates (Data Retrieval):**
+- **Get Active Conversations**: Retrieve all active conversations for the logged-in user
+- **Get Specific Conversation Details**: Fetch details for a single conversation by ID
+- **Get Multiple Conversations by IDs**: Retrieve multiple conversations in one request
+- **Get Single Conversation Analytics**: Get analytics data for a specific conversation
+- **Get Conversation Details Job Status**: Check the status of an async conversation details job
+- **Get Conversation Details Job Results**: Fetch results from a completed async job
+- **Get Call History**: Retrieve call history with pagination
+- **Get Active Callbacks**: List all currently active callbacks
+- **Get Active Calls**: List all currently active calls
+- **Get Active Chats**: List all currently active chat conversations
+- **Get Active Emails**: List all currently active email conversations
 
-**Analytics Templates:**
-- **Query Conversation Details - Last 7 Days**: Fetch conversation analytics data
+**POST Templates (Analytics & Queries):**
+- **Query Conversation Details - Last 7 Days**: Fetch detailed conversation data for the past week
+- **Query Conversation Details - Today**: Get today's conversation details with recent-first ordering
+- **Query Conversation Details - By Queue**: Filter conversations by specific queue ID
+- **Query Conversation Details - By Media Type**: Filter conversations by media type (voice, chat, email, etc.)
+- **Query Conversation Aggregates - Daily Stats**: Get aggregated metrics by hour and queue
+- **Query Conversation Aggregates - Agent Performance**: Analyze agent performance metrics by user
+- **Query Conversation Transcripts**: Retrieve conversation transcripts for analysis
+- **Create Conversation Details Job**: Initiate an async job for large data queries
+- **Query Conversation Activity**: Get real-time conversation activity metrics
 
-**Messaging Templates:**
-- **Send Agentless Outbound Message**: Send automated messages without agent assignment
+These templates are designed for:
+- **Data Analysis**: Extract conversation data for reporting and analytics
+- **Monitoring**: Track active conversations and system activity
+- **Historical Analysis**: Query past conversations with flexible filters
+- **Performance Metrics**: Analyze agent and queue performance
+- **Read-Only Operations**: All templates retrieve data without modifying your organization
 
-**Quality Templates:**
-- **Create Quality Evaluation**: Create a quality evaluation for a conversation
-
-These templates include:
-- Complete request body JSON with placeholder values
-- All required parameters pre-configured
-- Descriptive names for easy identification
-- Proper structure for immediate use or customization
-
-Simply load a template, replace placeholder values (like `queue-id-goes-here`) with your actual IDs, and submit the request.
+Simply load a template, replace placeholder values (like `queue-id-goes-here` or `conversation-id-goes-here`) with your actual IDs, and submit the request.
 
 ### Response Viewer
 
