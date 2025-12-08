@@ -3,7 +3,7 @@
 # Generated: 2025-12-07 23:24:05
 
 $token = ""
-$region = "mypurecloud.com"
+$region = "usw2.pure.cloud"
 $baseUrl = "https://api.$region"
 $path = "/api/v2/analytics/conversations/details/query"
 $headers = @{
