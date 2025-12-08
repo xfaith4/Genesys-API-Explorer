@@ -316,15 +316,24 @@ function Get-ParameterControlValue {
     
     if (-not $Control) { return $null }
     
-    # Handle CheckBox (wrapped in StackPanel)
-    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
-        $checkBox = $Control.ValueControl
-        if ($checkBox.IsChecked -eq $true) {
-            return "true"
-        } elseif ($checkBox.IsChecked -eq $false) {
-            return "false"
+    # Handle CheckBox, Array, Body, and Validated Panels (wrapped in StackPanel with ValueControl)
+    if ($Control.ValueControl) {
+        $innerControl = $Control.ValueControl
+        
+        # CheckBox
+        if ($innerControl -is [System.Windows.Controls.CheckBox]) {
+            if ($innerControl.IsChecked -eq $true) {
+                return "true"
+            } elseif ($innerControl.IsChecked -eq $false) {
+                return "false"
+            }
+            return $null
         }
-        return $null
+        
+        # TextBox (for array, body, or validated parameters)
+        if ($innerControl -is [System.Windows.Controls.TextBox]) {
+            return $innerControl.Text
+        }
     }
     
     # Handle ComboBox
@@ -336,7 +345,7 @@ function Get-ParameterControlValue {
         return $null
     }
     
-    # Handle TextBox
+    # Handle TextBox (direct)
     if ($Control -is [System.Windows.Controls.TextBox]) {
         return $Control.Text
     }
@@ -352,17 +361,27 @@ function Set-ParameterControlValue {
     
     if (-not $Control) { return }
     
-    # Handle CheckBox (wrapped in StackPanel)
-    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
-        $checkBox = $Control.ValueControl
-        if ($Value -eq "true" -or $Value -eq $true) {
-            $checkBox.IsChecked = $true
-        } elseif ($Value -eq "false" -or $Value -eq $false) {
-            $checkBox.IsChecked = $false
-        } else {
-            $checkBox.IsChecked = $null
+    # Handle CheckBox, Array, Body, and Validated Panels (wrapped with ValueControl)
+    if ($Control.ValueControl) {
+        $innerControl = $Control.ValueControl
+        
+        # CheckBox
+        if ($innerControl -is [System.Windows.Controls.CheckBox]) {
+            if ($Value -eq "true" -or $Value -eq $true) {
+                $innerControl.IsChecked = $true
+            } elseif ($Value -eq "false" -or $Value -eq $false) {
+                $innerControl.IsChecked = $false
+            } else {
+                $innerControl.IsChecked = $null
+            }
+            return
         }
-        return
+        
+        # TextBox (for array, body, or validated parameters)
+        if ($innerControl -is [System.Windows.Controls.TextBox]) {
+            $innerControl.Text = $Value
+            return
+        }
     }
     
     # Handle ComboBox
@@ -371,7 +390,7 @@ function Set-ParameterControlValue {
         return
     }
     
-    # Handle TextBox
+    # Handle TextBox (direct)
     if ($Control -is [System.Windows.Controls.TextBox]) {
         $Control.Text = $Value
         return
@@ -391,6 +410,128 @@ function Test-JsonString {
     } catch {
         return $false
     }
+}
+
+function Test-NumericValue {
+    param (
+        [string]$Value,
+        [string]$Type,
+        $Minimum,
+        $Maximum
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @{ IsValid = $true; ErrorMessage = $null }
+    }
+    
+    # Try to parse the number
+    $number = $null
+    $parseSuccess = $false
+    
+    if ($Type -eq "integer") {
+        $parseSuccess = [int]::TryParse($Value, [ref]$number)
+        if (-not $parseSuccess) {
+            return @{ IsValid = $false; ErrorMessage = "Must be a valid integer" }
+        }
+    } elseif ($Type -eq "number") {
+        $parseSuccess = [double]::TryParse($Value, [ref]$number)
+        if (-not $parseSuccess) {
+            return @{ IsValid = $false; ErrorMessage = "Must be a valid number" }
+        }
+    }
+    
+    # Check minimum constraint
+    if ($Minimum -ne $null -and $number -lt $Minimum) {
+        return @{ IsValid = $false; ErrorMessage = "Must be >= $Minimum" }
+    }
+    
+    # Check maximum constraint
+    if ($Maximum -ne $null -and $number -gt $Maximum) {
+        return @{ IsValid = $false; ErrorMessage = "Must be <= $Maximum" }
+    }
+    
+    return @{ IsValid = $true; ErrorMessage = $null }
+}
+
+function Test-StringFormat {
+    param (
+        [string]$Value,
+        [string]$Format,
+        [string]$Pattern
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @{ IsValid = $true; ErrorMessage = $null }
+    }
+    
+    # Check pattern first if provided
+    if ($Pattern) {
+        try {
+            if ($Value -notmatch $Pattern) {
+                return @{ IsValid = $false; ErrorMessage = "Does not match required pattern" }
+            }
+        } catch {
+            # Regex error - skip pattern validation
+        }
+    }
+    
+    # Check format
+    switch ($Format) {
+        "email" {
+            # Simple email validation
+            if ($Value -notmatch '^[^@]+@[^@]+\.[^@]+$') {
+                return @{ IsValid = $false; ErrorMessage = "Must be a valid email address" }
+            }
+        }
+        { $_ -in @("uri", "url") } {
+            # Simple URL validation
+            if ($Value -notmatch '^https?://') {
+                return @{ IsValid = $false; ErrorMessage = "Must be a valid URL (http:// or https://)" }
+            }
+        }
+        { $_ -in @("date", "date-time") } {
+            # Try to parse as date
+            $date = $null
+            if (-not [DateTime]::TryParse($Value, [ref]$date)) {
+                return @{ IsValid = $false; ErrorMessage = "Must be a valid date/time" }
+            }
+        }
+    }
+    
+    return @{ IsValid = $true; ErrorMessage = $null }
+}
+
+function Test-ArrayValue {
+    param (
+        [string]$Value,
+        $ItemType
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @{ IsValid = $true; ErrorMessage = $null }
+    }
+    
+    # Array values are comma-separated
+    $items = $Value -split ',' | ForEach-Object { $_.Trim() }
+    
+    # If itemType is string, anything is valid
+    if ($ItemType.type -eq "string") {
+        return @{ IsValid = $true; ErrorMessage = $null }
+    }
+    
+    # If itemType is integer or number, validate each item
+    if ($ItemType.type -in @("integer", "number")) {
+        foreach ($item in $items) {
+            if ([string]::IsNullOrWhiteSpace($item)) { continue }
+            
+            $testResult = Test-NumericValue -Value $item -Type $ItemType.type -Minimum $null -Maximum $null
+            if (-not $testResult.IsValid) {
+                return @{ IsValid = $false; ErrorMessage = "Array items must be valid $($ItemType.type) values" }
+            }
+        }
+    }
+    
+    return @{ IsValid = $true; ErrorMessage = $null }
 }
 
 function Export-PowerShellScript {
@@ -3378,6 +3519,77 @@ $methodCombo.Add_SelectionChanged({
             # Store reference to the checkbox itself for value retrieval
             $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $checkBox
         }
+        # Check if parameter is array type
+        elseif ($param.type -eq "array") {
+            # Create a container for textbox and hint
+            $arrayPanel = New-Object System.Windows.Controls.StackPanel
+            $arrayPanel.Orientation = "Vertical"
+            
+            $textbox = New-Object System.Windows.Controls.TextBox
+            $textbox.MinWidth = 360
+            $textbox.HorizontalAlignment = "Stretch"
+            $textbox.Height = 28
+            if ($param.required) {
+                $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+            }
+            $textbox.ToolTip = $param.description
+            
+            # Store array metadata for validation
+            $textbox | Add-Member -NotePropertyName "IsArrayType" -NotePropertyValue $true
+            $textbox | Add-Member -NotePropertyName "ArrayItems" -NotePropertyValue $param.items
+            
+            # Add hint text
+            $hintText = New-Object System.Windows.Controls.TextBlock
+            $itemTypeStr = if ($param.items -and $param.items.type) { $param.items.type } else { "string" }
+            $hintText.Text = "Enter comma-separated values (type: $itemTypeStr)"
+            $hintText.FontSize = 10
+            $hintText.Foreground = [System.Windows.Media.Brushes]::Gray
+            $hintText.Margin = New-Object System.Windows.Thickness 0,2,0,0
+            
+            # Add validation indicator
+            $validationText = New-Object System.Windows.Controls.TextBlock
+            $validationText.FontSize = 10
+            $validationText.Margin = New-Object System.Windows.Thickness 0,2,0,0
+            $validationText.Visibility = "Collapsed"
+            
+            # Store reference to validation text for later updates
+            $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
+            
+            # Add real-time validation for array parameters
+            $textbox.Add_TextChanged({
+                param($sender, $e)
+                $text = $sender.Text.Trim()
+                $validationTextBlock = $sender.ValidationText
+                
+                if ([string]::IsNullOrWhiteSpace($text)) {
+                    $sender.BorderBrush = $null
+                    $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                    $validationTextBlock.Visibility = "Collapsed"
+                } else {
+                    $testResult = Test-ArrayValue -Value $text -ItemType $sender.ArrayItems
+                    if ($testResult.IsValid) {
+                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
+                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                        $validationTextBlock.Visibility = "Collapsed"
+                    } else {
+                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
+                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                        $validationTextBlock.Text = "✗ " + $testResult.ErrorMessage
+                        $validationTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
+                        $validationTextBlock.Visibility = "Visible"
+                    }
+                }
+            })
+            
+            $arrayPanel.Children.Add($textbox) | Out-Null
+            $arrayPanel.Children.Add($hintText) | Out-Null
+            $arrayPanel.Children.Add($validationText) | Out-Null
+            
+            [System.Windows.Controls.Grid]::SetColumn($arrayPanel, 1)
+            $inputControl = $arrayPanel
+            # Store reference to the textbox itself for value retrieval
+            $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
+        }
         # Default: use textbox
         else {
             $textbox = New-Object System.Windows.Controls.TextBox
@@ -3389,32 +3601,153 @@ $methodCombo.Add_SelectionChanged({
             if ($param.required) {
                 $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
-            $textbox.ToolTip = $param.description
+            
+            # Build enhanced tooltip with validation info
+            $tooltipText = $param.description
+            if ($param.type -in @("integer", "number")) {
+                if ($param.minimum -ne $null -or $param.maximum -ne $null) {
+                    $rangeInfo = ""
+                    if ($param.minimum -ne $null -and $param.maximum -ne $null) {
+                        $rangeInfo = " (Range: $($param.minimum) - $($param.maximum))"
+                    } elseif ($param.minimum -ne $null) {
+                        $rangeInfo = " (Min: $($param.minimum))"
+                    } elseif ($param.maximum -ne $null) {
+                        $rangeInfo = " (Max: $($param.maximum))"
+                    }
+                    $tooltipText += $rangeInfo
+                }
+            }
+            if ($param.format) {
+                $tooltipText += " (Format: $($param.format))"
+            }
+            $textbox.ToolTip = $tooltipText
+            
+            # Store metadata for validation
+            $textbox | Add-Member -NotePropertyName "ParamType" -NotePropertyValue $param.type
+            $textbox | Add-Member -NotePropertyName "ParamFormat" -NotePropertyValue $param.format
+            $textbox | Add-Member -NotePropertyName "ParamPattern" -NotePropertyValue $param.pattern
+            $textbox | Add-Member -NotePropertyName "ParamMinimum" -NotePropertyValue $param.minimum
+            $textbox | Add-Member -NotePropertyName "ParamMaximum" -NotePropertyValue $param.maximum
             
             # Add real-time JSON validation for body parameters
             if ($param.in -eq "body") {
                 $textbox.Tag = "body"
+                
+                # Create container for body textbox with character count
+                $bodyPanel = New-Object System.Windows.Controls.StackPanel
+                $bodyPanel.Orientation = "Vertical"
+                
+                # Add line number and character count info
+                $infoText = New-Object System.Windows.Controls.TextBlock
+                $infoText.FontSize = 10
+                $infoText.Foreground = [System.Windows.Media.Brushes]::Gray
+                $infoText.Margin = New-Object System.Windows.Thickness 0,2,0,0
+                $infoText.Text = "Lines: 0 | Characters: 0"
+                
+                # Store reference for updates
+                $textbox | Add-Member -NotePropertyName "InfoText" -NotePropertyValue $infoText
+                
                 $textbox.Add_TextChanged({
                     param($sender, $e)
                     $text = $sender.Text.Trim()
+                    $infoTextBlock = $sender.InfoText
+                    
+                    # Update character count and line count
+                    $charCount = $sender.Text.Length
+                    $lineCount = ($sender.Text -split "`n").Count
+                    $infoTextBlock.Text = "Lines: $lineCount | Characters: $charCount"
+                    
                     if ([string]::IsNullOrWhiteSpace($text)) {
                         # Empty is OK - will be checked as required field
                         $sender.BorderBrush = $null
                         $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                        $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Gray
                     } elseif (Test-JsonString -JsonString $text) {
-                        # Valid JSON - green border
+                        # Valid JSON - green border and checkmark
                         $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
                         $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                        $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Green
                     } else {
-                        # Invalid JSON - red border
+                        # Invalid JSON - red border and X
                         $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
                         $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                        $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
                     }
                 })
+                
+                # Replace the textbox with the panel containing textbox and info
+                $bodyPanel.Children.Add($textbox) | Out-Null
+                $bodyPanel.Children.Add($infoText) | Out-Null
+                [System.Windows.Controls.Grid]::SetColumn($bodyPanel, 1)
+                $inputControl = $bodyPanel
+                # Store reference to the textbox for value retrieval
+                $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
             }
-            
-            [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
-            $inputControl = $textbox
+            # Add real-time validation for numeric and format parameters
+            elseif ($param.type -in @("integer", "number") -or $param.format -or $param.pattern) {
+                # Create container for textbox and validation message
+                $validatedPanel = New-Object System.Windows.Controls.StackPanel
+                $validatedPanel.Orientation = "Vertical"
+                
+                $validationText = New-Object System.Windows.Controls.TextBlock
+                $validationText.FontSize = 10
+                $validationText.Margin = New-Object System.Windows.Thickness 0,2,0,0
+                $validationText.Visibility = "Collapsed"
+                
+                # Store reference to validation text
+                $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
+                
+                $textbox.Add_TextChanged({
+                    param($sender, $e)
+                    $text = $sender.Text.Trim()
+                    $validationTextBlock = $sender.ValidationText
+                    
+                    if ([string]::IsNullOrWhiteSpace($text)) {
+                        $sender.BorderBrush = $null
+                        $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                        $validationTextBlock.Visibility = "Collapsed"
+                    } else {
+                        $isValid = $true
+                        $errorMsg = ""
+                        
+                        # Validate numeric types
+                        if ($sender.ParamType -in @("integer", "number")) {
+                            $testResult = Test-NumericValue -Value $text -Type $sender.ParamType -Minimum $sender.ParamMinimum -Maximum $sender.ParamMaximum
+                            $isValid = $testResult.IsValid
+                            $errorMsg = $testResult.ErrorMessage
+                        }
+                        # Validate string formats
+                        elseif ($sender.ParamFormat -or $sender.ParamPattern) {
+                            $testResult = Test-StringFormat -Value $text -Format $sender.ParamFormat -Pattern $sender.ParamPattern
+                            $isValid = $testResult.IsValid
+                            $errorMsg = $testResult.ErrorMessage
+                        }
+                        
+                        if ($isValid) {
+                            $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
+                            $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                            $validationTextBlock.Visibility = "Collapsed"
+                        } else {
+                            $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
+                            $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                            $validationTextBlock.Text = "✗ " + $errorMsg
+                            $validationTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
+                            $validationTextBlock.Visibility = "Visible"
+                        }
+                    }
+                })
+                
+                $validatedPanel.Children.Add($textbox) | Out-Null
+                $validatedPanel.Children.Add($validationText) | Out-Null
+                [System.Windows.Controls.Grid]::SetColumn($validatedPanel, 1)
+                $inputControl = $validatedPanel
+                # Store reference to the textbox for value retrieval
+                $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
+            }
+            else {
+                [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+                $inputControl = $textbox
+            }
         }
 
         $row.Children.Add($label) | Out-Null
@@ -4249,6 +4582,30 @@ $btnSubmit.Add_Click({
             if ($param.in -eq "body" -and $value) {
                 if (-not (Test-JsonString -JsonString $value)) {
                     $validationErrors += "$($param.name) contains invalid JSON"
+                }
+            }
+            
+            # Validate array parameters
+            if ($param.type -eq "array" -and $value) {
+                $testResult = Test-ArrayValue -Value $value -ItemType $param.items
+                if (-not $testResult.IsValid) {
+                    $validationErrors += "$($param.name): " + $testResult.ErrorMessage
+                }
+            }
+            
+            # Validate numeric parameters
+            if ($param.type -in @("integer", "number") -and $value) {
+                $testResult = Test-NumericValue -Value $value -Type $param.type -Minimum $param.minimum -Maximum $param.maximum
+                if (-not $testResult.IsValid) {
+                    $validationErrors += "$($param.name): " + $testResult.ErrorMessage
+                }
+            }
+            
+            # Validate string format/pattern parameters
+            if ($param.type -eq "string" -and $value -and ($param.format -or $param.pattern)) {
+                $testResult = Test-StringFormat -Value $value -Format $param.format -Pattern $param.pattern
+                if (-not $testResult.IsValid) {
+                    $validationErrors += "$($param.name): " + $testResult.ErrorMessage
                 }
             }
         } elseif ($param.required) {
