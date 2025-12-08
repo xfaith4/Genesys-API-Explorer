@@ -13,6 +13,7 @@
 #>
 
 Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase, System.Xaml
+Add-Type -AssemblyName System.Windows.Forms
 
 $DeveloperDocsUrl = "https://developer.genesys.cloud"
 $SupportDocsUrl = "https://help.mypurecloud.com"
@@ -116,8 +117,7 @@ function Show-SettingsDialog {
     <StackPanel Margin="0 0 0 15">
       <TextBlock Text="Upload Custom Endpoints JSON:" FontWeight="Bold" Margin="0 0 0 8"/>
       <StackPanel Orientation="Horizontal">
-        <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="300"
-                 MinWidth="400" HorizontalAlignment="Stretch"/>
+      <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="400" HorizontalAlignment="Stretch"/>
         <Button Name="BrowseButton" Content="Browse..." Width="100" Height="30"/>
       </StackPanel>
       <TextBlock Text="Select a JSON file containing Genesys Cloud API endpoint definitions." Foreground="Gray" Margin="0 8 0 0" TextWrapping="Wrap"/>
@@ -251,11 +251,18 @@ function Load-PathsFromJson {
     param ([Parameter(Mandatory = $true)] [string]$JsonPath)
 
     $json = Get-Content -Path $JsonPath -Raw | ConvertFrom-Json
+    if ($json.paths) {
+        return [PSCustomObject]@{
+            Paths       = $json.paths
+            Definitions = if ($json.definitions) { $json.definitions } else { @{} }
+        }
+    }
+
     foreach ($prop in $json.PSObject.Properties) {
         if ($prop.Value -and $prop.Value.paths) {
             return [PSCustomObject]@{
                 Paths       = $prop.Value.paths
-                Definitions = $prop.Value.definitions
+                Definitions = if ($prop.Value.definitions) { $prop.Value.definitions } else { @{} }
             }
         }
     }
@@ -269,7 +276,7 @@ function Build-GroupMap {
     $map = @{}
     foreach ($prop in $Paths.PSObject.Properties) {
         $path = $prop.Name
-        if ($path -match "^//v2/([^/]+)") {
+        if ($path -match "^/api/v2/([^/]+)") {
             $group = $Matches[1]
         }
         else {
@@ -346,6 +353,24 @@ function Get-ParameterControlValue {
     }
 
     return $null
+}
+
+function Select-ComboBoxItemByText {
+    param (
+        [System.Windows.Controls.ComboBox]$ComboBox,
+        [string]$Text
+    )
+
+    if (-not $ComboBox -or -not $Text) { return $false }
+
+    foreach ($item in $ComboBox.Items) {
+        if ($item -and $item.ToString().Equals($Text, [System.StringComparison]::InvariantCultureIgnoreCase)) {
+            $ComboBox.SelectedItem = $item
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Set-ParameterControlValue {
@@ -3972,7 +3997,10 @@ $methodCombo.Add_SelectionChanged({
                 if ($param.in -eq "body") {
                     $bodyInput = $paramInputs[$param.name]
                     if ($bodyInput) {
-                        $bodyInput.Text = $exampleBody
+                        $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
+                        if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
+                            $bodyTextControl.Text = $exampleBody
+                        }
                         $statusText.Text = "Example body template loaded. Modify as needed and submit."
                     }
                     break
@@ -4587,7 +4615,7 @@ if ($saveTemplateButton) {
         # Create template object
         $template = [PSCustomObject]@{
             Name = $templateName
-            Method = $selectedMethod.ToUpper()
+            Method = $selectedMethod
             Path = $selectedPath
             Group = $groupCombo.SelectedItem
             Parameters = $requestParams
@@ -4612,9 +4640,9 @@ if ($loadTemplateButton) {
         }
 
         # Set the group, path, and method
-        $groupCombo.SelectedItem = $selectedTemplate.Group
-        $pathCombo.SelectedItem = $selectedTemplate.Path
-        $methodCombo.SelectedItem = $selectedTemplate.Method
+        Select-ComboBoxItemByText -ComboBox $groupCombo -Text $selectedTemplate.Group
+        Select-ComboBoxItemByText -ComboBox $pathCombo -Text $selectedTemplate.Path
+        Select-ComboBoxItemByText -ComboBox $methodCombo -Text $selectedTemplate.Method
 
         # Restore parameters using Dispatcher
         if ($selectedTemplate.Parameters) {
