@@ -84,7 +84,18 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 Genesys-API-Explorer/
 ├── GenesysCloudAPIExplorer.ps1           # Main GUI script
 ├── GenesysCloudAPIEndpoints.json         # API endpoint catalog exported from Genesys Cloud
+├── DefaultTemplates.json                 # Pre-configured POST conversation templates
+├── ExamplePostBodies.json                # Example request bodies for common endpoints
 ├── README.md                             # This documentation
+├── docs/                                 # Documentation directory
+│   ├── DEVELOPMENT_HISTORY.md            # Complete development timeline and feature history
+│   ├── PROJECT_PLAN.md                   # 8-phase enhancement plan
+│   ├── PHASE1_SUMMARY.md                 # Phase 1 implementation details
+│   ├── PHASE2_SUMMARY.md                 # Phase 2 implementation details
+│   ├── PHASE2_DEFERRED_SUMMARY.md        # Phase 2 extended features
+│   ├── PHASE3_SUMMARY.md                 # Phase 3 implementation details
+│   ├── POST_CONVERSATIONS_TEMPLATES.md   # Template documentation
+│   └── AI_RECREATION_PROMPT.md           # Project context for AI assistants
 └── .github/
     └── workflows/
         └── test.yml                      # GitHub Actions workflow for testing
@@ -288,6 +299,35 @@ The conversation report includes the following insight-focused sections:
 - **Summary** - Statistics on segments, degraded quality segments (MOS < 3.5), and disconnect events
 
 The report is designed to provide actionable insights at a glance, with the most important information (Key Insights) appearing first.
+
+---
+
+## Documentation
+
+Comprehensive project documentation is available in the `docs/` directory:
+
+- **[DEVELOPMENT_HISTORY.md](docs/DEVELOPMENT_HISTORY.md)** - Complete chronological development story
+  - Project overview and philosophy
+  - Development timeline across all phases
+  - Detailed feature descriptions with user impact
+  - Technical architecture and design decisions
+  - Future roadmap and planned enhancements
+  - **Start here** for understanding the full project evolution
+
+- **[PROJECT_PLAN.md](docs/PROJECT_PLAN.md)** - 8-phase enhancement plan
+  - Structured roadmap for future development
+  - Feature priorities and dependencies
+  - Implementation guidelines
+
+- **Phase Implementation Details:**
+  - [PHASE1_SUMMARY.md](docs/PHASE1_SUMMARY.md) - Core UX enhancements (token validation, history, progress)
+  - [PHASE2_SUMMARY.md](docs/PHASE2_SUMMARY.md) - Advanced parameters & validation
+  - [PHASE2_DEFERRED_SUMMARY.md](docs/PHASE2_DEFERRED_SUMMARY.md) - Extended validation features
+  - [PHASE3_SUMMARY.md](docs/PHASE3_SUMMARY.md) - Scripting & automation
+
+- **[POST_CONVERSATIONS_TEMPLATES.md](docs/POST_CONVERSATIONS_TEMPLATES.md)** - Pre-configured template documentation
+
+- **[AI_RECREATION_PROMPT.md](docs/AI_RECREATION_PROMPT.md)** - Project context for AI assistants
 
 ---
 
