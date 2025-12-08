@@ -1,53 +1,41 @@
 [
   {
-    "Name": "Create Callback - Basic",
-    "Method": "POST",
-    "Path": "/api/v2/conversations/callbacks",
+    "Name": "Get Active Conversations",
+    "Method": "GET",
+    "Path": "/api/v2/conversations",
     "Group": "Conversations",
-    "Parameters": {
-      "body": "{\n  \"callbackNumbers\": [\"+13175551234\"],\n  \"queueId\": \"queue-id-goes-here\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  },\n  \"callbackUserName\": \"Customer Name\",\n  \"callbackScheduledTime\": \"2025-12-15T14:00:00.000Z\",\n  \"countryCode\": \"US\"\n}"
-    },
-    "Created": "2025-12-07 12:00:00"
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Create Outbound Call",
-    "Method": "POST",
-    "Path": "/api/v2/conversations/calls",
+    "Name": "Get Specific Conversation Details",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/{conversationId}",
     "Group": "Conversations",
     "Parameters": {
-      "body": "{\n  \"phoneNumber\": \"+13175551234\",\n  \"callFromQueueId\": \"queue-id-goes-here\",\n  \"callQueueId\": \"queue-id-goes-here\",\n  \"callUserId\": \"user-id-goes-here\",\n  \"priority\": 2,\n  \"languageId\": \"language-id-goes-here\",\n  \"routingSkillsIds\": [],\n  \"conversationIds\": [],\n  \"participants\": []\n}"
+      "conversationId": "conversation-id-goes-here"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Create Web Chat Conversation",
-    "Method": "POST",
-    "Path": "/api/v2/conversations/chats",
-    "Group": "Conversations",
+    "Name": "Get Multiple Conversations by IDs",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/details",
+    "Group": "Analytics",
     "Parameters": {
-      "body": "{\n  \"queueId\": \"queue-id-goes-here\",\n  \"provider\": \"PureCloud Webchat v2\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+      "id": "conversation-id-1,conversation-id-2,conversation-id-3"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Create Email Conversation",
-    "Method": "POST",
-    "Path": "/api/v2/conversations/emails",
-    "Group": "Conversations",
+    "Name": "Get Single Conversation Analytics",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/{conversationId}/details",
+    "Group": "Analytics",
     "Parameters": {
-      "body": "{\n  \"queueId\": \"queue-id-goes-here\",\n  \"provider\": \"PureCloud Email\",\n  \"toAddress\": \"customer@example.com\",\n  \"fromAddress\": \"support@company.com\",\n  \"subject\": \"Your inquiry\",\n  \"direction\": \"outbound\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+      "conversationId": "conversation-id-goes-here"
     },
-    "Created": "2025-12-07 12:00:00"
-  },
-  {
-    "Name": "Create Outbound Message (SMS)",
-    "Method": "POST",
-    "Path": "/api/v2/conversations/messages",
-    "Group": "Conversations",
-    "Parameters": {
-      "body": "{\n  \"queueId\": \"queue-id-goes-here\",\n  \"toAddress\": \"+13175551234\",\n  \"toAddressMessengerType\": \"sms\",\n  \"useExistingConversation\": false,\n  \"externalContactId\": \"external-contact-id-goes-here\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  }\n}"
-    },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
     "Name": "Query Conversation Details - Last 7 Days",
@@ -60,68 +48,147 @@
     "Created": "2025-12-07 12:00:00"
   },
   {
-    "Name": "Replace Participant with User",
+    "Name": "Query Conversation Details - Today",
     "Method": "POST",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/replace",
-    "Group": "Conversations",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
     "Parameters": {
-      "conversationId": "conversation-id-goes-here",
-      "participantId": "participant-id-goes-here",
-      "body": "{\n  \"userId\": \"user-id-to-transfer-to\",\n  \"address\": \"+13175551234\",\n  \"userName\": \"Agent Name\",\n  \"queueId\": \"queue-id-goes-here\",\n  \"voicemail\": false\n}"
+      "body": "{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Bulk Disconnect Callbacks",
+    "Name": "Query Conversation Details - By Queue",
     "Method": "POST",
-    "Path": "/api/v2/conversations/callbacks/bulk/disconnect",
-    "Group": "Conversations",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
     "Parameters": {
-      "body": "[\n  {\n    \"conversationId\": \"conversation-id-1\"\n  },\n  {\n    \"conversationId\": \"conversation-id-2\"\n  }\n]"
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"queueId\",\n          \"value\": \"queue-id-goes-here\"\n        }\n      ]\n    }\n  ]\n}"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Force Disconnect Conversation",
+    "Name": "Query Conversation Details - By Media Type",
     "Method": "POST",
-    "Path": "/api/v2/conversations/{conversationId}/disconnect",
-    "Group": "Conversations",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
     "Parameters": {
-      "conversationId": "conversation-id-goes-here"
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ]\n}"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Send Agentless Outbound Message",
+    "Name": "Query Conversation Aggregates - Daily Stats",
     "Method": "POST",
-    "Path": "/api/v2/conversations/messages/agentless",
-    "Group": "Conversations",
+    "Path": "/api/v2/analytics/conversations/aggregates/query",
+    "Group": "Analytics",
     "Parameters": {
-      "body": "{\n  \"fromAddress\": \"+13175555678\",\n  \"toAddress\": \"+13175551234\",\n  \"toAddressMessengerType\": \"sms\",\n  \"textBody\": \"Your appointment is scheduled for tomorrow at 2pm.\",\n  \"useExistingActiveConversation\": false\n}"
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\"],\n  \"metrics\": [\"nConnected\", \"tHandle\", \"tTalk\", \"tAcw\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Create Quality Evaluation",
+    "Name": "Query Conversation Aggregates - Agent Performance",
     "Method": "POST",
-    "Path": "/api/v2/quality/conversations/{conversationId}/evaluations",
-    "Group": "Quality",
+    "Path": "/api/v2/analytics/conversations/aggregates/query",
+    "Group": "Analytics",
     "Parameters": {
-      "conversationId": "conversation-id-goes-here",
-      "body": "{\n  \"evaluationForm\": {\n    \"id\": \"evaluation-form-id-goes-here\",\n    \"name\": \"Standard Evaluation\"\n  },\n  \"evaluator\": {\n    \"id\": \"evaluator-user-id-goes-here\",\n    \"name\": \"Evaluator Name\"\n  },\n  \"agent\": {\n    \"id\": \"agent-user-id-goes-here\",\n    \"name\": \"Agent Name\"\n  },\n  \"calibration\": false,\n  \"evaluationContext\": {\n    \"contextId\": \"context-id-goes-here\",\n    \"evaluationDate\": \"2025-12-07T12:00:00.000Z\"\n  }\n}"
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"groupBy\": [\"userId\"],\n  \"metrics\": [\"nConnected\", \"tHandle\", \"tTalk\", \"tAcw\", \"tAnswered\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      }\n    ]\n  }\n}"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
   },
   {
-    "Name": "Create Participant Callback",
+    "Name": "Query Conversation Transcripts",
     "Method": "POST",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/callbacks",
+    "Path": "/api/v2/analytics/conversations/transcripts/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"conversationId\",\n          \"value\": \"conversation-id-goes-here\"\n        }\n      ]\n    }\n  ],\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\"\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Create Conversation Details Job - Large Query",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/jobs",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"conversationFilters\": [],\n  \"segmentFilters\": []\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Conversation Details Job Status",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
+    "Group": "Analytics",
+    "Parameters": {
+      "jobId": "job-id-goes-here"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Conversation Details Job Results",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
+    "Group": "Analytics",
+    "Parameters": {
+      "jobId": "job-id-goes-here",
+      "pageSize": "100"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Activity",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/activity/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\"nOffered\", \"nConnected\", \"nOutbound\"]\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Call History",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/calls/history",
     "Group": "Conversations",
     "Parameters": {
-      "conversationId": "conversation-id-goes-here",
-      "participantId": "participant-id-goes-here",
-      "body": "{\n  \"callbackNumbers\": [\"+13175551234\"],\n  \"callbackUserName\": \"Customer Name\",\n  \"callbackScheduledTime\": \"2025-12-15T14:00:00.000Z\",\n  \"countryCode\": \"US\",\n  \"scriptId\": \"script-id-goes-here\",\n  \"queueId\": \"queue-id-goes-here\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"languageId\": \"language-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+      "pageSize": "25",
+      "pageNumber": "1"
     },
-    "Created": "2025-12-07 12:00:00"
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Callbacks",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/callbacks",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Calls",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/calls",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Chats",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/chats",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Emails",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/emails",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
   }
 ]

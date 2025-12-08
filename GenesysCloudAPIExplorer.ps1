@@ -4155,8 +4155,12 @@ $pathCombo.Add_SelectionChanged({
     $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
     if (-not $pathObject) { return }
 
+    # Filter methods to only include GET and POST (read-only mode)
+    $allowedMethods = @('get', 'post')
     foreach ($method in $pathObject.PSObject.Properties | Select-Object -ExpandProperty Name) {
-        $methodCombo.Items.Add($method) | Out-Null
+        if ($allowedMethods -contains $method.ToLower()) {
+            $methodCombo.Items.Add($method) | Out-Null
+        }
     }
 
     $statusText.Text = "Path '$selectedPath' loaded. Select a method."
