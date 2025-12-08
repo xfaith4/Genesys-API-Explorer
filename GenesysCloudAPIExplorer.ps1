@@ -534,6 +534,75 @@ function Test-ArrayValue {
     return @{ IsValid = $true; ErrorMessage = $null }
 }
 
+function Test-ParameterVisibility {
+    param (
+        $Parameter,
+        $AllParameters,
+        $ParameterInputs
+    )
+    
+    # Default: all parameters are visible
+    # This function provides infrastructure for future conditional parameter logic
+    
+    # Check for custom visibility metadata (for future use)
+    if ($Parameter.'x-conditional-on') {
+        $conditionParam = $Parameter.'x-conditional-on'
+        $conditionValue = $Parameter.'x-conditional-value'
+        
+        # Check if the condition parameter exists and has the required value
+        if ($ParameterInputs.ContainsKey($conditionParam)) {
+            $actualValue = Get-ParameterControlValue -Control $ParameterInputs[$conditionParam]
+            
+            if ($actualValue -ne $conditionValue) {
+                return $false  # Hide parameter
+            }
+        }
+    }
+    
+    # Check for mutually exclusive parameters (for future use)
+    if ($Parameter.'x-mutually-exclusive-with') {
+        $exclusiveParams = $Parameter.'x-mutually-exclusive-with'
+        
+        foreach ($exclusiveParam in $exclusiveParams) {
+            if ($ParameterInputs.ContainsKey($exclusiveParam)) {
+                $exclusiveValue = Get-ParameterControlValue -Control $ParameterInputs[$exclusiveParam]
+                
+                if (-not [string]::IsNullOrWhiteSpace($exclusiveValue)) {
+                    return $false  # Hide parameter if mutually exclusive parameter has a value
+                }
+            }
+        }
+    }
+    
+    return $true  # Show parameter
+}
+
+function Update-ParameterVisibility {
+    param (
+        $Parameters,
+        $ParameterInputs,
+        $ParameterPanel
+    )
+    
+    # Update visibility for all parameters based on current values
+    foreach ($param in $Parameters) {
+        if ($ParameterInputs.ContainsKey($param.name)) {
+            $control = $ParameterInputs[$param.name]
+            $isVisible = Test-ParameterVisibility -Parameter $param -AllParameters $Parameters -ParameterInputs $ParameterInputs
+            
+            # Find the Grid row that contains this control
+            $parent = $control.Parent
+            if ($parent -and $parent -is [System.Windows.Controls.Grid]) {
+                if ($isVisible) {
+                    $parent.Visibility = "Visible"
+                } else {
+                    $parent.Visibility = "Collapsed"
+                }
+            }
+        }
+    }
+}
+
 function Export-PowerShellScript {
     param (
         [string]$Method,
@@ -3755,6 +3824,39 @@ $methodCombo.Add_SelectionChanged({
 
         $parameterPanel.Children.Add($row) | Out-Null
         $paramInputs[$param.name] = $inputControl
+        
+        # Add event handlers for conditional parameter visibility updates
+        # This infrastructure is ready for future use when API schema includes parameter dependencies
+        try {
+            $actualControl = $inputControl
+            
+            # Get the actual input control (unwrap if in panel)
+            if ($inputControl.ValueControl) {
+                $actualControl = $inputControl.ValueControl
+            }
+            
+            # Add change handler to trigger visibility updates
+            if ($actualControl -is [System.Windows.Controls.ComboBox]) {
+                $actualControl.Add_SelectionChanged({
+                    # Update-ParameterVisibility would be called here when dependencies exist
+                    # Currently a no-op as API schema doesn't define conditional parameters
+                })
+            } elseif ($actualControl -is [System.Windows.Controls.CheckBox]) {
+                $actualControl.Add_Checked({
+                    # Update-ParameterVisibility would be called here when dependencies exist
+                })
+                $actualControl.Add_Unchecked({
+                    # Update-ParameterVisibility would be called here when dependencies exist
+                })
+            } elseif ($actualControl -is [System.Windows.Controls.TextBox]) {
+                # TextChanged would be too frequent; use LostFocus instead
+                $actualControl.Add_LostFocus({
+                    # Update-ParameterVisibility would be called here when dependencies exist
+                })
+            }
+        } catch {
+            # Silently continue if event handler setup fails
+        }
     }
 
     $statusText.Text = "Provide values for the parameters and submit."
