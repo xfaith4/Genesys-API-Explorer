@@ -100,20 +100,24 @@ function Show-SettingsDialog {
     $settingsXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Endpoints Configuration" Height="300" Width="600"
-        WindowStartupLocation="CenterScreen" ShowInTaskbar="False">
-  <StackPanel Margin="20" VerticalAlignment="Top">
+        Title="Endpoints Configuration" Height="360" Width="760"
+        MinHeight="340" MinWidth="640"
+        ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <StackPanel Margin="20" VerticalAlignment="Top" HorizontalAlignment="Stretch">
     <TextBlock Text="Genesys Cloud API Endpoints Configuration" FontSize="14" FontWeight="Bold" Margin="0 0 0 15"/>
 
     <StackPanel Margin="0 0 0 15">
       <TextBlock Text="Current Endpoints File:" FontWeight="Bold" Margin="0 0 0 5"/>
-      <TextBox Name="CurrentPathText" IsReadOnly="True" Height="30" Padding="8" Background="#F5F5F5"/>
+      <TextBox Name="CurrentPathText" IsReadOnly="True" Height="30" Padding="8" Background="#F5F5F5"
+               HorizontalAlignment="Stretch" MinWidth="520" TextWrapping="Wrap"/>
     </StackPanel>
 
     <StackPanel Margin="0 0 0 15">
       <TextBlock Text="Upload Custom Endpoints JSON:" FontWeight="Bold" Margin="0 0 0 8"/>
       <StackPanel Orientation="Horizontal">
-        <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="300"/>
+        <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="300"
+                 MinWidth="400" HorizontalAlignment="Stretch"/>
         <Button Name="BrowseButton" Content="Browse..." Width="100" Height="30"/>
       </StackPanel>
       <TextBlock Text="Select a JSON file containing Genesys Cloud API endpoint definitions." Foreground="Gray" Margin="0 8 0 0" TextWrapping="Wrap"/>
@@ -207,8 +211,9 @@ function Show-SplashScreen {
     $splashXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud  Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
-        WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True">
+        Title="Genesys Cloud  Explorer" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True"
+        SizeToContent="WidthAndHeight" MinWidth="520" MinHeight="320">
   <Border Margin="10" Padding="14" BorderBrush="#FF2C2C2C" BorderThickness="1" CornerRadius="6" Background="#FFF8F9FB">
     <StackPanel>
       <TextBlock Text="Genesys Cloud  Explorer" FontSize="18" FontWeight="Bold"/>
@@ -313,29 +318,19 @@ function Get-GroupForPath {
 
 function Get-ParameterControlValue {
     param ($Control)
-    
+
     if (-not $Control) { return $null }
-    
-    # Handle CheckBox, Array, Body, and Validated Panels (wrapped in StackPanel with ValueControl)
-    if ($Control.ValueControl) {
-        $innerControl = $Control.ValueControl
-        
-        # CheckBox
-        if ($innerControl -is [System.Windows.Controls.CheckBox]) {
-            if ($innerControl.IsChecked -eq $true) {
-                return "true"
-            } elseif ($innerControl.IsChecked -eq $false) {
-                return "false"
-            }
-            return $null
-        }
-        
-        # TextBox (for array, body, or validated parameters)
-        if ($innerControl -is [System.Windows.Controls.TextBox]) {
-            return $innerControl.Text
+
+    # Handle CheckBox (wrapped in StackPanel)
+    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
+        $checkBox = $Control.ValueControl
+        if ($checkBox.IsChecked -eq $true) {
+            return "true"
+        } elseif ($checkBox.IsChecked -eq $false) {
+            return "false"
         }
     }
-    
+
     # Handle ComboBox
     if ($Control -is [System.Windows.Controls.ComboBox]) {
         $value = $Control.SelectedItem
@@ -344,12 +339,12 @@ function Get-ParameterControlValue {
         }
         return $null
     }
-    
-    # Handle TextBox (direct)
+
+    # Handle TextBox
     if ($Control -is [System.Windows.Controls.TextBox]) {
         return $Control.Text
     }
-    
+
     return $null
 }
 
@@ -358,39 +353,28 @@ function Set-ParameterControlValue {
         $Control,
         $Value
     )
-    
+
     if (-not $Control) { return }
-    
-    # Handle CheckBox, Array, Body, and Validated Panels (wrapped with ValueControl)
-    if ($Control.ValueControl) {
-        $innerControl = $Control.ValueControl
-        
-        # CheckBox
-        if ($innerControl -is [System.Windows.Controls.CheckBox]) {
-            if ($Value -eq "true" -or $Value -eq $true) {
-                $innerControl.IsChecked = $true
-            } elseif ($Value -eq "false" -or $Value -eq $false) {
-                $innerControl.IsChecked = $false
-            } else {
-                $innerControl.IsChecked = $null
-            }
-            return
-        }
-        
-        # TextBox (for array, body, or validated parameters)
-        if ($innerControl -is [System.Windows.Controls.TextBox]) {
-            $innerControl.Text = $Value
-            return
+
+    # Handle CheckBox (wrapped in StackPanel)
+    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
+        $checkBox = $Control.ValueControl
+        if ($Value -eq "true" -or $Value -eq $true) {
+            $checkBox.IsChecked = $true
+        } elseif ($Value -eq "false" -or $Value -eq $false) {
+            $checkBox.IsChecked = $false
+        } else {
+            $checkBox.IsChecked = $null
         }
     }
-    
+
     # Handle ComboBox
     if ($Control -is [System.Windows.Controls.ComboBox]) {
         $Control.SelectedItem = $Value
         return
     }
-    
-    # Handle TextBox (direct)
+
+    # Handle TextBox
     if ($Control -is [System.Windows.Controls.TextBox]) {
         $Control.Text = $Value
         return
@@ -399,11 +383,11 @@ function Set-ParameterControlValue {
 
 function Test-JsonString {
     param ([string]$JsonString)
-    
+
     if ([string]::IsNullOrWhiteSpace($JsonString)) {
         return $true  # Empty is valid (will be handled by required check)
     }
-    
+
     try {
         $null = $JsonString | ConvertFrom-Json -ErrorAction Stop
         return $true
@@ -611,7 +595,7 @@ function Export-PowerShellScript {
         [string]$Token,
         [string]$Region = "mypurecloud.com"
     )
-    
+
     $script = @"
 # Generated PowerShell script for Genesys Cloud API
 # Endpoint: $Method $Path
@@ -623,7 +607,7 @@ function Export-PowerShellScript {
 `$path = "$Path"
 
 "@
-    
+
     # Build headers
     $script += @"
 `$headers = @{
@@ -632,17 +616,17 @@ function Export-PowerShellScript {
 }
 
 "@
-    
+
     # Build query parameters
     $queryParams = @()
     $pathParams = @{}
     $bodyContent = ""
-    
+
     if ($Parameters) {
         foreach ($paramName in $Parameters.Keys) {
             $paramValue = $Parameters[$paramName]
             if ([string]::IsNullOrWhiteSpace($paramValue)) { continue }
-            
+
             # Determine parameter type based on name and path
             $pattern = "{$paramName}"
             if ($Path -match [regex]::Escape($pattern)) {
@@ -659,13 +643,13 @@ function Export-PowerShellScript {
             }
         }
     }
-    
+
     # Replace path parameters
     foreach ($paramName in $pathParams.Keys) {
         $escapedParam = [regex]::Escape("{$paramName}")
         $script += "`$path = `$path -replace '$escapedParam', '$($pathParams[$paramName])'`r`n"
     }
-    
+
     # Build full URL with query parameters
     if ($queryParams.Count -gt 0) {
         $script += "`$url = `"`$baseUrl`$path?$($queryParams -join '&')`"`r`n"
@@ -673,9 +657,9 @@ function Export-PowerShellScript {
     else {
         $script += "`$url = `"`$baseUrl`$path`"`r`n"
     }
-    
+
     $script += "`r`n"
-    
+
     # Build the Invoke-WebRequest command
     if ($bodyContent) {
         $script += "`$body = @'`r`n"
@@ -702,7 +686,7 @@ try {
 }
 "@
     }
-    
+
     return $script
 }
 
@@ -714,19 +698,19 @@ function Export-CurlCommand {
         [string]$Token,
         [string]$Region = "mypurecloud.com"
     )
-    
+
     $baseUrl = "https://api.$Region"
     $fullPath = $Path
-    
+
     # Build query parameters and handle path parameters
     $queryParams = @()
     $bodyContent = ""
-    
+
     if ($Parameters) {
         foreach ($paramName in $Parameters.Keys) {
             $paramValue = $Parameters[$paramName]
             if ([string]::IsNullOrWhiteSpace($paramValue)) { continue }
-            
+
             $pattern = "{$paramName}"
             if ($fullPath -match [regex]::Escape($pattern)) {
                 # Path parameter
@@ -743,25 +727,25 @@ function Export-CurlCommand {
             }
         }
     }
-    
+
     # Build full URL
     $url = "$baseUrl$fullPath"
     if ($queryParams.Count -gt 0) {
         $url += "?" + ($queryParams -join "&")
     }
-    
+
     # Build cURL command
     $curl = "curl -X $($Method.ToUpper()) `"$url`" ``"
     $curl += "`r`n  -H `"Authorization: Bearer $Token`" ``"
     $curl += "`r`n  -H `"Content-Type: application/json`""
-    
+
     if ($bodyContent) {
         # Escape body for shell - single quotes are safest for JSON
         $escapedBody = $bodyContent -replace "'", "'\\''"
         $curl += " ``"
         $curl += "`r`n  -d '$escapedBody'"
     }
-    
+
     return $curl
 }
 
@@ -3038,24 +3022,25 @@ function Get-ExamplePostBody {
         [string]$Path,
         [string]$Method
     )
-    
+
     if (-not $script:ExamplePostBodies) { return $null }
-    
+
     $methodLower = $Method.ToLower()
-    
+
     # Check if this path and method has an example
     $pathData = $script:ExamplePostBodies.PSObject.Properties | Where-Object { $_.Name -eq $Path }
     if ($pathData -and $pathData.Value.$methodLower -and $pathData.Value.$methodLower.example) {
         return ($pathData.Value.$methodLower.example | ConvertTo-Json -Depth 10)
     }
-    
+
     return $null
 }
 
 $Xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud API Explorer" Height="780" Width="950"
+        Title="Genesys Cloud API Explorer" Height="860" Width="1000"
+        MinHeight="780" MinWidth="950"
         WindowStartupLocation="CenterScreen">
   <DockPanel LastChildFill="True">
     <Menu DockPanel.Dock="Top">
@@ -3151,7 +3136,7 @@ $Xaml = @"
       <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="5 0 0 0"/>
     </StackPanel>
 
-    <TabControl Grid.Row="6">
+    <TabControl Grid.Row="6" VerticalAlignment="Stretch">
       <TabItem Header="Response">
         <Grid>
           <Grid.RowDefinitions>
@@ -3163,19 +3148,28 @@ $Xaml = @"
             <Button Name="InspectResponseButton" Width="140" Height="30" Content="Inspect Result"/>
           </StackPanel>
           <TextBox Grid.Row="1" Name="ResponseText" TextWrapping="Wrap" AcceptsReturn="True"
-                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="250"/>
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   VerticalAlignment="Stretch" MinHeight="250"/>
         </Grid>
       </TabItem>
       <TabItem Header="Transparency Log">
-        <TextBox Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
-                 HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="250"/>
+        <Grid>
+          <TextBox Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                   HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   VerticalAlignment="Stretch" MinHeight="220"/>
+        </Grid>
       </TabItem>
       <TabItem Header="Schema">
-        <StackPanel>
-          <TextBlock Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
-          <ListView Name="SchemaList" Height="250"
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
+          <ListView Grid.Row="1" Name="SchemaList"
                     VirtualizingStackPanel.IsVirtualizing="True"
-                    VirtualizingStackPanel.VirtualizationMode="Recycling">
+                    VirtualizingStackPanel.VirtualizationMode="Recycling"
+                    MinHeight="200">
             <ListView.View>
               <GridView>
                 <GridViewColumn Header="Field" DisplayMemberBinding="{Binding Field}" Width="260"/>
@@ -3185,7 +3179,7 @@ $Xaml = @"
               </GridView>
             </ListView.View>
           </ListView>
-        </StackPanel>
+        </Grid>
       </TabItem>
       <TabItem Header="Job Watch">
         <StackPanel Margin="10">
@@ -3282,8 +3276,9 @@ $Xaml = @"
             <TextBlock Name="ConversationReportStatus" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
           </StackPanel>
           <TextBox Grid.Row="2" Name="ConversationReportText" TextWrapping="Wrap" AcceptsReturn="True"
-                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="180"
-                   FontFamily="Consolas" FontSize="11"/>
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   FontFamily="Consolas" FontSize="11"
+                   VerticalAlignment="Stretch" MinHeight="200"/>
         </Grid>
       </TabItem>
     </TabControl>
@@ -3527,7 +3522,7 @@ $methodCombo.Add_SelectionChanged({
 
         # Create appropriate control based on parameter type and metadata
         $inputControl = $null
-        
+
         # Check if parameter has enum values (dropdown)
         if ($param.enum -and $param.enum.Count -gt 0) {
             $comboBox = New-Object System.Windows.Controls.ComboBox
@@ -3538,22 +3533,22 @@ $methodCombo.Add_SelectionChanged({
                 $comboBox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
             $comboBox.ToolTip = $param.description
-            
+
             # Add empty option for optional parameters
             if (-not $param.required) {
                 $comboBox.Items.Add("") | Out-Null
             }
-            
+
             # Add enum values
             foreach ($enumValue in $param.enum) {
                 $comboBox.Items.Add($enumValue) | Out-Null
             }
-            
+
             # Set default value if exists
             if ($param.default) {
                 $comboBox.SelectedItem = $param.default
             }
-            
+
             [System.Windows.Controls.Grid]::SetColumn($comboBox, 1)
             $inputControl = $comboBox
         }
@@ -3561,28 +3556,28 @@ $methodCombo.Add_SelectionChanged({
         elseif ($param.type -eq "boolean") {
             $checkBoxPanel = New-Object System.Windows.Controls.StackPanel
             $checkBoxPanel.Orientation = "Horizontal"
-            
+
             $checkBox = New-Object System.Windows.Controls.CheckBox
             $checkBox.VerticalAlignment = "Center"
             $checkBox.ToolTip = $param.description
             $checkBox.Margin = New-Object System.Windows.Thickness 0,0,10,0
-            
+
             # Set default value if exists
             if ($param.default -ne $null) {
                 if ($param.default -eq $true -or $param.default -eq "true") {
                     $checkBox.IsChecked = $true
                 }
             }
-            
+
             $checkBoxLabel = New-Object System.Windows.Controls.TextBlock
             $checkBoxLabel.Text = if ($param.default -ne $null) { "(default: $($param.default))" } else { "" }
             $checkBoxLabel.VerticalAlignment = "Center"
             $checkBoxLabel.Foreground = [System.Windows.Media.Brushes]::Gray
             $checkBoxLabel.FontSize = 11
-            
+
             $checkBoxPanel.Children.Add($checkBox) | Out-Null
             $checkBoxPanel.Children.Add($checkBoxLabel) | Out-Null
-            
+
             [System.Windows.Controls.Grid]::SetColumn($checkBoxPanel, 1)
             $inputControl = $checkBoxPanel
             # Store reference to the checkbox itself for value retrieval
@@ -3670,34 +3665,8 @@ $methodCombo.Add_SelectionChanged({
             if ($param.required) {
                 $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
-            
-            # Build enhanced tooltip with validation info
-            $tooltipText = $param.description
-            if ($param.type -in @("integer", "number")) {
-                if ($param.minimum -ne $null -or $param.maximum -ne $null) {
-                    $rangeInfo = ""
-                    if ($param.minimum -ne $null -and $param.maximum -ne $null) {
-                        $rangeInfo = " (Range: $($param.minimum) - $($param.maximum))"
-                    } elseif ($param.minimum -ne $null) {
-                        $rangeInfo = " (Min: $($param.minimum))"
-                    } elseif ($param.maximum -ne $null) {
-                        $rangeInfo = " (Max: $($param.maximum))"
-                    }
-                    $tooltipText += $rangeInfo
-                }
-            }
-            if ($param.format) {
-                $tooltipText += " (Format: $($param.format))"
-            }
-            $textbox.ToolTip = $tooltipText
-            
-            # Store metadata for validation
-            $textbox | Add-Member -NotePropertyName "ParamType" -NotePropertyValue $param.type
-            $textbox | Add-Member -NotePropertyName "ParamFormat" -NotePropertyValue $param.format
-            $textbox | Add-Member -NotePropertyName "ParamPattern" -NotePropertyValue $param.pattern
-            $textbox | Add-Member -NotePropertyName "ParamMinimum" -NotePropertyValue $param.minimum
-            $textbox | Add-Member -NotePropertyName "ParamMaximum" -NotePropertyValue $param.maximum
-            
+            $textbox.ToolTip = $param.description
+
             # Add real-time JSON validation for body parameters
             if ($param.in -eq "body") {
                 $textbox.Tag = "body"
@@ -3817,6 +3786,9 @@ $methodCombo.Add_SelectionChanged({
                 [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
                 $inputControl = $textbox
             }
+
+            [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+            $inputControl = $textbox
         }
 
         $row.Children.Add($label) | Out-Null
@@ -4063,9 +4035,9 @@ if ($testTokenButton) {
                 "Content-Type" = "application/json"
             }
             $testUrl = "https://api.usw2.pure.cloud/api/v2/users/me"
-            
+
             $response = Invoke-WebRequest -Uri $testUrl -Method GET -Headers $headers -ErrorAction Stop
-            
+
             if ($response.StatusCode -eq 200) {
                 $tokenStatusText.Text = "✓ Valid"
                 $tokenStatusText.Foreground = "Green"
@@ -4263,7 +4235,7 @@ if ($exportConversationReportTextButton) {
 
 if ($requestHistoryList) {
     $requestHistoryList.ItemsSource = $script:RequestHistory
-    
+
     $requestHistoryList.Add_SelectionChanged({
         if ($requestHistoryList.SelectedItem) {
             $replayRequestButton.IsEnabled = $true
@@ -4311,7 +4283,7 @@ if ($clearHistoryButton) {
             [System.Windows.MessageBoxButton]::YesNo,
             [System.Windows.MessageBoxImage]::Question
         )
-        
+
         if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
             $script:RequestHistory.Clear()
             Add-LogEntry "Request history cleared."
@@ -4356,12 +4328,12 @@ if ($exportPowerShellButton) {
         $dialog.Filter = "PowerShell Scripts (*.ps1)|*.ps1|All Files (*.*)|*.*"
         $dialog.Title = "Save PowerShell Script"
         $dialog.FileName = "GenesysAPI_$($selectedMethod)_Script.ps1"
-        
+
         if ($dialog.ShowDialog() -eq $true) {
             $script | Out-File -FilePath $dialog.FileName -Encoding utf8
             $statusText.Text = "PowerShell script exported to $($dialog.FileName)"
             Add-LogEntry "PowerShell script exported to $($dialog.FileName)"
-            
+
             # Copy to clipboard as well
             [System.Windows.Clipboard]::SetText($script)
             [System.Windows.MessageBox]::Show(
@@ -4421,14 +4393,14 @@ if ($exportCurlButton) {
 # Templates list selection changed
 if ($templatesList) {
     $templatesList.ItemsSource = $script:Templates
-    
+
     # Load templates from disk into the collection
     if ($TemplatesData) {
         foreach ($template in $TemplatesData) {
             $script:Templates.Add($template)
         }
     }
-    
+
     $templatesList.Add_SelectionChanged({
         if ($templatesList.SelectedItem) {
             $loadTemplateButton.IsEnabled = $true
@@ -4497,7 +4469,7 @@ if ($saveTemplateButton) {
         # Add to collection and save
         $script:Templates.Add($template)
         Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
-        
+
         Add-LogEntry "Template saved: $templateName"
         $statusText.Text = "Template '$templateName' saved successfully."
     })
@@ -4546,7 +4518,7 @@ if ($deleteTemplateButton) {
             [System.Windows.MessageBoxButton]::YesNo,
             [System.Windows.MessageBoxImage]::Question
         )
-        
+
         if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
             $script:Templates.Remove($selectedTemplate)
             Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
@@ -4573,7 +4545,7 @@ if ($exportTemplatesButton) {
         $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
         $dialog.Title = "Export Templates"
         $dialog.FileName = "GenesysAPIExplorerTemplates.json"
-        
+
         if ($dialog.ShowDialog() -eq $true) {
             Save-TemplatesToDisk -Path $dialog.FileName -Templates $script:Templates
             $statusText.Text = "Templates exported to $($dialog.FileName)"
@@ -4594,7 +4566,7 @@ if ($importTemplatesButton) {
         $dialog = New-Object Microsoft.Win32.OpenFileDialog
         $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
         $dialog.Title = "Import Templates"
-        
+
         if ($dialog.ShowDialog() -eq $true) {
             $importedTemplates = Load-TemplatesFromDisk -Path $dialog.FileName
             if ($importedTemplates -and $importedTemplates.Count -gt 0) {
@@ -4608,13 +4580,13 @@ if ($importTemplatesButton) {
                             break
                         }
                     }
-                    
+
                     if (-not $exists) {
                         $script:Templates.Add($template)
                         $importCount++
                     }
                 }
-                
+
                 if ($importCount -gt 0) {
                     Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
                     $statusText.Text = "Imported $importCount template(s)."
@@ -4674,12 +4646,12 @@ $btnSubmit.Add_Click({
             if ($value -and $value.GetType().Name -eq "String") {
                 $value = $value.Trim()
             }
-            
+
             # Check required fields
             if ($param.required -and -not $value) {
                 $validationErrors += "$($param.name) is required"
             }
-            
+
             # Validate JSON format for body parameters
             if ($param.in -eq "body" -and $value) {
                 if (-not (Test-JsonString -JsonString $value)) {
@@ -4823,12 +4795,12 @@ $btnSubmit.Add_Click({
         if ($progressIndicator) {
             $progressIndicator.Visibility = "Collapsed"
         }
-        
+
         # Calculate duration and update status
         $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
         $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms" -f $requestDuration
         Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms." -f $response.StatusCode, $formattedContent.Length, $requestDuration)
-        
+
         # Add to request history
         $historyEntry = [PSCustomObject]@{
             Timestamp = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
@@ -4844,7 +4816,7 @@ $btnSubmit.Add_Click({
         while ($script:RequestHistory.Count -gt 50) {
             $script:RequestHistory.RemoveAt(50)
         }
-        
+
         if ($selectedMethod -eq "post" -and $selectedPath -match "/jobs/?$" -and $json) {
             $jobId = if ($json.id) { $json.id } elseif ($json.jobId) { $json.jobId } else { $null }
             if ($jobId) {
