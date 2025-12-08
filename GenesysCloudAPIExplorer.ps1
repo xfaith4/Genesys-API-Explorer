@@ -100,21 +100,24 @@ function Show-SettingsDialog {
     $settingsXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Endpoints Configuration" Height="300" Width="600"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        WindowStartupLocation="CenterScreen">
-  <StackPanel Margin="20" VerticalAlignment="Top">
+        Title="Endpoints Configuration" Height="360" Width="760"
+        MinHeight="340" MinWidth="640"
+        ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <StackPanel Margin="20" VerticalAlignment="Top" HorizontalAlignment="Stretch">
     <TextBlock Text="Genesys Cloud API Endpoints Configuration" FontSize="14" FontWeight="Bold" Margin="0 0 0 15"/>
 
     <StackPanel Margin="0 0 0 15">
       <TextBlock Text="Current Endpoints File:" FontWeight="Bold" Margin="0 0 0 5"/>
-      <TextBox Name="CurrentPathText" IsReadOnly="True" Height="30" Padding="8" Background="#F5F5F5"/>
+      <TextBox Name="CurrentPathText" IsReadOnly="True" Height="30" Padding="8" Background="#F5F5F5"
+               HorizontalAlignment="Stretch" MinWidth="520" TextWrapping="Wrap"/>
     </StackPanel>
 
     <StackPanel Margin="0 0 0 15">
       <TextBlock Text="Upload Custom Endpoints JSON:" FontWeight="Bold" Margin="0 0 0 8"/>
       <StackPanel Orientation="Horizontal">
-        <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="300"/>
+        <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="300"
+                 MinWidth="400" HorizontalAlignment="Stretch"/>
         <Button Name="BrowseButton" Content="Browse..." Width="100" Height="30"/>
       </StackPanel>
       <TextBlock Text="Select a JSON file containing Genesys Cloud API endpoint definitions." Foreground="Gray" Margin="0 8 0 0" TextWrapping="Wrap"/>
@@ -207,8 +210,9 @@ function Show-SplashScreen {
     $splashXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud  Explorer" Height="280" Width="480" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
-        WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True">
+        Title="Genesys Cloud  Explorer" WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True" Background="White" Topmost="True"
+        SizeToContent="WidthAndHeight" MinWidth="520" MinHeight="320">
   <Border Margin="10" Padding="14" BorderBrush="#FF2C2C2C" BorderThickness="1" CornerRadius="6" Background="#FFF8F9FB">
     <StackPanel>
       <TextBlock Text="Genesys Cloud  Explorer" FontSize="18" FontWeight="Bold"/>
@@ -2517,7 +2521,8 @@ $Favorites = Build-FavoritesCollection -Source $FavoritesData
 $Xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Genesys Cloud API Explorer" Height="780" Width="950"
+        Title="Genesys Cloud API Explorer" Height="860" Width="1000"
+        MinHeight="780" MinWidth="950"
         WindowStartupLocation="CenterScreen">
   <DockPanel LastChildFill="True">
     <Menu DockPanel.Dock="Top">
@@ -2609,7 +2614,7 @@ $Xaml = @"
       <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
     </StackPanel>
 
-    <TabControl Grid.Row="6">
+    <TabControl Grid.Row="6" VerticalAlignment="Stretch">
       <TabItem Header="Response">
         <Grid>
           <Grid.RowDefinitions>
@@ -2620,19 +2625,28 @@ $Xaml = @"
             <Button Name="InspectResponseButton" Width="140" Height="30" Content="Inspect Result"/>
           </StackPanel>
           <TextBox Grid.Row="1" Name="ResponseText" TextWrapping="Wrap" AcceptsReturn="True"
-                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="250"/>
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   VerticalAlignment="Stretch" MinHeight="250"/>
         </Grid>
       </TabItem>
       <TabItem Header="Transparency Log">
-        <TextBox Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
-                 HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="250"/>
+        <Grid>
+          <TextBox Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                   HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   VerticalAlignment="Stretch" MinHeight="220"/>
+        </Grid>
       </TabItem>
       <TabItem Header="Schema">
-        <StackPanel>
-          <TextBlock Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
-          <ListView Name="SchemaList" Height="250"
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
+          <ListView Grid.Row="1" Name="SchemaList"
                     VirtualizingStackPanel.IsVirtualizing="True"
-                    VirtualizingStackPanel.VirtualizationMode="Recycling">
+                    VirtualizingStackPanel.VirtualizationMode="Recycling"
+                    MinHeight="200">
             <ListView.View>
               <GridView>
                 <GridViewColumn Header="Field" DisplayMemberBinding="{Binding Field}" Width="260"/>
@@ -2642,7 +2656,7 @@ $Xaml = @"
               </GridView>
             </ListView.View>
           </ListView>
-        </StackPanel>
+        </Grid>
       </TabItem>
       <TabItem Header="Job Watch">
         <StackPanel Margin="10">
@@ -2677,8 +2691,9 @@ $Xaml = @"
             <TextBlock Name="ConversationReportStatus" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
           </StackPanel>
           <TextBox Grid.Row="2" Name="ConversationReportText" TextWrapping="Wrap" AcceptsReturn="True"
-                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" Height="180"
-                   FontFamily="Consolas" FontSize="11"/>
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+                   FontFamily="Consolas" FontSize="11"
+                   VerticalAlignment="Stretch" MinHeight="200"/>
         </Grid>
       </TabItem>
     </TabControl>
