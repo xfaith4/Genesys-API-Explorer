@@ -27,14 +27,20 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
   - Dropdown (ComboBox) for enum parameters with predefined values
   - Checkbox for boolean parameters with visual default value indication
   - Multi-line text editor for JSON body parameters with real-time validation
-- **Real-Time Validation**: Instant feedback on parameter values
+  - Array parameter detection with comma-separated value input
+- **Advanced Type Validation**: Pre-submission validation prevents invalid API calls
+  - Integer validation with type checking and min/max range enforcement
+  - Number validation for floating-point parameters with range constraints
+  - Array item validation (e.g., validates each item in array of integers)
   - Required field validation before submission with clear error messages
   - JSON syntax validation for body parameters with visual border feedback (green=valid, red=invalid)
-  - Comprehensive validation summary dialog for all errors
+  - Comprehensive validation summary dialog showing all errors at once
 - **Enhanced User Experience**: 
   - Parameter descriptions shown as tooltips on all input types
+  - Enhanced tooltips show validation constraints (min, max, format, default, array type)
   - Required fields highlighted with light yellow background
   - Default values automatically populated for enum and boolean parameters
+  - Clear error messages guide users to fix validation issues (e.g., "Must be at least 1")
 
 ### Phase 3 Enhancements (New!)
 - **PowerShell Script Generation**: Export ready-to-run PowerShell scripts
@@ -138,11 +144,28 @@ Phase 2 introduces intelligent parameter controls that adapt to the type of data
     - Red border = Invalid JSON syntax
     - No border = Empty (checked separately for required fields)
   - Validation errors shown before submission
+
+- **Array Parameters**: Parameters accepting multiple values
+  - Example: `id` parameter for division filtering
+  - Enter comma-separated values (e.g., "value1, value2, value3")
+  - Tooltip shows item type (e.g., "Array of: string")
+  - Validation ensures items match expected type
+
+- **Numeric Parameters**: Integer and number parameters with constraints
+  - Example: `entityVersion` (minimum: 1)
+  - Tooltip shows validation rules (minimum, maximum, format)
+  - Pre-submission validation checks:
+    - Value is a valid number/integer
+    - Value meets minimum constraint
+    - Value meets maximum constraint
+  - Clear error messages: "Must be at least 1", "Must be an integer value"
   
 - **Validation Messages**: 
   - Required fields are highlighted with light yellow background
   - Missing required fields trigger a validation error dialog
   - Invalid JSON in body parameters prevents submission
+  - Type validation errors show specific constraint violations
+  - All errors displayed together in a single dialog for easy correction
 
 ### Script Generation & Export
 
