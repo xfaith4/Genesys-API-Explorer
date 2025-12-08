@@ -142,7 +142,17 @@ function Show-SettingsDialog {
     $applyButton = $settingsWindow.FindName("ApplyButton")
     $cancelButton = $settingsWindow.FindName("CancelButton")
 
-    $currentPathText.Text = $CurrentJsonPath
+    if (-not $CurrentJsonPath) {
+        $CurrentJsonPath = if ($PSScriptRoot) {
+            Join-Path -Path $PSScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
+        } else {
+            Join-Path -Path (Split-Path -Parent $MyInvocation.MyCommand.Definition) -ChildPath "GenesysCloudAPIEndpoints.json"
+        }
+    }
+
+    if ($currentPathText) {
+        $currentPathText.Text = $CurrentJsonPath
+    }
 
     # Use script scope for the selected file so closures can access/modify it
     $script:SettingsDialogSelectedFile = ""
@@ -150,11 +160,21 @@ function Show-SettingsDialog {
     $browseButton.Add_Click({
         $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
         $openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
-        $openFileDialog.InitialDirectory = Split-Path -Parent $CurrentJsonPath
+        $initialDir = if ($CurrentJsonPath -and (Test-Path -Path $CurrentJsonPath)) {
+            Split-Path -Parent $CurrentJsonPath
+        } else {
+            (Get-Location).ProviderPath
+        }
+        if (-not $initialDir) {
+            $initialDir = (Get-Location).ProviderPath
+        }
+        $openFileDialog.InitialDirectory = $initialDir
 
         if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             $script:SettingsDialogSelectedFile = $openFileDialog.FileName
-            $selectedFileText.Text = $script:SettingsDialogSelectedFile
+            if ($selectedFileText) {
+                $selectedFileText.Text = $script:SettingsDialogSelectedFile
+            }
         }
     })
 
@@ -172,12 +192,15 @@ function Show-SettingsDialog {
         try {
             $testJson = Get-Content -Path $script:SettingsDialogSelectedFile -Raw | ConvertFrom-Json -ErrorAction Stop
 
-            # Verify the JSON has required structure
             $hasPaths = $false
-            foreach ($prop in $testJson.PSObject.Properties) {
-                if ($prop.Value -and $prop.Value.paths) {
-                    $hasPaths = $true
-                    break
+            if ($testJson.paths) {
+                $hasPaths = $true
+            } else {
+                foreach ($prop in $testJson.PSObject.Properties) {
+                    if ($prop.Value -and $prop.Value.paths) {
+                        $hasPaths = $true
+                        break
+                    }
                 }
             }
 
@@ -426,17 +449,17 @@ function Test-ParameterValue {
         [string]$Value,
         [object]$ValidationMetadata
     )
-    
+
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return @{ Valid = $true }  # Empty values handled by required field check
     }
-    
+
     if (-not $ValidationMetadata) {
         return @{ Valid = $true }
     }
-    
+
     $errors = @()
-    
+
     # Validate integer type
     if ($ValidationMetadata.Type -eq "integer") {
         $intValue = $null
@@ -451,7 +474,7 @@ function Test-ParameterValue {
             }
         }
     }
-    
+
     # Validate number type (float/double)
     if ($ValidationMetadata.Type -eq "number") {
         $numValue = $null
@@ -466,7 +489,7 @@ function Test-ParameterValue {
             }
         }
     }
-    
+
     # Validate array type (comma-separated values)
     if ($ValidationMetadata.Type -eq "array") {
         # Arrays are entered as comma-separated values
@@ -485,11 +508,11 @@ function Test-ParameterValue {
             }
         }
     }
-    
+
     if ($errors.Count -gt 0) {
         return @{ Valid = $false; Errors = $errors }
     }
-    
+
     return @{ Valid = $true }
 }
 
@@ -500,15 +523,15 @@ function Test-NumericValue {
         [object]$Minimum,
         [object]$Maximum
     )
-    
+
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return @{ IsValid = $true; ErrorMessage = $null }
     }
-    
+
     # Try to parse the number
     $number = $null
     $parseSuccess = $false
-    
+
     if ($Type -eq "integer") {
         $parseSuccess = [int]::TryParse($Value, [ref]$number)
         if (-not $parseSuccess) {
@@ -520,17 +543,17 @@ function Test-NumericValue {
             return @{ IsValid = $false; ErrorMessage = "Must be a valid number" }
         }
     }
-    
+
     # Check minimum constraint
     if ($Minimum -ne $null -and $number -lt $Minimum) {
         return @{ IsValid = $false; ErrorMessage = "Must be >= $Minimum" }
     }
-    
+
     # Check maximum constraint
     if ($Maximum -ne $null -and $number -gt $Maximum) {
         return @{ IsValid = $false; ErrorMessage = "Must be <= $Maximum" }
     }
-    
+
     return @{ IsValid = $true; ErrorMessage = $null }
 }
 
@@ -540,11 +563,11 @@ function Test-StringFormat {
         [string]$Format = $null,
         [string]$Pattern = $null
     )
-    
+
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return @{ IsValid = $true; ErrorMessage = $null }
     }
-    
+
     # Check pattern first if provided
     if ($Pattern) {
         try {
@@ -555,7 +578,7 @@ function Test-StringFormat {
             # Regex error - skip pattern validation
         }
     }
-    
+
     # Check format
     switch ($Format) {
         "email" {
@@ -578,7 +601,7 @@ function Test-StringFormat {
             }
         }
     }
-    
+
     return @{ IsValid = $true; ErrorMessage = $null }
 }
 
@@ -587,31 +610,31 @@ function Test-ArrayValue {
         [string]$Value,
         [object]$ItemType
     )
-    
+
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return @{ IsValid = $true; ErrorMessage = $null }
     }
-    
+
     # Array values are comma-separated
     $items = $Value -split ',' | ForEach-Object { $_.Trim() }
-    
+
     # If itemType is string, anything is valid
     if ($ItemType.type -eq "string") {
         return @{ IsValid = $true; ErrorMessage = $null }
     }
-    
+
     # If itemType is integer or number, validate each item
     if ($ItemType.type -in @("integer", "number")) {
         foreach ($item in $items) {
             if ([string]::IsNullOrWhiteSpace($item)) { continue }
-            
+
             $testResult = Test-NumericValue -Value $item -Type $ItemType.type -Minimum $null -Maximum $null
             if (-not $testResult.IsValid) {
                 return @{ IsValid = $false; ErrorMessage = "Array items must be valid $($ItemType.type) values" }
             }
         }
     }
-    
+
     return @{ IsValid = $true; ErrorMessage = $null }
 }
 
@@ -621,40 +644,40 @@ function Test-ParameterVisibility {
         [array]$AllParameters,
         [hashtable]$ParameterInputs
     )
-    
+
     # Default: all parameters are visible
     # This function provides infrastructure for future conditional parameter logic
-    
+
     # Check for custom visibility metadata (for future use)
     if ($Parameter.'x-conditional-on') {
         $conditionParam = $Parameter.'x-conditional-on'
         $conditionValue = $Parameter.'x-conditional-value'
-        
+
         # Check if the condition parameter exists and has the required value
         if ($ParameterInputs.ContainsKey($conditionParam)) {
             $actualValue = Get-ParameterControlValue -Control $ParameterInputs[$conditionParam]
-            
+
             if ($actualValue -ne $conditionValue) {
                 return $false  # Hide parameter
             }
         }
     }
-    
+
     # Check for mutually exclusive parameters (for future use)
     if ($Parameter.'x-mutually-exclusive-with') {
         $exclusiveParams = $Parameter.'x-mutually-exclusive-with'
-        
+
         foreach ($exclusiveParam in $exclusiveParams) {
             if ($ParameterInputs.ContainsKey($exclusiveParam)) {
                 $exclusiveValue = Get-ParameterControlValue -Control $ParameterInputs[$exclusiveParam]
-                
+
                 if (-not [string]::IsNullOrWhiteSpace($exclusiveValue)) {
                     return $false  # Hide parameter if mutually exclusive parameter has a value
                 }
             }
         }
     }
-    
+
     return $true  # Show parameter
 }
 
@@ -664,13 +687,13 @@ function Update-ParameterVisibility {
         [hashtable]$ParameterInputs,
         [System.Windows.Controls.Panel]$ParameterPanel
     )
-    
+
     # Update visibility for all parameters based on current values
     foreach ($param in $Parameters) {
         if ($ParameterInputs.ContainsKey($param.name)) {
             $control = $ParameterInputs[$param.name]
             $isVisible = Test-ParameterVisibility -Parameter $param -AllParameters $Parameters -ParameterInputs $ParameterInputs
-            
+
             # Find the Grid row that contains this control
             $parent = $control.Parent
             if ($parent -and $parent -is [System.Windows.Controls.Grid]) {
@@ -1019,6 +1042,370 @@ function Update-SchemaList {
     foreach ($entry in $entries) {
         $schemaList.Items.Add($entry) | Out-Null
     }
+}
+
+function Get-EnumValues {
+    param (
+        $Schema,
+        [string]$PropertyName
+    )
+
+    if (-not $Schema) {
+        return @()
+    }
+
+    $member = $Schema.PSObject.Properties[$PropertyName]
+    if (-not $member) {
+        return @()
+    }
+
+    $value = $member.Value
+    if ($value -and $value.enum) {
+        return ,$value.enum
+    }
+
+    return @()
+}
+
+function Initialize-FilterBuilderEnum {
+    $convPredicate = Resolve-SchemaReference -Schema $script:Definitions.ConversationDetailQueryPredicate -Definitions $script:Definitions
+    $segmentPredicate = Resolve-SchemaReference -Schema $script:Definitions.SegmentDetailQueryPredicate -Definitions $script:Definitions
+
+    $script:FilterBuilderEnums.Conversation.Dimensions = Get-EnumValues -Schema $convPredicate -PropertyName "dimension"
+    $script:FilterBuilderEnums.Conversation.Metrics = Get-EnumValues -Schema $convPredicate -PropertyName "metric"
+
+    $script:FilterBuilderEnums.Segment.Dimensions = Get-EnumValues -Schema $segmentPredicate -PropertyName "dimension"
+    $script:FilterBuilderEnums.Segment.Metrics = Get-EnumValues -Schema $segmentPredicate -PropertyName "metric"
+
+    $operatorValues = Get-EnumValues -Schema $convPredicate -PropertyName "operator"
+    if ($operatorValues.Count -gt 0) {
+        $script:FilterBuilderEnums.Operators = $operatorValues
+    }
+}
+function Update-FilterFieldOptions {
+    param (
+        [string]$Scope,
+        [string]$PredicateType,
+        [System.Windows.Controls.ComboBox]$ComboBox
+    )
+
+    if (-not $ComboBox) { return }
+
+    $ComboBox.Items.Clear()
+    $ComboBox.IsEnabled = $true
+
+    switch ("$Scope|$PredicateType") {
+        "Conversation|metric" {
+            $items = $script:FilterBuilderEnums.Conversation.Metrics
+        }
+        "Conversation|dimension" {
+            $items = $script:FilterBuilderEnums.Conversation.Dimensions
+        }
+        "Segment|metric" {
+            $items = $script:FilterBuilderEnums.Segment.Metrics
+        }
+        default {
+            $items = $script:FilterBuilderEnums.Segment.Dimensions
+        }
+ }
+    if (-not $items -or $items.Count -eq 0) {
+        $ComboBox.Items.Add("(no fields available)") | Out-Null
+        $ComboBox.IsEnabled = $false
+        $ComboBox.SelectedIndex = 0
+        return
+    }
+
+    foreach ($item in $items) {
+        $ComboBox.Items.Add($item) | Out-Null
+    }
+
+    $ComboBox.SelectedIndex = 0
+}
+
+function Format-FilterSummary {
+    param ($Filter)
+
+    if (-not $Filter) { return "" }
+
+    $predicate = if ($Filter.predicates -and $Filter.predicates.Count -gt 0) { $Filter.predicates[0] } else { $null }
+    if (-not $predicate) { return "$($Filter.type) filter" }
+
+    $fieldName = if ($predicate.dimension) {
+        $predicate.dimension
+    } elseif ($predicate.metric) {
+        $predicate.metric
+    } else {
+        "<field>"
+    }
+
+    $valueText = "<no value>"
+    if ($predicate.range) {
+        $valueText = "(range)"
+    } elseif ($predicate.value -ne $null) {
+        $valueText = $predicate.value
+    }
+
+    return "$($Filter.type): $($predicate.type) $fieldName $($predicate.operator) $valueText"
+}
+function Reset-FilterBuilderData {
+    $script:FilterBuilderData.ConversationFilters = New-Object System.Collections.ArrayList
+    $script:FilterBuilderData.SegmentFilters = New-Object System.Collections.ArrayList
+    if ($conversationFiltersList) { $conversationFiltersList.Items.Clear() }
+    if ($segmentFiltersList) { $segmentFiltersList.Items.Clear() }
+    if ($filterIntervalInput) {
+        $filterIntervalInput.Text = $script:FilterBuilderData.Interval
+    }
+    if ($removeConversationPredicateButton) {
+        $removeConversationPredicateButton.IsEnabled = $false
+    }
+    if ($removeSegmentPredicateButton) {
+        $removeSegmentPredicateButton.IsEnabled = $false
+    }
+}
+
+function Refresh-FilterList {
+    param ([string]$Scope)
+
+    if ($Scope -eq "Conversation") {
+        if (-not $conversationFiltersList) { return }
+        $conversationFiltersList.Items.Clear()
+        foreach ($filter in $script:FilterBuilderData.ConversationFilters) {
+            $summary = Format-FilterSummary -Filter $filter
+            $conversationFiltersList.Items.Add($summary) | Out-Null
+        }
+    }
+    else {
+        if (-not $segmentFiltersList) { return }
+        $segmentFiltersList.Items.Clear()
+        foreach ($filter in $script:FilterBuilderData.SegmentFilters) {
+            $summary = Format-FilterSummary -Filter $filter
+            $segmentFiltersList.Items.Add($summary) | Out-Null
+        }
+    }
+ }
+
+function Get-BodyTextBox {
+    if ($script:CurrentBodyControl) {
+        if ($script:CurrentBodyControl.ValueControl -and ($script:CurrentBodyControl.ValueControl -is [System.Windows.Controls.TextBox])) {
+            return $script:CurrentBodyControl.ValueControl
+        }
+        if ($script:CurrentBodyControl -is [System.Windows.Controls.TextBox]) {
+            return $script:CurrentBodyControl
+        }
+    }
+    return $null
+}
+function Invoke-FilterBuilderBody {
+    $bodyTextBox = Get-BodyTextBox
+    if (-not $bodyTextBox) { return }
+
+    $intervalValue = if ($filterIntervalInput -and ($filterIntervalInput.Text.Trim())) {
+        $filterIntervalInput.Text.Trim()
+    } else {
+        $script:FilterBuilderData.Interval
+    }
+
+    $payload = [ordered]@{}
+    if ($intervalValue) {
+        $payload.interval = $intervalValue
+        $script:FilterBuilderData.Interval = $intervalValue
+    }
+
+    if ($script:FilterBuilderData.ConversationFilters.Count -gt 0) {
+        $payload.conversationFilters = $script:FilterBuilderData.ConversationFilters
+    }
+    if ($script:FilterBuilderData.SegmentFilters.Count -gt 0) {
+        $payload.segmentFilters = $script:FilterBuilderData.SegmentFilters
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 10
+    $bodyTextBox.Text = $json
+}
+function Set-FilterBuilderVisibility {
+    param ([bool]$Visible)
+
+    if ($filterBuilderExpander) {
+        $filterBuilderExpander.Visibility = if ($Visible) { "Visible" } else { "Collapsed" }
+        $filterBuilderExpander.IsExpanded = $Visible
+    }
+
+    if (-not $filterBuilderBorder) { return }
+    $filterBuilderBorder.Visibility = if ($Visible) { "Visible" } else { "Collapsed" }
+
+    if (-not $Visible) {
+        Release-FilterBuilderResources
+        if ($filterBuilderHintText) {
+            $filterBuilderHintText.Text = ""
+        }
+    } else {
+        Initialize-FilterBuilderControl
+    }
+}
+function Update-FilterBuilderHint {
+    if (-not $filterBuilderHintText) { return }
+    $convDims = $script:FilterBuilderEnums.Conversation.Dimensions.Count
+    $convMetrics = $script:FilterBuilderEnums.Conversation.Metrics.Count
+    $segDims = $script:FilterBuilderEnums.Segment.Dimensions.Count
+    $segMetrics = $script:FilterBuilderEnums.Segment.Metrics.Count
+    $hint = "Conversation dims ($convDims) · metrics ($convMetrics); Segment dims ($segDims) · metrics ($segMetrics)."
+    $filterBuilderHintText.Text = $hint
+}
+
+function Release-FilterBuilderResources {
+    if ($conversationFiltersList) {
+        $conversationFiltersList.Items.Clear()
+        $conversationFiltersList.ItemsSource = $null
+    }
+    if ($segmentFiltersList) {
+        $segmentFiltersList.Items.Clear()
+        $segmentFiltersList.ItemsSource = $null
+    }
+    if ($conversationFieldCombo) {
+        $conversationFieldCombo.Items.Clear()
+        $conversationFieldCombo.ItemsSource = $null
+    }
+    if ($segmentFieldCombo) {
+        $segmentFieldCombo.Items.Clear()
+        $segmentFieldCombo.ItemsSource = $null
+    }
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+}
+
+function Parse-FilterValueInput {
+    param ([string]$Text)
+
+    $value = if ($Text) { $Text.Trim() } else { "" }
+    if (-not $value) { return $null }
+
+    if ($value.StartsWith("{") -and $value.EndsWith("}")) {
+        try {
+            $parsed = $value | ConvertFrom-Json -ErrorAction Stop
+            return $parsed
+        } catch {
+            Write-Verbose "Filter value is not valid JSON; falling back to literal string."
+        }
+    }
+
+    return $value
+}
+
+function Add-FilterEntry {
+    param (
+        [string]$Scope,
+        $FilterObject
+    )
+
+    if ($Scope -eq "Conversation") {
+        $script:FilterBuilderData.ConversationFilters.Add($FilterObject) | Out-Null
+    } else {
+        $script:FilterBuilderData.SegmentFilters.Add($FilterObject) | Out-Null
+    }
+    Refresh-FilterList -Scope $Scope
+}
+
+function Show-FilterBuilderMessage {
+    param (
+        [string]$Message,
+        [string]$Title = "Filter Builder"
+    )
+
+    [System.Windows.MessageBox]::Show($Message, $Title, [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+}
+
+function Build-FilterFromInput {
+    param (
+        [string]$Scope,
+        $FilterTypeCombo,
+        $PredicateTypeCombo,
+        $FieldCombo,
+        $OperatorCombo,
+        $ValueInput
+    )
+
+    $filterType = if ($FilterTypeCombo -and $FilterTypeCombo.SelectedItem) { $FilterTypeCombo.SelectedItem } else { "and" }
+    $predicateType = if ($PredicateTypeCombo -and $PredicateTypeCombo.SelectedItem) { $PredicateTypeCombo.SelectedItem } else { "dimension" }
+    $fieldName = if ($FieldCombo -and $FieldCombo.SelectedItem) { $FieldCombo.SelectedItem } else { "" }
+    $operator = if ($OperatorCombo -and $OperatorCombo.SelectedItem) { $OperatorCombo.SelectedItem } else { "" }
+
+    if (-not $fieldName -or $fieldName -eq "(no fields available)") {
+        Show-FilterBuilderMessage -Message "Please select a valid field before adding a predicate."
+        return $null
+    }
+    if (-not $operator) {
+        Show-FilterBuilderMessage -Message "Please select an operator."
+        return $null
+    }
+
+    $valueInput = Parse-FilterValueInput -Text $ValueInput.Text
+    if ($operator -ne "exists" -and $valueInput -eq $null) {
+        Show-FilterBuilderMessage -Message "Provide a value or range for the predicate."
+        return $null
+    }
+
+    $predicate = [PSCustomObject]@{
+        type     = $predicateType
+        operator = $operator
+    }
+
+    if ($predicateType -eq "metric") {
+        $predicate.metric = $fieldName
+    } else {
+        $predicate.dimension = $fieldName
+    }
+
+    if ($valueInput -and ($valueInput -is [System.Management.Automation.PSCustomObject] -or $valueInput -is [System.Collections.IDictionary])) {
+        $predicate.range = $valueInput
+    } elseif ($valueInput -ne $null) {
+        $predicate.value = $valueInput
+    }
+
+    return [PSCustomObject]@{
+        type       = $filterType
+        predicates = @($predicate)
+    }
+}
+
+function Initialize-FilterBuilderControl {
+    if (-not $conversationFilterTypeCombo) { return }
+
+    $conversationFilterTypeCombo.Items.Clear()
+    $conversationFilterTypeCombo.Items.Add("and") | Out-Null
+    $conversationFilterTypeCombo.Items.Add("or") | Out-Null
+    $conversationFilterTypeCombo.SelectedIndex = 0
+
+    $segmentFilterTypeCombo.Items.Clear()
+    $segmentFilterTypeCombo.Items.Add("and") | Out-Null
+    $segmentFilterTypeCombo.Items.Add("or") | Out-Null
+    $segmentFilterTypeCombo.SelectedIndex = 0
+
+    $conversationPredicateTypeCombo.Items.Clear()
+    $conversationPredicateTypeCombo.Items.Add("dimension") | Out-Null
+    $conversationPredicateTypeCombo.Items.Add("metric") | Out-Null
+    $conversationPredicateTypeCombo.SelectedIndex = 0
+
+    $segmentPredicateTypeCombo.Items.Clear()
+    $segmentPredicateTypeCombo.Items.Add("dimension") | Out-Null
+    $segmentPredicateTypeCombo.Items.Add("metric") | Out-Null
+    $segmentPredicateTypeCombo.SelectedIndex = 0
+
+    if ($conversationOperatorCombo) {
+        $conversationOperatorCombo.Items.Clear()
+        foreach ($op in $script:FilterBuilderEnums.Operators) {
+            $conversationOperatorCombo.Items.Add($op) | Out-Null
+        }
+        $conversationOperatorCombo.SelectedIndex = 0
+    }
+    if ($segmentOperatorCombo) {
+        $segmentOperatorCombo.Items.Clear()
+        foreach ($op in $script:FilterBuilderEnums.Operators) {
+            $segmentOperatorCombo.Items.Add($op) | Out-Null
+        }
+        $segmentOperatorCombo.SelectedIndex = 0
+    }
+
+    Update-FilterFieldOptions -Scope "Conversation" -PredicateType "dimension" -ComboBox $conversationFieldCombo
+    Update-FilterFieldOptions -Scope "Segment" -PredicateType "dimension" -ComboBox $segmentFieldCombo
 }
 
 # Script-level variables to track tree population progress
@@ -3060,7 +3447,7 @@ $script:LastResponseRaw = ""
 $paramInputs = @{}
 $pendingFavoriteParameters = $null
 
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
 if (-not $ScriptRoot) {
     $ScriptRoot = Get-Location
 }
@@ -3078,6 +3465,7 @@ $script:CurrentJsonPath = $JsonPath
 $ApiCatalog = Load-PathsFromJson -JsonPath $JsonPath
 $script:ApiPaths = $ApiCatalog.Paths
 $script:Definitions = if ($ApiCatalog.Definitions) { $ApiCatalog.Definitions } else { @{} }
+Initialize-FilterBuilderEnum
 $script:GroupMap = Build-GroupMap -Paths $script:ApiPaths
 $FavoritesData = Load-FavoritesFromDisk -Path $FavoritesFile
 $Favorites = Build-FavoritesCollection -Source $FavoritesData
@@ -3161,6 +3549,7 @@ $Xaml = @"
       <RowDefinition Height="2*"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="2*"/>
     </Grid.RowDefinitions>
 
@@ -3196,16 +3585,91 @@ $Xaml = @"
       </StackPanel>
     </Grid>
 
-    <Border Grid.Row="3" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0 0 0 10">
-      <StackPanel>
-        <TextBlock Text="Parameters" FontWeight="Bold" Margin="0 0 0 10"/>
+    <Expander Grid.Row="3" Name="ParametersExpander" Header="Parameters" IsExpanded="True" Margin="0 0 0 10">
+      <Border BorderBrush="LightGray" BorderThickness="1" Padding="10">
         <ScrollViewer Height="220" VerticalScrollBarVisibility="Auto">
           <StackPanel Name="ParameterPanel"/>
         </ScrollViewer>
-      </StackPanel>
-    </Border>
+      </Border>
+    </Expander>
 
-    <Border Grid.Row="4" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0 0 0 10">
+    <Expander Grid.Row="4" Name="FilterBuilderExpander" Header="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" IsExpanded="True" Visibility="Collapsed" Margin="0 0 0 10">
+      <Expander.Tag>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="Conversation Filter Builder" FontWeight="Bold"/>
+          <TextBlock Name="FilterBuilderHintText" FontSize="11" Foreground="Gray" VerticalAlignment="Center" Margin="10 0 0 0" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Expander.Tag>
+      <Border Name="FilterBuilderBorder" BorderBrush="LightGray" BorderThickness="1" Padding="10">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
+            <TextBlock Text="Interval" VerticalAlignment="Center" Margin="0 0 8 0"/>
+            <TextBox Name="FilterIntervalInput" Width="320" Height="26"/>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0 0 0 12">
+            <Button Name="RefreshFiltersButton" Content="Apply to Body" Width="150" Height="28" Margin="0 0 8 0"/>
+            <Button Name="ResetFiltersButton" Content="Reset Filters" Width="130" Height="28"/>
+          </StackPanel>
+          <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1*"/>
+              <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" BorderBrush="LightGray" BorderThickness="1" Padding="6" Margin="0 0 8 0" CornerRadius="4">
+              <StackPanel>
+                <TextBlock Text="Conversation Filters" FontWeight="Bold" Margin="0 0 0 6"/>
+                <ListBox Name="ConversationFiltersList" Height="140"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         VirtualizingStackPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
+                <StackPanel Orientation="Horizontal" Margin="0 6 0 0">
+                  <ComboBox Name="ConversationFilterTypeCombo" Width="120" Margin="0 0 8 0"/>
+                  <ComboBox Name="ConversationPredicateTypeCombo" Width="120"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
+                  <ComboBox Name="ConversationFieldCombo" Width="180" Margin="0 0 8 0"/>
+                  <ComboBox Name="ConversationOperatorCombo" Width="120" Margin="0 0 8 0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
+                  <TextBox Name="ConversationValueInput" Width="220" Margin="0 0 8 0" ToolTip="Enter a value or JSON range object (e.g. {'min':1,'max':5})."/>
+                  <Button Name="AddConversationPredicateButton" Content="Add" Width="90" Margin="0 0 4 0"/>
+                  <Button Name="RemoveConversationPredicateButton" Content="Remove" Width="90"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" BorderBrush="LightGray" BorderThickness="1" Padding="6" CornerRadius="4">
+              <StackPanel>
+                <TextBlock Text="Segment Filters" FontWeight="Bold" Margin="0 0 0 6"/>
+                <ListBox Name="SegmentFiltersList" Height="140"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         VirtualizingStackPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
+                <StackPanel Orientation="Horizontal" Margin="0 6 0 0">
+                  <ComboBox Name="SegmentFilterTypeCombo" Width="120" Margin="0 0 8 0"/>
+                  <ComboBox Name="SegmentPredicateTypeCombo" Width="120"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
+                  <ComboBox Name="SegmentFieldCombo" Width="180" Margin="0 0 8 0"/>
+                  <ComboBox Name="SegmentOperatorCombo" Width="120" Margin="0 0 8 0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
+                  <TextBox Name="SegmentValueInput" Width="220" Margin="0 0 8 0" ToolTip="Enter a value or JSON range object (e.g. {'min':1,'max':5})."/>
+                  <Button Name="AddSegmentPredicateButton" Content="Add" Width="90" Margin="0 0 4 0"/>
+                  <Button Name="RemoveSegmentPredicateButton" Content="Remove" Width="90"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+      </Border>
+    </Expander>
+
+    <Border Grid.Row="5" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0 0 0 10">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="2*"/>
@@ -3224,7 +3688,7 @@ $Xaml = @"
       </Grid>
     </Border>
 
-    <StackPanel Grid.Row="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
+    <StackPanel Grid.Row="6" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
       <Button Name="SubmitButton" Width="150" Height="34" Content="Submit API Call" Margin="0 0 10 0"/>
       <Button Name="SaveButton" Width="150" Height="34" Content="Save Response" IsEnabled="False" Margin="0 0 10 0"/>
       <Button Name="ExportPowerShellButton" Width="150" Height="34" Content="Export PowerShell" Margin="0 0 10 0" ToolTip="Generate PowerShell script for this request"/>
@@ -3233,7 +3697,7 @@ $Xaml = @"
       <TextBlock Name="StatusText" VerticalAlignment="Center" Foreground="SlateGray" Margin="5 0 0 0"/>
     </StackPanel>
 
-    <TabControl Grid.Row="6" VerticalAlignment="Stretch">
+    <TabControl Grid.Row="7" VerticalAlignment="Stretch">
       <TabItem Header="Response">
         <Grid>
           <Grid.RowDefinitions>
@@ -3438,12 +3902,131 @@ $loadTemplateButton = $Window.FindName("LoadTemplateButton")
 $deleteTemplateButton = $Window.FindName("DeleteTemplateButton")
 $exportTemplatesButton = $Window.FindName("ExportTemplatesButton")
 $importTemplatesButton = $Window.FindName("ImportTemplatesButton")
+$filterBuilderBorder = $Window.FindName("FilterBuilderBorder")
+$filterBuilderHintText = $Window.FindName("FilterBuilderHintText")
+$filterBuilderExpander = $Window.FindName("FilterBuilderExpander")
+$filterIntervalInput = $Window.FindName("FilterIntervalInput")
+$refreshFiltersButton = $Window.FindName("RefreshFiltersButton")
+$resetFiltersButton = $Window.FindName("ResetFiltersButton")
+$conversationFiltersList = $Window.FindName("ConversationFiltersList")
+$conversationFilterTypeCombo = $Window.FindName("ConversationFilterTypeCombo")
+$conversationPredicateTypeCombo = $Window.FindName("ConversationPredicateTypeCombo")
+$conversationFieldCombo = $Window.FindName("ConversationFieldCombo")
+$conversationOperatorCombo = $Window.FindName("ConversationOperatorCombo")
+$conversationValueInput = $Window.FindName("ConversationValueInput")
+$addConversationPredicateButton = $Window.FindName("AddConversationPredicateButton")
+$removeConversationPredicateButton = $Window.FindName("RemoveConversationPredicateButton")
+$segmentFiltersList = $Window.FindName("SegmentFiltersList")
+$segmentFilterTypeCombo = $Window.FindName("SegmentFilterTypeCombo")
+$segmentPredicateTypeCombo = $Window.FindName("SegmentPredicateTypeCombo")
+$segmentFieldCombo = $Window.FindName("SegmentFieldCombo")
+$segmentOperatorCombo = $Window.FindName("SegmentOperatorCombo")
+$segmentValueInput = $Window.FindName("SegmentValueInput")
+$addSegmentPredicateButton = $Window.FindName("AddSegmentPredicateButton")
+$removeSegmentPredicateButton = $Window.FindName("RemoveSegmentPredicateButton")
+
+if ($filterBuilderBorder) {
+    Initialize-FilterBuilderControl
+    Reset-FilterBuilderData
+    Set-FilterBuilderVisibility -Visible $false
+    Update-FilterBuilderHint
+
+    if ($conversationPredicateTypeCombo) {
+        $conversationPredicateTypeCombo.Add_SelectionChanged({
+            Update-FilterFieldOptions -Scope "Conversation" -PredicateType $conversationPredicateTypeCombo.SelectedItem -ComboBox $conversationFieldCombo
+        })
+    }
+    if ($segmentPredicateTypeCombo) {
+        $segmentPredicateTypeCombo.Add_SelectionChanged({
+            Update-FilterFieldOptions -Scope "Segment" -PredicateType $segmentPredicateTypeCombo.SelectedItem -ComboBox $segmentFieldCombo
+        })
+    }
+
+    if ($addConversationPredicateButton) {
+        $addConversationPredicateButton.Add_Click({
+            $filter = Build-FilterFromInput -Scope "Conversation" -FilterTypeCombo $conversationFilterTypeCombo -PredicateTypeCombo $conversationPredicateTypeCombo -FieldCombo $conversationFieldCombo -OperatorCombo $conversationOperatorCombo -ValueInput $conversationValueInput
+            if ($filter) {
+                Add-FilterEntry -Scope "Conversation" -FilterObject $filter
+                if ($conversationValueInput) { $conversationValueInput.Clear() }
+            }
+        })
+    }
+
+    if ($addSegmentPredicateButton) {
+        $addSegmentPredicateButton.Add_Click({
+            $filter = Build-FilterFromInput -Scope "Segment" -FilterTypeCombo $segmentFilterTypeCombo -PredicateTypeCombo $segmentPredicateTypeCombo -FieldCombo $segmentFieldCombo -OperatorCombo $segmentOperatorCombo -ValueInput $segmentValueInput
+            if ($filter) {
+                Add-FilterEntry -Scope "Segment" -FilterObject $filter
+                if ($segmentValueInput) { $segmentValueInput.Clear() }
+            }
+        })
+    }
+
+    if ($conversationFiltersList -and $removeConversationPredicateButton) {
+        $conversationFiltersList.Add_SelectionChanged({
+            $removeConversationPredicateButton.IsEnabled = ($conversationFiltersList.SelectedIndex -ge 0)
+        })
+        $removeConversationPredicateButton.Add_Click({
+            $index = $conversationFiltersList.SelectedIndex
+            if ($index -ge 0) {
+                $script:FilterBuilderData.ConversationFilters.RemoveAt($index)
+                Refresh-FilterList -Scope "Conversation"
+                $removeConversationPredicateButton.IsEnabled = $false
+            }
+        })
+    }
+
+    if ($segmentFiltersList -and $removeSegmentPredicateButton) {
+        $segmentFiltersList.Add_SelectionChanged({
+            $removeSegmentPredicateButton.IsEnabled = ($segmentFiltersList.SelectedIndex -ge 0)
+        })
+        $removeSegmentPredicateButton.Add_Click({
+            $index = $segmentFiltersList.SelectedIndex
+            if ($index -ge 0) {
+                $script:FilterBuilderData.SegmentFilters.RemoveAt($index)
+                Refresh-FilterList -Scope "Segment"
+                $removeSegmentPredicateButton.IsEnabled = $false
+            }
+        })
+    }
+
+        if ($refreshFiltersButton) {
+            $refreshFiltersButton.Add_Click({
+                Invoke-FilterBuilderBody
+            })
+        }
+    if ($resetFiltersButton) {
+        $resetFiltersButton.Add_Click({
+            Reset-FilterBuilderData
+            Refresh-FilterList -Scope "Conversation"
+            Refresh-FilterList -Scope "Segment"
+        })
+    }
+}
 $script:LastConversationReport = $null
 $script:LastConversationReportJson = ""
 $script:RequestHistory = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
 $script:ResponseViewMode = "Formatted"  # Can be "Formatted" or "Raw"
 $script:Templates = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
 $script:TemplatesFilePath = Join-Path -Path $env:USERPROFILE -ChildPath "GenesysApiExplorerTemplates.json"
+$script:FilterBuilderData = @{
+    ConversationFilters = New-Object System.Collections.ArrayList
+    SegmentFilters = New-Object System.Collections.ArrayList
+    Interval = "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+}
+$script:FilterBuilderEnums = @{
+    Conversation = @{
+        Dimensions = @()
+        Metrics = @()
+    }
+    Segment = @{
+        Dimensions = @()
+        Metrics = @()
+    }
+    Operators = @("matches", "exists", "notExists")
+}
+$script:CurrentBodyControl = $null
+$script:CurrentBodySchema = $null
 
 function Invoke-ReloadEndpoints {
     param (
@@ -3469,6 +4052,11 @@ function Invoke-ReloadEndpoints {
         $script:Definitions = if ($newCatalog.Definitions) { $newCatalog.Definitions } else { @{} }
         $script:GroupMap = Build-GroupMap -Paths $script:ApiPaths
         $script:CurrentJsonPath = $JsonPath
+
+        Initialize-FilterBuilderEnum
+        Reset-FilterBuilderData
+        Update-FilterBuilderHint
+        Set-FilterBuilderVisibility -Visible $false
 
         # Refresh UI
         $groupCombo.Items.Clear()
@@ -3586,6 +4174,11 @@ $methodCombo.Add_SelectionChanged({
         return
     }
 
+    $script:CurrentBodyControl = $null
+    $script:CurrentBodySchema = $null
+    Reset-FilterBuilderData
+    Set-FilterBuilderVisibility -Visible $false
+
     $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
     $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
     if (-not $methodObject) {
@@ -3619,7 +4212,7 @@ $methodCombo.Add_SelectionChanged({
 
         # Create appropriate control based on parameter type and metadata
         $inputControl = $null
-        
+
         # Check if parameter is array type (special handling)
         if ($param.type -eq "array") {
             $textbox = New-Object System.Windows.Controls.TextBox
@@ -3630,7 +4223,7 @@ $methodCombo.Add_SelectionChanged({
             if ($param.required) {
                 $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
-            
+
             # Build enhanced tooltip with array information
             $arrayTooltip = $param.description
             if ($param.items -and $param.items.type) {
@@ -3638,13 +4231,13 @@ $methodCombo.Add_SelectionChanged({
             }
             $arrayTooltip += "`n`nEnter comma-separated values (e.g., value1, value2, value3)"
             $textbox.ToolTip = $arrayTooltip
-            
+
             # Store metadata for validation
             $textbox.Tag = @{
                 Type = "array"
                 ItemType = if ($param.items) { $param.items.type } else { "string" }
             }
-            
+
             [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
             $inputControl = $textbox
         }
@@ -3714,7 +4307,7 @@ $methodCombo.Add_SelectionChanged({
             # Create a container for textbox and hint
             $arrayPanel = New-Object System.Windows.Controls.StackPanel
             $arrayPanel.Orientation = "Vertical"
-            
+
             $textbox = New-Object System.Windows.Controls.TextBox
             $textbox.MinWidth = 360
             $textbox.HorizontalAlignment = "Stretch"
@@ -3723,11 +4316,11 @@ $methodCombo.Add_SelectionChanged({
                 $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
             $textbox.ToolTip = $param.description
-            
+
             # Store array metadata for validation
             $textbox | Add-Member -NotePropertyName "IsArrayType" -NotePropertyValue $true
             $textbox | Add-Member -NotePropertyName "ArrayItems" -NotePropertyValue $param.items
-            
+
             # Add hint text
             $hintText = New-Object System.Windows.Controls.TextBlock
             $itemTypeStr = if ($param.items -and $param.items.type) { $param.items.type } else { "string" }
@@ -3735,22 +4328,22 @@ $methodCombo.Add_SelectionChanged({
             $hintText.FontSize = 10
             $hintText.Foreground = [System.Windows.Media.Brushes]::Gray
             $hintText.Margin = New-Object System.Windows.Thickness 0,2,0,0
-            
+
             # Add validation indicator
             $validationText = New-Object System.Windows.Controls.TextBlock
             $validationText.FontSize = 10
             $validationText.Margin = New-Object System.Windows.Thickness 0,2,0,0
             $validationText.Visibility = "Collapsed"
-            
+
             # Store reference to validation text for later updates
             $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
-            
+
             # Add real-time validation for array parameters
             $textbox.Add_TextChanged({
                 param($sender, $e)
                 $text = $sender.Text.Trim()
                 $validationTextBlock = $sender.ValidationText
-                
+
                 if ([string]::IsNullOrWhiteSpace($text)) {
                     $sender.BorderBrush = $null
                     $sender.BorderThickness = New-Object System.Windows.Thickness 1
@@ -3770,11 +4363,11 @@ $methodCombo.Add_SelectionChanged({
                     }
                 }
             })
-            
+
             $arrayPanel.Children.Add($textbox) | Out-Null
             $arrayPanel.Children.Add($hintText) | Out-Null
             $arrayPanel.Children.Add($validationText) | Out-Null
-            
+
             [System.Windows.Controls.Grid]::SetColumn($arrayPanel, 1)
             $inputControl = $arrayPanel
             # Store reference to the textbox itself for value retrieval
@@ -3791,7 +4384,7 @@ $methodCombo.Add_SelectionChanged({
             if ($param.required) {
                 $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
             }
-            
+
             # Build enhanced tooltip with validation constraints
             $enhancedTooltip = $param.description
             if ($param.type -eq "integer" -or $param.type -eq "number") {
@@ -3809,7 +4402,7 @@ $methodCombo.Add_SelectionChanged({
                 $enhancedTooltip += "`n`nDefault: $($param.default)"
             }
             $textbox.ToolTip = $enhancedTooltip
-            
+
             # Store parameter metadata for validation
             if ($param.in -eq "body") {
                 $textbox.Tag = "body"
@@ -3822,35 +4415,35 @@ $methodCombo.Add_SelectionChanged({
                     Maximum = $param.maximum
                 }
             }
-            
+
             # Add real-time JSON validation for body parameters
             if ($param.in -eq "body") {
                 $textbox.Tag = "body"
-                
+
                 # Create container for body textbox with character count
                 $bodyPanel = New-Object System.Windows.Controls.StackPanel
                 $bodyPanel.Orientation = "Vertical"
-                
+
                 # Add line number and character count info
                 $infoText = New-Object System.Windows.Controls.TextBlock
                 $infoText.FontSize = 10
                 $infoText.Foreground = [System.Windows.Media.Brushes]::Gray
                 $infoText.Margin = New-Object System.Windows.Thickness 0,2,0,0
                 $infoText.Text = "Lines: 0 | Characters: 0"
-                
+
                 # Store reference for updates
                 $textbox | Add-Member -NotePropertyName "InfoText" -NotePropertyValue $infoText
-                
+
                 $textbox.Add_TextChanged({
                     param($sender, $e)
                     $text = $sender.Text.Trim()
                     $infoTextBlock = $sender.InfoText
-                    
+
                     # Update character count and line count
                     $charCount = $sender.Text.Length
                     $lineCount = ($sender.Text -split "`n").Count
                     $infoTextBlock.Text = "Lines: $lineCount | Characters: $charCount"
-                    
+
                     if ([string]::IsNullOrWhiteSpace($text)) {
                         # Empty is OK - will be checked as required field
                         $sender.BorderBrush = $null
@@ -3868,7 +4461,7 @@ $methodCombo.Add_SelectionChanged({
                         $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
                     }
                 })
-                
+
                 # Replace the textbox with the panel containing textbox and info
                 $bodyPanel.Children.Add($textbox) | Out-Null
                 $bodyPanel.Children.Add($infoText) | Out-Null
@@ -3882,20 +4475,20 @@ $methodCombo.Add_SelectionChanged({
                 # Create container for textbox and validation message
                 $validatedPanel = New-Object System.Windows.Controls.StackPanel
                 $validatedPanel.Orientation = "Vertical"
-                
+
                 $validationText = New-Object System.Windows.Controls.TextBlock
                 $validationText.FontSize = 10
                 $validationText.Margin = New-Object System.Windows.Thickness 0,2,0,0
                 $validationText.Visibility = "Collapsed"
-                
+
                 # Store reference to validation text
                 $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
-                
+
                 $textbox.Add_TextChanged({
                     param($sender, $e)
                     $text = $sender.Text.Trim()
                     $validationTextBlock = $sender.ValidationText
-                    
+
                     if ([string]::IsNullOrWhiteSpace($text)) {
                         $sender.BorderBrush = $null
                         $sender.BorderThickness = New-Object System.Windows.Thickness 1
@@ -3903,7 +4496,7 @@ $methodCombo.Add_SelectionChanged({
                     } else {
                         $isValid = $true
                         $errorMsg = ""
-                        
+
                         # Validate numeric types
                         if ($sender.ParamType -in @("integer", "number")) {
                             $testResult = Test-NumericValue -Value $text -Type $sender.ParamType -Minimum $sender.ParamMinimum -Maximum $sender.ParamMaximum
@@ -3916,7 +4509,7 @@ $methodCombo.Add_SelectionChanged({
                             $isValid = $testResult.IsValid
                             $errorMsg = $testResult.ErrorMessage
                         }
-                        
+
                         if ($isValid) {
                             $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
                             $sender.BorderThickness = New-Object System.Windows.Thickness 2
@@ -3930,7 +4523,7 @@ $methodCombo.Add_SelectionChanged({
                         }
                     }
                 })
-                
+
                 $validatedPanel.Children.Add($textbox) | Out-Null
                 $validatedPanel.Children.Add($validationText) | Out-Null
                 [System.Windows.Controls.Grid]::SetColumn($validatedPanel, 1)
@@ -3949,17 +4542,21 @@ $methodCombo.Add_SelectionChanged({
 
         $parameterPanel.Children.Add($row) | Out-Null
         $paramInputs[$param.name] = $inputControl
-        
+        if ($param.in -eq "body") {
+            $script:CurrentBodyControl = $inputControl
+            $script:CurrentBodySchema = $param.schema
+        }
+
         # Add event handlers for conditional parameter visibility updates
         # This infrastructure is ready for future use when API schema includes parameter dependencies
         try {
             $actualControl = $inputControl
-            
+
             # Get the actual input control (unwrap if in panel)
             if ($inputControl.ValueControl) {
                 $actualControl = $inputControl.ValueControl
             }
-            
+
             # Add change handler to trigger visibility updates
             if ($actualControl -is [System.Windows.Controls.ComboBox]) {
                 $actualControl.Add_SelectionChanged({
@@ -3981,6 +4578,20 @@ $methodCombo.Add_SelectionChanged({
             }
         } catch {
             # Silently continue if event handler setup fails
+        }
+    }
+
+    $bodySchemaResolved = Resolve-SchemaReference -Schema $script:CurrentBodySchema -Definitions $script:Definitions
+    $builderActive = $bodySchemaResolved -and $bodySchemaResolved.properties `
+        -and ($bodySchemaResolved.properties.conversationFilters -or $bodySchemaResolved.properties.segmentFilters)
+
+    if ($builderActive) {
+        Set-FilterBuilderVisibility -Visible $true
+        Update-FilterBuilderHint
+    } else {
+        Set-FilterBuilderVisibility -Visible $false
+        if ($filterBuilderHintText) {
+            $filterBuilderHintText.Text = ""
         }
     }
 
@@ -4814,7 +5425,7 @@ $btnSubmit.Add_Click({
                     $validationErrors += "$($param.name) contains invalid JSON"
                 }
             }
-            
+
             # Validate type and constraints for non-body parameters
             if ($param.in -ne "body" -and $value -and $input.Tag -is [hashtable]) {
                 $validationResult = Test-ParameterValue -Value $value -ValidationMetadata $input.Tag
@@ -4824,7 +5435,7 @@ $btnSubmit.Add_Click({
                     }
                 }
             }
-            
+
             # Validate array parameters
             if ($param.type -eq "array" -and $value) {
                 $testResult = Test-ArrayValue -Value $value -ItemType $param.items
@@ -4832,7 +5443,7 @@ $btnSubmit.Add_Click({
                     $validationErrors += "$($param.name): " + $testResult.ErrorMessage
                 }
             }
-            
+
             # Validate numeric parameters
             if ($param.type -in @("integer", "number") -and $value) {
                 $testResult = Test-NumericValue -Value $value -Type $param.type -Minimum $param.minimum -Maximum $param.maximum
@@ -4840,7 +5451,7 @@ $btnSubmit.Add_Click({
                     $validationErrors += "$($param.name): " + $testResult.ErrorMessage
                 }
             }
-            
+
             # Validate string format/pattern parameters
             if ($param.type -eq "string" -and $value -and ($param.format -or $param.pattern)) {
                 $testResult = Test-StringFormat -Value $value -Format $param.format -Pattern $param.pattern
