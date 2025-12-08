@@ -63,7 +63,7 @@ This document outlines a phased approach to implementing the enhancements identi
    - ✅ Use checkboxes for boolean parameters
    - ✅ Multi-line textbox with real-time JSON validation for body parameters
    - ✅ Show parameter descriptions as tooltips
-   - 🔄 Array inputs remain as text (future enhancement)
+   - ✅ Array inputs with enhanced tooltips showing item type and format hints
    - 🔄 JSON syntax highlighting (future enhancement - current: border color feedback)
 
 2. **Schema-Aware Validation** ✅
@@ -71,7 +71,9 @@ This document outlines a phased approach to implementing the enhancements identi
    - ✅ Display validation errors in dialog before submission
    - ✅ Required field validation with clear error messages
    - ✅ Visual feedback (border colors, background colors)
-   - 🔄 Advanced type validation for numbers/ranges (future enhancement)
+   - ✅ Advanced type validation for numbers/ranges (integer and number types)
+   - ✅ Min/max range validation for numeric parameters
+   - ✅ Array item type validation
 
 3. **Enhanced Example Bodies** ✅
    - ✅ Existing example body system maintained
@@ -84,9 +86,15 @@ This document outlines a phased approach to implementing the enhancements identi
 
 **Dependencies**: Phase 1 completion ✅
 
-**Completion Date**: December 7, 2025
+**Completion Date**: December 7, 2025 (enhanced December 8, 2025)
 
 **Estimated Complexity**: Medium (achieved)
+
+**Phase 2 Enhancements (December 8, 2025)**:
+- Added array parameter detection with enhanced tooltips
+- Implemented advanced type validation for integer and number parameters
+- Added min/max range validation with clear error messages
+- Enhanced tooltips show validation constraints (min, max, format, default)
 
 ---
 
