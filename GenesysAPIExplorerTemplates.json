@@ -1,0 +1,127 @@
+[
+  {
+    "Name": "Create Callback - Basic",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/callbacks",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "{\n  \"callbackNumbers\": [\"+13175551234\"],\n  \"queueId\": \"queue-id-goes-here\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  },\n  \"callbackUserName\": \"Customer Name\",\n  \"callbackScheduledTime\": \"2025-12-15T14:00:00.000Z\",\n  \"countryCode\": \"US\"\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Create Outbound Call",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/calls",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "{\n  \"phoneNumber\": \"+13175551234\",\n  \"callFromQueueId\": \"queue-id-goes-here\",\n  \"callQueueId\": \"queue-id-goes-here\",\n  \"callUserId\": \"user-id-goes-here\",\n  \"priority\": 2,\n  \"languageId\": \"language-id-goes-here\",\n  \"routingSkillsIds\": [],\n  \"conversationIds\": [],\n  \"participants\": []\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Create Web Chat Conversation",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/chats",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "{\n  \"queueId\": \"queue-id-goes-here\",\n  \"provider\": \"PureCloud Webchat v2\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Create Email Conversation",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/emails",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "{\n  \"queueId\": \"queue-id-goes-here\",\n  \"provider\": \"PureCloud Email\",\n  \"toAddress\": \"customer@example.com\",\n  \"fromAddress\": \"support@company.com\",\n  \"subject\": \"Your inquiry\",\n  \"direction\": \"outbound\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Create Outbound Message (SMS)",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/messages",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "{\n  \"queueId\": \"queue-id-goes-here\",\n  \"toAddress\": \"+13175551234\",\n  \"toAddressMessengerType\": \"sms\",\n  \"useExistingConversation\": false,\n  \"externalContactId\": \"external-contact-id-goes-here\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Query Conversation Details - Last 7 Days",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Replace Participant with User",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/replace",
+    "Group": "Conversations",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here",
+      "participantId": "participant-id-goes-here",
+      "body": "{\n  \"userId\": \"user-id-to-transfer-to\",\n  \"address\": \"+13175551234\",\n  \"userName\": \"Agent Name\",\n  \"queueId\": \"queue-id-goes-here\",\n  \"voicemail\": false\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Bulk Disconnect Callbacks",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/callbacks/bulk/disconnect",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "[\n  {\n    \"conversationId\": \"conversation-id-1\"\n  },\n  {\n    \"conversationId\": \"conversation-id-2\"\n  }\n]"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Force Disconnect Conversation",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/{conversationId}/disconnect",
+    "Group": "Conversations",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Send Agentless Outbound Message",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/messages/agentless",
+    "Group": "Conversations",
+    "Parameters": {
+      "body": "{\n  \"fromAddress\": \"+13175555678\",\n  \"toAddress\": \"+13175551234\",\n  \"toAddressMessengerType\": \"sms\",\n  \"textBody\": \"Your appointment is scheduled for tomorrow at 2pm.\",\n  \"useExistingActiveConversation\": false\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Create Quality Evaluation",
+    "Method": "POST",
+    "Path": "/api/v2/quality/conversations/{conversationId}/evaluations",
+    "Group": "Quality",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here",
+      "body": "{\n  \"evaluationForm\": {\n    \"id\": \"evaluation-form-id-goes-here\",\n    \"name\": \"Standard Evaluation\"\n  },\n  \"evaluator\": {\n    \"id\": \"evaluator-user-id-goes-here\",\n    \"name\": \"Evaluator Name\"\n  },\n  \"agent\": {\n    \"id\": \"agent-user-id-goes-here\",\n    \"name\": \"Agent Name\"\n  },\n  \"calibration\": false,\n  \"evaluationContext\": {\n    \"contextId\": \"context-id-goes-here\",\n    \"evaluationDate\": \"2025-12-07T12:00:00.000Z\"\n  }\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Create Participant Callback",
+    "Method": "POST",
+    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/callbacks",
+    "Group": "Conversations",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here",
+      "participantId": "participant-id-goes-here",
+      "body": "{\n  \"callbackNumbers\": [\"+13175551234\"],\n  \"callbackUserName\": \"Customer Name\",\n  \"callbackScheduledTime\": \"2025-12-15T14:00:00.000Z\",\n  \"countryCode\": \"US\",\n  \"scriptId\": \"script-id-goes-here\",\n  \"queueId\": \"queue-id-goes-here\",\n  \"routingData\": {\n    \"queueId\": \"queue-id-goes-here\",\n    \"languageId\": \"language-id-goes-here\",\n    \"priority\": 2\n  }\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  }
+]
