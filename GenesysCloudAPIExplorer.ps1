@@ -416,8 +416,8 @@ function Test-NumericValue {
     param (
         [string]$Value,
         [string]$Type,
-        $Minimum,
-        $Maximum
+        [object]$Minimum,
+        [object]$Maximum
     )
     
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -456,8 +456,8 @@ function Test-NumericValue {
 function Test-StringFormat {
     param (
         [string]$Value,
-        [string]$Format,
-        [string]$Pattern
+        [string]$Format = $null,
+        [string]$Pattern = $null
     )
     
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -504,7 +504,7 @@ function Test-StringFormat {
 function Test-ArrayValue {
     param (
         [string]$Value,
-        $ItemType
+        [object]$ItemType
     )
     
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -536,9 +536,9 @@ function Test-ArrayValue {
 
 function Test-ParameterVisibility {
     param (
-        $Parameter,
-        $AllParameters,
-        $ParameterInputs
+        [object]$Parameter,
+        [array]$AllParameters,
+        [hashtable]$ParameterInputs
     )
     
     # Default: all parameters are visible
@@ -579,9 +579,9 @@ function Test-ParameterVisibility {
 
 function Update-ParameterVisibility {
     param (
-        $Parameters,
-        $ParameterInputs,
-        $ParameterPanel
+        [array]$Parameters,
+        [hashtable]$ParameterInputs,
+        [System.Windows.Controls.Panel]$ParameterPanel
     )
     
     # Update visibility for all parameters based on current values
