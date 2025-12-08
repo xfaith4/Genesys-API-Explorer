@@ -466,6 +466,8 @@ function Test-ParameterValue {
     }
     
     return @{ Valid = $true }
+}
+
 function Test-NumericValue {
     param (
         [string]$Value,
@@ -3798,10 +3800,6 @@ $methodCombo.Add_SelectionChanged({
             
             # Add real-time JSON validation for body parameters
             if ($param.in -eq "body") {
-            $textbox.ToolTip = $param.description
-
-            # Add real-time JSON validation for body parameters
-            if ($param.in -eq "body") {
                 $textbox.Tag = "body"
                 
                 # Create container for body textbox with character count
@@ -3919,9 +3917,6 @@ $methodCombo.Add_SelectionChanged({
                 [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
                 $inputControl = $textbox
             }
-
-            [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
-            $inputControl = $textbox
         }
 
         $row.Children.Add($label) | Out-Null
@@ -4799,6 +4794,9 @@ $btnSubmit.Add_Click({
                     foreach ($error in $validationResult.Errors) {
                         $validationErrors += "$($param.name): $error"
                     }
+                }
+            }
+            
             # Validate array parameters
             if ($param.type -eq "array" -and $value) {
                 $testResult = Test-ArrayValue -Value $value -ItemType $param.items
