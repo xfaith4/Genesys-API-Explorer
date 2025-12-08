@@ -51,11 +51,12 @@ foreach ($method in $pathObject.PSObject.Properties | Select-Object -ExpandPrope
 - 2 templates for participant operations (replace, disconnect)
 - 1 template for analytics queries
 
-**New Template Set** (Phase 4):
-- 20 templates total
-- **11 GET templates** for direct data retrieval
+**New Template Set** (Phase 4 - Updated):
+- 31 templates total
+- **22 GET templates** for direct data retrieval
 - **9 POST templates** for analytics queries and aggregates
 - 0 templates that modify data
+- New categories added: Speech and Text Analytics, Telephony, Routing, Users
 
 ---
 
@@ -437,6 +438,121 @@ Recommended future phases:
 - **Phase 7**: Extensibility & Advanced Features
 
 Phase 4 provides a solid foundation for data-driven workflows and positions the tool as a safe, focused analytics platform.
+
+---
+
+## Phase 4 Update: Extended Template Library (December 8, 2025)
+
+### Additional Templates Added
+
+11 new GET templates were added to expand coverage beyond conversations into speech analytics, telephony, routing, and user management:
+
+#### Speech and Text Analytics Templates (2)
+
+**Get Speech and Text Analytics for Conversation**
+- **Path**: `/api/v2/speechandtextanalytics/conversations/{conversationId}`
+- **Purpose**: Get comprehensive speech analytics for a conversation
+- **Use Case**: Analyze conversation quality, detect keywords, and identify trends
+- **Parameters**: `conversationId`
+
+**Get Sentiment Data for Conversation**
+- **Path**: `/api/v2/speechandtextanalytics/conversations/{conversationId}/sentiments`
+- **Purpose**: Retrieve sentiment analysis data for a conversation
+- **Use Case**: Measure customer satisfaction and emotional tone
+- **Parameters**: `conversationId`
+
+#### Telephony Template (1)
+
+**Get SIP Message for Conversation**
+- **Path**: `/api/v2/telephony/sipmessages/conversations/{conversationId}`
+- **Purpose**: Get the raw SIP message for a conversation
+- **Use Case**: Troubleshoot telephony issues and analyze call signaling
+- **Parameters**: `conversationId`
+
+#### Routing Templates (2)
+
+**Get Queue Details**
+- **Path**: `/api/v2/routing/queues/{queueId}`
+- **Purpose**: Get detailed information about a specific queue
+- **Use Case**: Monitor queue configuration and statistics
+- **Parameters**: `queueId`
+
+**Get Queue Members**
+- **Path**: `/api/v2/routing/queues/{queueId}/members`
+- **Purpose**: List all members assigned to a queue
+- **Use Case**: Track agent assignments and queue staffing
+- **Parameters**: `queueId`
+
+#### User Templates (4)
+
+**Get User Routing Skills**
+- **Path**: `/api/v2/users/{userId}/routingskills`
+- **Purpose**: List routing skills assigned to a user
+- **Use Case**: Audit user capabilities and routing configuration
+- **Parameters**: `userId`
+
+**Get User Presence (Genesys Cloud)**
+- **Path**: `/api/v2/users/{userId}/presences/purecloud`
+- **Purpose**: Get a user's Genesys Cloud presence status
+- **Use Case**: Monitor agent availability and status
+- **Parameters**: `userId`
+
+**Get Bulk User Presences (Genesys Cloud)**
+- **Path**: `/api/v2/users/presences/purecloud/bulk`
+- **Purpose**: Get presence status for multiple users at once
+- **Use Case**: Dashboard showing team availability
+- **Parameters**: `id` (comma-separated user IDs)
+
+**Get User Routing Status**
+- **Path**: `/api/v2/users/{userId}/routingstatus`
+- **Purpose**: Fetch the routing status of a user
+- **Use Case**: Check if user is on-queue and accepting interactions
+- **Parameters**: `userId`
+
+#### Analytics Template (1)
+
+**Get User Details Job Status**
+- **Path**: `/api/v2/analytics/users/details/jobs/{jobId}`
+- **Purpose**: Check the status of an async user details query job
+- **Use Case**: Monitor long-running user analytics jobs
+- **Parameters**: `jobId`
+
+#### Conversations Template (1)
+
+**Get Conversation Recording Metadata**
+- **Path**: `/api/v2/conversations/{conversationId}/recordingmetadata`
+- **Purpose**: Get recording metadata for a conversation
+- **Use Case**: Verify recording status without downloading media
+- **Parameters**: `conversationId`
+- **Note**: Does not return playable media; bookmark annotations excluded if permissions missing
+
+### Updated Coverage Analysis
+
+| Category | Templates | Percentage |
+|----------|-----------|------------|
+| Conversations | 8 | 25.8% |
+| Analytics | 14 | 45.2% |
+| Speech and Text Analytics | 2 | 6.5% |
+| Telephony | 1 | 3.2% |
+| Routing | 2 | 6.5% |
+| Users | 4 | 12.9% |
+| **Total** | **31** | **100%** |
+
+### Benefits of Extended Templates
+
+1. **Speech Analytics Integration**: Direct access to sentiment and conversation quality metrics
+2. **Telephony Troubleshooting**: Ability to inspect SIP messages for call quality issues
+3. **Routing Intelligence**: Monitor queue configuration and membership
+4. **User Management**: Track agent skills, presence, and routing status
+5. **Comprehensive Monitoring**: Complete visibility across conversations, agents, queues, and telephony
+
+### Updated Success Metrics
+
+- **Templates Created**: 31 (up from 20)
+- **GET Templates**: 22 (up from 11)
+- **POST Templates**: 9 (unchanged)
+- **Template Categories**: 6 (up from 2)
+- **Coverage**: Conversations, Analytics, Speech Analytics, Telephony, Routing, Users
 
 ---
 

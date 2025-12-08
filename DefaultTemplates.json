@@ -190,5 +190,115 @@
     "Group": "Conversations",
     "Parameters": {},
     "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Speech and Text Analytics for Conversation",
+    "Method": "GET",
+    "Path": "/api/v2/speechandtextanalytics/conversations/{conversationId}",
+    "Group": "Speech and Text Analytics",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Conversation Recording Metadata",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/{conversationId}/recordingmetadata",
+    "Group": "Conversations",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Sentiment Data for Conversation",
+    "Method": "GET",
+    "Path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/sentiments",
+    "Group": "Speech and Text Analytics",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get SIP Message for Conversation",
+    "Method": "GET",
+    "Path": "/api/v2/telephony/sipmessages/conversations/{conversationId}",
+    "Group": "Telephony",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Queue Details",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Queue Members",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}/members",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Routing Skills",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/routingskills",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Presence (Genesys Cloud)",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/presences/purecloud",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Bulk User Presences (Genesys Cloud)",
+    "Method": "GET",
+    "Path": "/api/v2/users/presences/purecloud/bulk",
+    "Group": "Users",
+    "Parameters": {
+      "id": "user-id-1,user-id-2,user-id-3"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Routing Status",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/routingstatus",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Details Job Status",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/users/details/jobs/{jobId}",
+    "Group": "Analytics",
+    "Parameters": {
+      "jobId": "job-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
   }
 ]

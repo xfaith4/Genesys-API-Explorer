@@ -73,10 +73,10 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
   - Ensures the application cannot modify your Genesys Cloud organization
   - Only GET and POST methods are available for safe data querying
   
-- **Expanded Template Library**: 20 pre-configured templates focused on conversation data analysis
-  - **11 GET templates** for retrieving conversation data, call history, and active conversations
+- **Expanded Template Library**: 31 pre-configured templates focused on conversation data analysis and system monitoring
+  - **22 GET templates** for retrieving conversation data, speech analytics, routing info, and user status
   - **9 POST templates** for advanced analytics queries and aggregates
-  - Templates cover conversation details, analytics aggregates, transcripts, and job-based queries
+  - Templates cover conversations, analytics, speech & text analytics, telephony, routing, and user data
   - All templates are read-only and designed for data analysis and reporting
 
 ---
@@ -102,10 +102,12 @@ Genesys-API-Explorer/
 ├── docs/                                 # Documentation directory
 │   ├── DEVELOPMENT_HISTORY.md            # Complete development timeline and feature history
 │   ├── PROJECT_PLAN.md                   # 8-phase enhancement plan
+│   ├── TEMPLATE_CATALOG.md               # Complete reference of all 31 templates
 │   ├── PHASE1_SUMMARY.md                 # Phase 1 implementation details
 │   ├── PHASE2_SUMMARY.md                 # Phase 2 implementation details
 │   ├── PHASE2_DEFERRED_SUMMARY.md        # Phase 2 extended features
 │   ├── PHASE3_SUMMARY.md                 # Phase 3 implementation details
+│   ├── PHASE4_SUMMARY.md                 # Phase 4 implementation details
 │   ├── POST_CONVERSATIONS_TEMPLATES.md   # Template documentation
 │   └── AI_RECREATION_PROMPT.md           # Project context for AI assistants
 └── .github/
@@ -248,24 +250,26 @@ The **Templates** tab provides powerful request template functionality:
    - Others can import to use your pre-configured requests
    - Great for onboarding and standardizing API usage
 
-#### Pre-Configured Conversation Data Templates
+#### Pre-Configured Templates
 
-On first launch, the application automatically includes 20 ready-to-use templates focused on retrieving and analyzing conversation data:
+On first launch, the application automatically includes 31 ready-to-use templates organized into 6 categories:
 
-**GET Templates (Data Retrieval):**
+**Conversations (8 GET Templates):**
 - **Get Active Conversations**: Retrieve all active conversations for the logged-in user
 - **Get Specific Conversation Details**: Fetch details for a single conversation by ID
-- **Get Multiple Conversations by IDs**: Retrieve multiple conversations in one request
-- **Get Single Conversation Analytics**: Get analytics data for a specific conversation
-- **Get Conversation Details Job Status**: Check the status of an async conversation details job
-- **Get Conversation Details Job Results**: Fetch results from a completed async job
+- **Get Conversation Recording Metadata**: Get recording metadata for a conversation
 - **Get Call History**: Retrieve call history with pagination
 - **Get Active Callbacks**: List all currently active callbacks
 - **Get Active Calls**: List all currently active calls
 - **Get Active Chats**: List all currently active chat conversations
 - **Get Active Emails**: List all currently active email conversations
 
-**POST Templates (Analytics & Queries):**
+**Analytics (14 Templates - 5 GET, 9 POST):**
+- **Get Multiple Conversations by IDs**: Retrieve multiple conversations in one request
+- **Get Single Conversation Analytics**: Get analytics data for a specific conversation
+- **Get Conversation Details Job Status**: Check the status of an async conversation details job
+- **Get Conversation Details Job Results**: Fetch results from a completed async job
+- **Get User Details Job Status**: Check the status of an async user details job
 - **Query Conversation Details - Last 7 Days**: Fetch detailed conversation data for the past week
 - **Query Conversation Details - Today**: Get today's conversation details with recent-first ordering
 - **Query Conversation Details - By Queue**: Filter conversations by specific queue ID
@@ -276,14 +280,33 @@ On first launch, the application automatically includes 20 ready-to-use template
 - **Create Conversation Details Job**: Initiate an async job for large data queries
 - **Query Conversation Activity**: Get real-time conversation activity metrics
 
+**Speech and Text Analytics (2 GET Templates):**
+- **Get Speech and Text Analytics for Conversation**: Get comprehensive speech analytics for a conversation
+- **Get Sentiment Data for Conversation**: Retrieve sentiment analysis data for a conversation
+
+**Telephony (1 GET Template):**
+- **Get SIP Message for Conversation**: Get the raw SIP message for a conversation
+
+**Routing (2 GET Templates):**
+- **Get Queue Details**: Get detailed information about a specific queue
+- **Get Queue Members**: List all members assigned to a queue
+
+**Users (4 GET Templates):**
+- **Get User Routing Skills**: List routing skills assigned to a user
+- **Get User Presence (Genesys Cloud)**: Get a user's Genesys Cloud presence status
+- **Get Bulk User Presences (Genesys Cloud)**: Get presence status for multiple users at once
+- **Get User Routing Status**: Fetch the routing status of a user
+
 These templates are designed for:
 - **Data Analysis**: Extract conversation data for reporting and analytics
-- **Monitoring**: Track active conversations and system activity
+- **Speech Analytics**: Analyze conversation quality, sentiment, and transcripts
+- **Monitoring**: Track active conversations, user status, and system activity
 - **Historical Analysis**: Query past conversations with flexible filters
 - **Performance Metrics**: Analyze agent and queue performance
+- **Routing Intelligence**: Monitor queue membership and user skills
 - **Read-Only Operations**: All templates retrieve data without modifying your organization
 
-Simply load a template, replace placeholder values (like `queue-id-goes-here` or `conversation-id-goes-here`) with your actual IDs, and submit the request.
+Simply load a template, replace placeholder values (like `queue-id-goes-here`, `conversation-id-goes-here`, or `user-id-goes-here`) with your actual IDs, and submit the request.
 
 ### Response Viewer
 
@@ -323,13 +346,19 @@ The report is designed to provide actionable insights at a glance, with the most
 
 Comprehensive project documentation is available in the `docs/` directory:
 
+- **[TEMPLATE_CATALOG.md](docs/TEMPLATE_CATALOG.md)** - Complete reference for all 31 templates
+  - Organized by category (Conversations, Analytics, Speech Analytics, Telephony, Routing, Users)
+  - Detailed description of each template
+  - Parameter requirements and placeholder values
+  - Usage examples and use cases
+  - **Start here** for understanding available templates
+
 - **[DEVELOPMENT_HISTORY.md](docs/DEVELOPMENT_HISTORY.md)** - Complete chronological development story
   - Project overview and philosophy
   - Development timeline across all phases
   - Detailed feature descriptions with user impact
   - Technical architecture and design decisions
   - Future roadmap and planned enhancements
-  - **Start here** for understanding the full project evolution
 
 - **[PROJECT_PLAN.md](docs/PROJECT_PLAN.md)** - 8-phase enhancement plan
   - Structured roadmap for future development
@@ -341,6 +370,7 @@ Comprehensive project documentation is available in the `docs/` directory:
   - [PHASE2_SUMMARY.md](docs/PHASE2_SUMMARY.md) - Advanced parameters & validation
   - [PHASE2_DEFERRED_SUMMARY.md](docs/PHASE2_DEFERRED_SUMMARY.md) - Extended validation features
   - [PHASE3_SUMMARY.md](docs/PHASE3_SUMMARY.md) - Scripting & automation
+  - [PHASE4_SUMMARY.md](docs/PHASE4_SUMMARY.md) - Read-only mode & template expansion
 
 - **[POST_CONVERSATIONS_TEMPLATES.md](docs/POST_CONVERSATIONS_TEMPLATES.md)** - Pre-configured template documentation
 
