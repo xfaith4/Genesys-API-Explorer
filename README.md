@@ -6,6 +6,46 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 
 ## Features
 
+### GenesysCloud.ConversationToolkit
+
+**A central feature of the Genesys-API-Explorer**, the ConversationToolkit is a comprehensive PowerShell module for Genesys Cloud engineers to:
+- **Analyze conversation details** from multiple API sources (Core, Analytics, Speech, Recording, SIP, Sentiment)
+- **Extract MediaEndpointStats** for quality analysis (MOS scores, packet loss, jitter)
+- **Identify WebRTC errors** and telephony issues
+- **Track routing problems** across queues and transfers
+- **Generate professional Excel reports** with TableStyle Light11, AutoFilter, and AutoSize
+- **Correlate all data via ConversationId** in chronological timelines
+
+**Key Functions:**
+- `Get-GCConversationTimeline` - Aggregate data from 6 API endpoints into unified timeline
+- `Export-GCConversationToExcel` - Professional Excel reports with elegant formatting
+- `Get-GCQueueSmokeReport` - Queue performance and error rate analysis
+- `Get-GCQueueHotConversations` - Identify problematic conversations
+- `Show-GCConversationTimelineUI` - Interactive WPF timeline viewer
+- `Invoke-GCSmokeDrill` - End-to-end investigation workflow
+
+**Quick Start:**
+```powershell
+# Import the toolkit
+Import-Module ./Scripts/GenesysCloud.ConversationToolkit/GenesysCloud.ConversationToolkit.psd1
+
+# Pull conversation timeline from all sources
+$timeline = Get-GCConversationTimeline `
+    -BaseUri 'https://api.usw2.pure.cloud' `
+    -AccessToken $token `
+    -ConversationId $convId
+
+# Export to professionally formatted Excel
+Export-GCConversationToExcel `
+    -ConversationData $timeline `
+    -OutputPath "Report.xlsx" `
+    -IncludeRawData
+```
+
+📖 **[Complete Conversation Toolkit Documentation](docs/CONVERSATION_TOOLKIT.md)**
+
+---
+
 ### Core Capabilities
 - WPF shell with OAuth token field, Help menu, splash screen, grouped path/method selection, jobs watcher tab, schema viewer, inspector, and favorites panel
 - Dynamically generated parameter editors (query/path/body/header) with required-field hints and schema preview powered by the Genesys OpenAPI definitions
@@ -88,6 +128,10 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - Valid Genesys Cloud OAuth token (paste into the UI before submitting calls).
 - API catalog JSON exported from [Genesys Cloud API Explorer](https://developer.genesys.cloud/developer-tools/#/api-explorer).
 - Internet access to reach `https://api.mypurecloud.com` and the documentation hubs (`https://developer.genesys.cloud`, `https://help.mypurecloud.com`).
+- **ImportExcel PowerShell module** (required for ConversationToolkit Excel export):
+  ```powershell
+  Install-Module ImportExcel -Scope CurrentUser -Force
+  ```
 
 ---
 
@@ -100,7 +144,12 @@ Genesys-API-Explorer/
 ├── DefaultTemplates.json                 # Pre-configured POST conversation templates
 ├── ExamplePostBodies.json                # Example request bodies for common endpoints
 ├── README.md                             # This documentation
+├── Scripts/                              # PowerShell scripts and modules
+│   └── GenesysCloud.ConversationToolkit/ # Conversation analytics module (CENTRAL FEATURE)
+│       ├── GenesysCloud.ConversationToolkit.psd1  # Module manifest
+│       └── GenesysCloud.ConversationToolkit.psm1  # Module implementation
 ├── docs/                                 # Documentation directory
+│   ├── CONVERSATION_TOOLKIT.md           # Complete Conversation Toolkit reference
 │   ├── DEVELOPMENT_HISTORY.md            # Complete development timeline and feature history
 │   ├── PROJECT_PLAN.md                   # 8-phase enhancement plan
 │   ├── TEMPLATE_CATALOG.md               # Complete reference of all 31 templates
