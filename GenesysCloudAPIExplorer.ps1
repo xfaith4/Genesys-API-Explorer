@@ -1998,6 +1998,18 @@ function Get-GCConversationDetailsTimeline {
                     $dnis = $session.dnis
                     $sessionId = $session.sessionId
 
+                    # Extract MOS from session-level mediaEndpointStats
+                    # MOS is at the session level, not segment level
+                    $sessionMos = $null
+                    if ($session.mediaEndpointStats) {
+                        foreach ($stat in $session.mediaEndpointStats) {
+                            if ($stat.minMos) {
+                                $sessionMos = $stat.minMos
+                                break  # Use first available MOS value
+                            }
+                        }
+                    }
+
                     if ($session.segments) {
                         foreach ($segment in $session.segments) {
                             $segmentCounter++
@@ -2010,17 +2022,8 @@ function Get-GCConversationDetailsTimeline {
                             $wrapUpCode = $segment.wrapUpCode
                             $wrapUpNote = $segment.wrapUpNote
 
-                            # Extract MOS and error codes from metrics
-                            # Use specific MOS metric names to avoid false matches
-                            $mos = $null
+                            # Extract error codes from segment
                             $errorCode = $null
-                            if ($segment.metrics) {
-                                foreach ($metric in $segment.metrics) {
-                                    if ($metric.name -eq "nMos" -or $metric.name -eq "mos" -or $metric.name -eq "MOS") {
-                                        $mos = $metric.value
-                                    }
-                                }
-                            }
                             if ($segment.errorCode) {
                                 $errorCode = $segment.errorCode
                             }
@@ -2043,7 +2046,7 @@ function Get-GCConversationDetailsTimeline {
                                     Direction    = $direction
                                     QueueName    = $queueName
                                     FlowName     = $flowName
-                                    Mos          = $mos
+                                    Mos          = $sessionMos
                                     ErrorCode    = $errorCode
                                     Context      = "ANI: $ani, DNIS: $dnis"
                                     DisconnectType = $null
@@ -2065,7 +2068,7 @@ function Get-GCConversationDetailsTimeline {
                                     Direction    = $direction
                                     QueueName    = $queueName
                                     FlowName     = $flowName
-                                    Mos          = $mos
+                                    Mos          = $sessionMos
                                     ErrorCode    = $errorCode
                                     Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
                                     DisconnectType = $disconnectType
@@ -2213,6 +2216,140 @@ function Get-GCConversationDetailsTimeline {
                         })
                     }
                 }
+            }
+        }
+    }
+
+    # Extract events from SIP messages if available
+    if ($Report.SipMessages) {
+        foreach ($msg in $Report.SipMessages) {
+            if ($msg.timestamp) {
+                # Build error information from SIP status codes and reason phrases
+                # Only include status codes that indicate errors (4xx, 5xx, 6xx)
+                $sipErrorInfo = $null
+                if ($msg.statusCode -and $msg.statusCode -ge 400) {
+                    $sipErrorInfo = "SIP $($msg.statusCode)"
+                    if ($msg.reasonPhrase -and -not [string]::IsNullOrWhiteSpace($msg.reasonPhrase)) {
+                        $sipErrorInfo += ": $($msg.reasonPhrase)"
+                    }
+                }
+
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($msg.timestamp, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "SIP"
+                    Participant    = $msg.participantId
+                    ParticipantId  = $msg.participantId
+                    SegmentId      = $null
+                    EventType      = "SIP_$($msg.method)"
+                    SegmentType    = $null
+                    MediaType      = "voice"
+                    Direction      = $msg.direction
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $sipErrorInfo
+                    Context        = $msg.method
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
+    # Extract events from speech & text analytics if available
+    if ($Report.SpeechTextAnalytics -and $Report.SpeechTextAnalytics.conversation) {
+        $convStart = $null
+        if ($Report.SpeechTextAnalytics.conversation.startTime) {
+            $convStart = [DateTime]::Parse($Report.SpeechTextAnalytics.conversation.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        }
+
+        if ($Report.SpeechTextAnalytics.conversation.topics) {
+            foreach ($topic in $Report.SpeechTextAnalytics.conversation.topics) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = $convStart
+                    Source         = "SpeechText"
+                    Participant    = $null
+                    ParticipantId  = $null
+                    SegmentId      = $null
+                    EventType      = "Topic"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Topic: $($topic.name)"
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
+    # Extract events from sentiment analysis if available
+    if ($Report.Sentiments -and $Report.Sentiments.sentiment) {
+        foreach ($sentiment in $Report.Sentiments.sentiment) {
+            if ($sentiment.time) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($sentiment.time, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "Sentiment"
+                    Participant    = $sentiment.participantId
+                    ParticipantId  = $sentiment.participantId
+                    SegmentId      = $null
+                    EventType      = "SentimentSample"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Sentiment: $($sentiment.label) ($($sentiment.score))"
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
+    # Extract events from recording metadata if available
+    if ($Report.RecordingMetadata) {
+        foreach ($rec in $Report.RecordingMetadata) {
+            if ($rec.startTime) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($rec.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "Recording"
+                    Participant    = $rec.participantId
+                    ParticipantId  = $rec.participantId
+                    SegmentId      = $null
+                    EventType      = "RecordingStart"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Recording ID: $($rec.id)"
+                    DisconnectType = $null
+                })
+            }
+            if ($rec.endTime) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($rec.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "Recording"
+                    Participant    = $rec.participantId
+                    ParticipantId  = $rec.participantId
+                    SegmentId      = $null
+                    EventType      = "RecordingEnd"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Recording ID: $($rec.id)"
+                    DisconnectType = $null
+                })
             }
         }
     }
