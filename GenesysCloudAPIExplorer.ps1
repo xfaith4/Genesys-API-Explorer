@@ -1672,41 +1672,227 @@ function Job-StatusIsPending {
     return $Status -match '^(pending|running|in[-]?progress|processing|created)$'
 }
 
+<#
+.SYNOPSIS
+    Fetches all pages from a paginated API endpoint using cursor-based pagination.
+.DESCRIPTION
+    Handles cursor-based pagination where the response contains a 'cursor' field
+    or 'nextUri' field that points to the next page. Continues until no cursor is returned.
+.PARAMETER BaseUrl
+    Base URL for the API
+.PARAMETER InitialPath
+    Initial endpoint path
+.PARAMETER Headers
+    HTTP headers including authorization
+.PARAMETER Method
+    HTTP method (GET or POST)
+.PARAMETER Body
+    Request body for POST requests
+.PARAMETER ProgressCallback
+    Optional callback for progress reporting
+#>
+function Get-PaginatedResults {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUrl,
+        [Parameter(Mandatory = $true)]
+        [string]$InitialPath,
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Headers,
+        [Parameter(Mandatory = $false)]
+        [string]$Method = "GET",
+        [Parameter(Mandatory = $false)]
+        [string]$Body = $null,
+        [scriptblock]$ProgressCallback = $null
+    )
+
+    $allResults = [System.Collections.ArrayList]::new()
+    $currentPath = $InitialPath
+    $pageNumber = 1
+    $continueLoop = $true
+
+    while ($continueLoop) {
+        if ($ProgressCallback) {
+            & $ProgressCallback -PageNumber $pageNumber -Status "Fetching page $pageNumber..."
+        }
+
+        try {
+            $url = if ($currentPath -match '^https?://') { $currentPath } else { "$BaseUrl$currentPath" }
+            
+            $invokeParams = @{
+                Uri     = $url
+                Method  = $Method
+                Headers = $Headers
+                ErrorAction = 'Stop'
+            }
+
+            if ($Body -and $Method -eq "POST") {
+                $invokeParams['Body'] = $Body
+                $invokeParams['ContentType'] = 'application/json'
+            }
+
+            $response = Invoke-WebRequest @invokeParams
+            $data = $response.Content | ConvertFrom-Json
+
+            # Add results from this page
+            if ($data.entities) {
+                foreach ($entity in $data.entities) {
+                    [void]$allResults.Add($entity)
+                }
+            }
+            elseif ($data.conversations) {
+                foreach ($conv in $data.conversations) {
+                    [void]$allResults.Add($conv)
+                }
+            }
+            elseif ($data -is [array]) {
+                foreach ($item in $data) {
+                    [void]$allResults.Add($item)
+                }
+            }
+            else {
+                # Single result or unknown structure
+                [void]$allResults.Add($data)
+            }
+
+            # Check for cursor-based pagination
+            if ($data.cursor) {
+                $currentPath = $InitialPath
+                if ($currentPath -match '\?') {
+                    $currentPath += "&cursor=$($data.cursor)"
+                }
+                else {
+                    $currentPath += "?cursor=$($data.cursor)"
+                }
+                $pageNumber++
+            }
+            elseif ($data.nextUri) {
+                $currentPath = $data.nextUri
+                $pageNumber++
+            }
+            # Check for page number based pagination
+            elseif ($data.pageCount -and $data.pageNumber) {
+                if ($data.pageNumber -lt $data.pageCount) {
+                    $nextPage = $data.pageNumber + 1
+                    if ($InitialPath -match 'pageNumber=\d+') {
+                        $currentPath = $InitialPath -replace 'pageNumber=\d+', "pageNumber=$nextPage"
+                    }
+                    elseif ($InitialPath -match '\?') {
+                        $currentPath = "$InitialPath&pageNumber=$nextPage"
+                    }
+                    else {
+                        $currentPath = "$InitialPath?pageNumber=$nextPage"
+                    }
+                    $pageNumber++
+                }
+                else {
+                    $continueLoop = $false
+                }
+            }
+            else {
+                # No pagination info found, this is the last page
+                $continueLoop = $false
+            }
+        }
+        catch {
+            if ($ProgressCallback) {
+                & $ProgressCallback -PageNumber $pageNumber -Status "Error on page $pageNumber : $($_.Exception.Message)" -IsError $true
+            }
+            throw
+        }
+    }
+
+    if ($ProgressCallback) {
+        & $ProgressCallback -PageNumber $pageNumber -Status "Completed - Retrieved $($allResults.Count) total results" -IsComplete $true
+    }
+
+    return $allResults
+}
+
 function Get-ConversationReport {
     param (
         [Parameter(Mandatory = $true)]
         [string]$ConversationId,
         [Parameter(Mandatory = $true)]
         [hashtable]$Headers,
-        [string]$BaseUrl = "https://api.usw2.pure.cloud"
+        [string]$BaseUrl = "https://api.usw2.pure.cloud",
+        [scriptblock]$ProgressCallback = $null
+    )
+
+    # Define all endpoints to query
+    $endpoints = @(
+        @{ Name = "Conversation Details"; Path = "/api/v2/conversations/$ConversationId"; PropertyName = "ConversationDetails" }
+        @{ Name = "Analytics Details"; Path = "/api/v2/analytics/conversations/$ConversationId/details"; PropertyName = "AnalyticsDetails" }
+        @{ Name = "Speech & Text Analytics"; Path = "/api/v2/speechandtextanalytics/conversations/$ConversationId"; PropertyName = "SpeechTextAnalytics"; Optional = $true }
+        @{ Name = "Recording Metadata"; Path = "/api/v2/conversations/$ConversationId/recordingmetadata"; PropertyName = "RecordingMetadata"; Optional = $true }
+        @{ Name = "Sentiments"; Path = "/api/v2/speechandtextanalytics/conversations/$ConversationId/sentiments"; PropertyName = "Sentiments"; Optional = $true }
+        @{ Name = "SIP Messages"; Path = "/api/v2/telephony/sipmessages/conversations/$ConversationId"; PropertyName = "SipMessages"; Optional = $true }
     )
 
     $result = [PSCustomObject]@{
-        ConversationId      = $ConversationId
-        ConversationDetails = $null
-        AnalyticsDetails    = $null
-        RetrievedAt         = (Get-Date).ToString("o")
-        Errors              = @()
+        ConversationId         = $ConversationId
+        ConversationDetails    = $null
+        AnalyticsDetails       = $null
+        SpeechTextAnalytics    = $null
+        RecordingMetadata      = $null
+        Sentiments             = $null
+        SipMessages            = $null
+        RetrievedAt            = (Get-Date).ToString("o")
+        Errors                 = @()
+        EndpointLog            = [System.Collections.ArrayList]::new()
     }
 
-    # Fetch conversation details
-    $conversationUrl = "$BaseUrl/conversations/$ConversationId"
-    try {
-        $conversationResponse = Invoke-WebRequest -Uri $conversationUrl -Method Get -Headers $Headers -ErrorAction Stop
-        $result.ConversationDetails = $conversationResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
-    }
-    catch {
-        $result.Errors += "Conversation details: $($_.Exception.Message)"
-    }
+    $totalEndpoints = $endpoints.Count
+    $currentEndpoint = 0
 
-    # Fetch analytics details
-    $analyticsUrl = "$BaseUrl/analytics/conversations/$ConversationId/details"
-    try {
-        $analyticsResponse = Invoke-WebRequest -Uri $analyticsUrl -Method Get -Headers $Headers -ErrorAction Stop
-        $result.AnalyticsDetails = $analyticsResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
-    }
-    catch {
-        $result.Errors += "Analytics details: $($_.Exception.Message)"
+    foreach ($endpoint in $endpoints) {
+        $currentEndpoint++
+        $percentComplete = [int](($currentEndpoint / $totalEndpoints) * 100)
+        
+        # Report progress if callback provided
+        if ($ProgressCallback) {
+            & $ProgressCallback -PercentComplete $percentComplete -Status "Querying: $($endpoint.Name)" -EndpointName $endpoint.Name -IsStarting $true
+        }
+
+        $url = "$BaseUrl$($endpoint.Path)"
+        $logEntry = [PSCustomObject]@{
+            Timestamp = (Get-Date).ToString("HH:mm:ss.fff")
+            Endpoint = $endpoint.Name
+            Path = $endpoint.Path
+            Status = "Pending"
+            Message = ""
+        }
+
+        try {
+            $response = Invoke-WebRequest -Uri $url -Method Get -Headers $Headers -ErrorAction Stop
+            $data = $response.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $result.($endpoint.PropertyName) = $data
+            
+            $logEntry.Status = "Success"
+            $logEntry.Message = "Retrieved successfully"
+            
+            if ($ProgressCallback) {
+                & $ProgressCallback -PercentComplete $percentComplete -Status "✓ $($endpoint.Name)" -EndpointName $endpoint.Name -IsSuccess $true
+            }
+        }
+        catch {
+            $errorMessage = $_.Exception.Message
+            if ($endpoint.Optional) {
+                $logEntry.Status = "Optional - Not Available"
+                $logEntry.Message = $errorMessage
+            }
+            else {
+                $result.Errors += "$($endpoint.Name): $errorMessage"
+                $logEntry.Status = "Failed"
+                $logEntry.Message = $errorMessage
+            }
+            
+            if ($ProgressCallback) {
+                & $ProgressCallback -PercentComplete $percentComplete -Status "✗ $($endpoint.Name)" -EndpointName $endpoint.Name -IsSuccess $false -IsOptional $endpoint.Optional
+            }
+        }
+
+        [void]$result.EndpointLog.Add($logEntry)
     }
 
     return $result
@@ -3914,6 +4100,8 @@ $Xaml = @"
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
           </Grid.RowDefinitions>
           <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0 0 0 10">
@@ -3928,7 +4116,18 @@ $Xaml = @"
             <Button Name="ExportConversationReportTextButton" Width="140" Height="30" Content="Export Text" Margin="10 0 0 0" IsEnabled="False"/>
             <TextBlock Name="ConversationReportStatus" VerticalAlignment="Center" Foreground="SlateGray" Margin="10 0 0 0"/>
           </StackPanel>
-          <TextBox Grid.Row="2" Name="ConversationReportText" TextWrapping="Wrap" AcceptsReturn="True"
+          <StackPanel Grid.Row="2" Orientation="Vertical" Margin="0 0 0 10">
+            <TextBlock Text="Progress:" FontWeight="Bold" Margin="0 0 0 5"/>
+            <ProgressBar Name="ConversationReportProgressBar" Height="20" Minimum="0" Maximum="100" Value="0"/>
+            <TextBlock Name="ConversationReportProgressText" Margin="0 5 0 0" Foreground="DarkBlue" FontSize="10"/>
+          </StackPanel>
+          <StackPanel Grid.Row="3" Orientation="Vertical" Margin="0 0 0 10">
+            <TextBlock Text="Endpoint Query Log:" FontWeight="Bold" Margin="0 0 0 5"/>
+            <TextBox Name="ConversationReportEndpointLog" Height="100" TextWrapping="Wrap" AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto" IsReadOnly="True"
+                     FontFamily="Consolas" FontSize="10" Background="#F5F5F5"/>
+          </StackPanel>
+          <TextBox Grid.Row="4" Name="ConversationReportText" TextWrapping="Wrap" AcceptsReturn="True"
                    VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
                    FontFamily="Consolas" FontSize="11"
                    VerticalAlignment="Stretch" MinHeight="200"/>
@@ -3981,6 +4180,9 @@ $exportConversationReportJsonButton = $Window.FindName("ExportConversationReport
 $exportConversationReportTextButton = $Window.FindName("ExportConversationReportTextButton")
 $conversationReportText = $Window.FindName("ConversationReportText")
 $conversationReportStatus = $Window.FindName("ConversationReportStatus")
+$conversationReportProgressBar = $Window.FindName("ConversationReportProgressBar")
+$conversationReportProgressText = $Window.FindName("ConversationReportProgressText")
+$conversationReportEndpointLog = $Window.FindName("ConversationReportEndpointLog")
 $settingsMenuItem = $Window.FindName("SettingsMenuItem")
 $exportLogButton = $Window.FindName("ExportLogButton")
 $clearLogButton = $Window.FindName("ClearLogButton")
@@ -4978,13 +5180,54 @@ if ($runConversationReportButton) {
             "Authorization" = "Bearer $token"
         }
 
+        # Reset progress UI
+        if ($conversationReportProgressBar) {
+            $conversationReportProgressBar.Value = 0
+        }
+        if ($conversationReportProgressText) {
+            $conversationReportProgressText.Text = "Initializing..."
+        }
+        if ($conversationReportEndpointLog) {
+            $conversationReportEndpointLog.Text = ""
+        }
         if ($conversationReportStatus) {
             $conversationReportStatus.Text = "Fetching report..."
         }
         Add-LogEntry "Generating conversation report for: $convId"
 
         try {
-            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl
+            # Define progress callback to update UI
+            $progressCallback = {
+                param($PercentComplete, $Status, $EndpointName, $IsStarting, $IsSuccess, $IsOptional)
+                
+                if ($conversationReportProgressBar) {
+                    $conversationReportProgressBar.Value = $PercentComplete
+                }
+                if ($conversationReportProgressText) {
+                    $conversationReportProgressText.Text = $Status
+                }
+                if ($conversationReportEndpointLog) {
+                    $timestamp = (Get-Date).ToString("HH:mm:ss")
+                    if ($IsStarting) {
+                        $logLine = "[$timestamp] Querying: $EndpointName..."
+                    }
+                    elseif ($IsSuccess) {
+                        $logLine = "[$timestamp] ✓ $EndpointName - Retrieved successfully"
+                    }
+                    elseif ($IsOptional) {
+                        $logLine = "[$timestamp] ⚠ $EndpointName - Optional, not available"
+                    }
+                    else {
+                        $logLine = "[$timestamp] ✗ $EndpointName - Failed"
+                    }
+                    $conversationReportEndpointLog.AppendText("$logLine`r`n")
+                    $conversationReportEndpointLog.ScrollToEnd()
+                }
+                # Force UI update
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+
+            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl -ProgressCallback $progressCallback
             $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
 
             $reportText = Format-ConversationReportText -Report $script:LastConversationReport
@@ -5001,6 +5244,14 @@ if ($runConversationReportButton) {
             }
             if ($exportConversationReportTextButton) {
                 $exportConversationReportTextButton.IsEnabled = $true
+            }
+
+            # Complete progress bar
+            if ($conversationReportProgressBar) {
+                $conversationReportProgressBar.Value = 100
+            }
+            if ($conversationReportProgressText) {
+                $conversationReportProgressText.Text = "Complete"
             }
 
             $errorCount = if ($script:LastConversationReport.Errors) { $script:LastConversationReport.Errors.Count } else { 0 }
