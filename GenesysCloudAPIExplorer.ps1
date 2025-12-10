@@ -1069,6 +1069,8 @@ function Get-EnumValues {
     # Check if the property has enum values
     $propValue = $property.Value
     if ($propValue -and $propValue.enum) {
+        # Comma operator forces PowerShell to treat the array as a single object
+        # preventing automatic unwrapping when the array is returned
         return ,$propValue.enum
     }
 
@@ -1115,10 +1117,14 @@ function Update-FilterFieldOptions {
         "Segment|metric" {
             $items = $script:FilterBuilderEnums.Segment.Metrics
         }
-        default {
+        "Segment|dimension" {
             $items = $script:FilterBuilderEnums.Segment.Dimensions
         }
- }
+        default {
+            # For property type or unknown types, no field selection is needed
+            $items = @()
+        }
+    }
     if (-not $items -or $items.Count -eq 0) {
         $ComboBox.Items.Add("(no fields available)") | Out-Null
         $ComboBox.IsEnabled = $false
