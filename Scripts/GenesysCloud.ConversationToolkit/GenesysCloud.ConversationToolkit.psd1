@@ -24,6 +24,7 @@ Invoke-GCSmokeDrill `
     # Export only the main entrypoints; everything else stays private.
     FunctionsToExport = @(
         'Get-GCConversationTimeline',
+        'Export-GCConversationToExcel',
         'Get-GCQueueSmokeReport',
         'Get-GCQueueHotConversations',
         'Show-GCConversationTimelineUI',
