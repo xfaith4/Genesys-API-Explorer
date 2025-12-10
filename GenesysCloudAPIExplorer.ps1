@@ -5717,7 +5717,7 @@ $btnSave.Add_Click({
 
 if ($exportLogButton) {
     $exportLogButton.Add_Click({
-        if (-not $logBox -or [string]::IsNullOrWhiteSpace($logBox.Text)) {
+        if ([string]::IsNullOrWhiteSpace($logBox.Text)) {
             $statusText.Text = "No log entries to export."
             return
         }
@@ -5738,10 +5738,6 @@ if ($exportLogButton) {
 
 if ($clearLogButton) {
     $clearLogButton.Add_Click({
-        if (-not $logBox) {
-            return
-        }
-
         $result = [System.Windows.MessageBox]::Show(
             "Are you sure you want to clear all log entries? This action cannot be undone.",
             "Clear Log",
