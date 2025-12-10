@@ -1998,6 +1998,18 @@ function Get-GCConversationDetailsTimeline {
                     $dnis = $session.dnis
                     $sessionId = $session.sessionId
 
+                    # Extract MOS from session-level mediaEndpointStats
+                    # MOS is at the session level, not segment level
+                    $sessionMos = $null
+                    if ($session.mediaEndpointStats) {
+                        foreach ($stat in $session.mediaEndpointStats) {
+                            if ($stat.minMos) {
+                                $sessionMos = $stat.minMos
+                                break  # Use first available MOS value
+                            }
+                        }
+                    }
+
                     if ($session.segments) {
                         foreach ($segment in $session.segments) {
                             $segmentCounter++
@@ -2010,17 +2022,8 @@ function Get-GCConversationDetailsTimeline {
                             $wrapUpCode = $segment.wrapUpCode
                             $wrapUpNote = $segment.wrapUpNote
 
-                            # Extract MOS and error codes from metrics
-                            # Use specific MOS metric names to avoid false matches
-                            $mos = $null
+                            # Extract error codes from segment
                             $errorCode = $null
-                            if ($segment.metrics) {
-                                foreach ($metric in $segment.metrics) {
-                                    if ($metric.name -eq "nMos" -or $metric.name -eq "mos" -or $metric.name -eq "MOS") {
-                                        $mos = $metric.value
-                                    }
-                                }
-                            }
                             if ($segment.errorCode) {
                                 $errorCode = $segment.errorCode
                             }
@@ -2043,7 +2046,7 @@ function Get-GCConversationDetailsTimeline {
                                     Direction    = $direction
                                     QueueName    = $queueName
                                     FlowName     = $flowName
-                                    Mos          = $mos
+                                    Mos          = $sessionMos
                                     ErrorCode    = $errorCode
                                     Context      = "ANI: $ani, DNIS: $dnis"
                                     DisconnectType = $null
@@ -2065,7 +2068,7 @@ function Get-GCConversationDetailsTimeline {
                                     Direction    = $direction
                                     QueueName    = $queueName
                                     FlowName     = $flowName
-                                    Mos          = $mos
+                                    Mos          = $sessionMos
                                     ErrorCode    = $errorCode
                                     Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
                                     DisconnectType = $disconnectType
