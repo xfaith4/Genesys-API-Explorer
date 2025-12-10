@@ -21,6 +21,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - **Progress Indicators**: Visual progress indicator (⏳) during API calls with elapsed time tracking and responsive UI
 - **Enhanced Response Viewer**: Toggle between raw and formatted JSON views, with improved response display
 - **Detailed Error Display**: Comprehensive error information including HTTP status codes, headers, and response body for better troubleshooting
+- **Transparency Log Management**: Export transparency log to text file for auditing, clear log entries with confirmation dialog
 
 ### Phase 2 Enhancements
 - **Type-Aware Parameter Controls**: Intelligent input controls that adapt based on parameter type
@@ -315,6 +316,17 @@ Enhanced response viewing capabilities:
 - **Toggle Raw/Formatted**: Switch between formatted JSON and raw response text
 - **Response Inspector**: Click "Inspect Result" to explore large responses in a tree view
 - **Progress Indicator**: Visual feedback during API calls with elapsed time display
+
+### Transparency Log
+
+The **Transparency Log** tab captures all activity within the application for auditing and troubleshooting:
+
+- **Export Log**: Click the "Export Log" button to save the entire log to a timestamped text file
+  - Useful for sharing logs with support teams or keeping records for compliance
+  - Files are named with timestamp: `GenesysAPIExplorer_Log_YYYYMMDD_HHMMSS.txt`
+- **Clear Log**: Click the "Clear Log" button to remove all log entries
+  - Shows confirmation dialog to prevent accidental deletion
+  - Clearing the log does not affect saved responses or request history
 
 ### Conversation Report
 
