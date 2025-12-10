@@ -548,8 +548,8 @@ function Export-GCConversationToExcel {
                 }
             }
             
-            # Create flattened object
-            [PSCustomObject]@{
+            # Create flattened object with all properties in one step
+            $allProps = [ordered]@{
                 ConversationId = $event.ConversationId
                 StartTime      = $event.StartTime
                 EndTime        = $event.EndTime
@@ -560,13 +560,14 @@ function Export-GCConversationToExcel {
                 User           = $event.User
                 Direction      = $event.Direction
                 DisconnectType = $event.DisconnectType
-            } | Select-Object *, $extraProps.Keys | ForEach-Object {
-                $obj = $_
-                foreach ($key in $extraProps.Keys) {
-                    $obj.$key = $extraProps[$key]
-                }
-                $obj
             }
+            
+            # Add extra properties
+            foreach ($key in $extraProps.Keys) {
+                $allProps[$key] = $extraProps[$key]
+            }
+            
+            [PSCustomObject]$allProps
         }
 
         $flattenedEvents | Export-Excel -Path $OutputPath `
