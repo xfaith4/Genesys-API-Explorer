@@ -3582,27 +3582,59 @@ function Fetch-JobResults {
         return
     }
 
-    $resultsUrl = "$ApiBaseUrl$($JobTracker.Path)/$($JobTracker.JobId)/results"
+    $resultsPath = "$($JobTracker.Path)/$($JobTracker.JobId)/results"
     $tempFile = Join-Path -Path $env:TEMP -ChildPath "GenesysJobResults_$([guid]::NewGuid()).json"
     $errorMessage = $null
 
     try {
-        Invoke-WebRequest -Uri $resultsUrl -Method Get -Headers $JobTracker.Headers -OutFile $tempFile -ErrorAction Stop
+        # Update status to show we're fetching
+        $statusText.Text = "Fetching job results (may be paginated)..."
+        Add-LogEntry "Fetching job results from $resultsPath"
+        
+        # Define progress callback for pagination
+        $paginationCallback = {
+            param($PageNumber, $Status, $IsError, $IsComplete)
+            
+            if ($IsError) {
+                $statusText.Text = "Error: $Status"
+            }
+            elseif ($IsComplete) {
+                $statusText.Text = $Status
+            }
+            else {
+                $statusText.Text = "Fetching results - $Status"
+            }
+            Add-LogEntry $Status
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+        
+        # Use pagination helper to fetch all results
+        $allResults = Get-PaginatedResults `
+            -BaseUrl $ApiBaseUrl `
+            -InitialPath $resultsPath `
+            -Headers $JobTracker.Headers `
+            -Method "GET" `
+            -ProgressCallback $paginationCallback
+        
+        # Save all results to temp file
+        $allResults | ConvertTo-Json -Depth 20 | Set-Content -Path $tempFile -Encoding UTF8
+        
         $JobTracker.ResultFile = $tempFile
         if ($jobResultsPath) {
             $jobResultsPath.Text = "Results file: $tempFile"
         }
         $snippet = Get-Content -Path $tempFile -TotalCount 200 | Out-String
-        $script:LastResponseText = "Job results saved to temp file.`r`n$tempFile`r`n`r`n${snippet}"
+        $script:LastResponseText = "Job results saved to temp file (Total: $($allResults.Count) items).`r`n$tempFile`r`n`r`n${snippet}"
         $script:LastResponseRaw = $snippet.Trim()
         $script:LastResponseFile = $tempFile
-        $responseBox.Text = "Job $($JobTracker.JobId) completed; results saved to temp file."
-        Add-LogEntry "Job results downloaded to $tempFile"
+        $responseBox.Text = "Job $($JobTracker.JobId) completed; $($allResults.Count) results saved to temp file."
+        Add-LogEntry "Job results downloaded: $($allResults.Count) total items saved to $tempFile"
         Update-JobPanel -Status $JobTracker.Status -Updated (Get-Date).ToString("HH:mm:ss")
     } catch {
         $errorMessage = $_.Exception.Message
         Add-LogEntry "Fetching job results failed: $errorMessage"
         $responseBox.Text = "Failed to download job results: $errorMessage"
+        $statusText.Text = "Job results fetch failed"
     }
 }
 
@@ -5910,8 +5942,32 @@ $btnSubmit.Add_Click({
 
         # Calculate duration and update status
         $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
-        $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms" -f $requestDuration
-        Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms." -f $response.StatusCode, $formattedContent.Length, $requestDuration)
+        
+        # Detect pagination in response
+        $hasPagination = $false
+        $paginationInfo = ""
+        if ($json) {
+            if ($json.cursor) {
+                $hasPagination = $true
+                $paginationInfo = " (Cursor-based pagination detected)"
+            }
+            elseif ($json.nextUri) {
+                $hasPagination = $true
+                $paginationInfo = " (Next page available via nextUri)"
+            }
+            elseif ($json.pageCount -and $json.pageNumber) {
+                $hasPagination = $true
+                $paginationInfo = " (Page $($json.pageNumber) of $($json.pageCount))"
+            }
+        }
+        
+        $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms$paginationInfo" -f $requestDuration
+        Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms.$paginationInfo" -f $response.StatusCode, $formattedContent.Length, $requestDuration)
+        
+        # If pagination detected, log a note
+        if ($hasPagination) {
+            Add-LogEntry "Note: Response contains pagination. To fetch all pages, use Get-PaginatedResults function or the Jobs results fetcher for job endpoints."
+        }
 
         # Add to request history
         $historyEntry = [PSCustomObject]@{
