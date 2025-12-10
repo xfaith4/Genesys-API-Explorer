@@ -1674,10 +1674,13 @@ function Job-StatusIsPending {
 
 <#
 .SYNOPSIS
-    Fetches all pages from a paginated API endpoint using cursor-based pagination.
+    Fetches all pages from a paginated API endpoint.
 .DESCRIPTION
-    Handles cursor-based pagination where the response contains a 'cursor' field
-    or 'nextUri' field that points to the next page. Continues until no cursor is returned.
+    Handles three types of pagination:
+    1. Cursor-based: Response contains 'cursor' field
+    2. URI-based: Response contains 'nextUri' field
+    3. Page number based: Response contains 'pageCount' and 'pageNumber' fields
+    Continues fetching pages until no more pagination info is found.
 .PARAMETER BaseUrl
     Base URL for the API
 .PARAMETER InitialPath
@@ -1757,12 +1760,14 @@ function Get-PaginatedResults {
 
             # Check for cursor-based pagination
             if ($data.cursor) {
+                # URL-encode the cursor value to handle special characters
+                $encodedCursor = [uri]::EscapeDataString($data.cursor)
                 $currentPath = $InitialPath
                 if ($currentPath -match '\?') {
-                    $currentPath += "&cursor=$($data.cursor)"
+                    $currentPath += "&cursor=$encodedCursor"
                 }
                 else {
-                    $currentPath += "?cursor=$($data.cursor)"
+                    $currentPath += "?cursor=$encodedCursor"
                 }
                 $pageNumber++
             }
@@ -1774,13 +1779,21 @@ function Get-PaginatedResults {
             elseif ($data.pageCount -and $data.pageNumber) {
                 if ($data.pageNumber -lt $data.pageCount) {
                     $nextPage = $data.pageNumber + 1
-                    if ($InitialPath -match 'pageNumber=\d+') {
-                        $currentPath = $InitialPath -replace 'pageNumber=\d+', "pageNumber=$nextPage"
-                    }
-                    elseif ($InitialPath -match '\?') {
-                        $currentPath = "$InitialPath&pageNumber=$nextPage"
+                    # Parse URL to safely update pageNumber parameter
+                    if ($InitialPath -match '^([^\?]+)(\?.*)$') {
+                        $pathPart = $matches[1]
+                        $queryPart = $matches[2]
+                        # Check if pageNumber already exists in query
+                        if ($queryPart -match '[&\?]pageNumber=\d+') {
+                            $queryPart = $queryPart -replace '([&\?])pageNumber=\d+', "`${1}pageNumber=$nextPage"
+                            $currentPath = $pathPart + $queryPart
+                        }
+                        else {
+                            $currentPath = "$InitialPath&pageNumber=$nextPage"
+                        }
                     }
                     else {
+                        # No query string yet
                         $currentPath = "$InitialPath?pageNumber=$nextPage"
                     }
                     $pageNumber++
