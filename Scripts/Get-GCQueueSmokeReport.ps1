@@ -213,7 +213,7 @@ $report.AgentTop  | Format-Table UserName, Offered, Abandoned, AbandonRate, Erro
         $abandonRate = if ($offered -gt 0) { $abandoned / $offered } else { 0.0 }
 
         $nError = 0.0
-        if ($metrics.ContainsKey('nError') -and $metrics['nError'] -ne $null) {
+        if ($metrics.ContainsKey('nError') -and $null -ne $metrics['nError']) {
             $nError = [double]$metrics['nError']
         }
         $errorRate = if ($offered -gt 0) { $nError / $offered } else { 0.0 }
@@ -294,7 +294,7 @@ $report.AgentTop  | Format-Table UserName, Offered, Abandoned, AbandonRate, Erro
         $abandonRate = if ($offered -gt 0) { $abandoned / $offered } else { 0.0 }
 
         $nError = 0.0
-        if ($metrics.ContainsKey('nError') -and $metrics['nError'] -ne $null) {
+        if ($metrics.ContainsKey('nError') -and $null -ne $metrics['nError']) {
             $nError = [double]$metrics['nError']
         }
         $errorRate = if ($offered -gt 0) { $nError / $offered } else { 0.0 }

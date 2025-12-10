@@ -466,10 +466,10 @@ function Test-ParameterValue {
         if (-not [int]::TryParse($Value, [ref]$intValue)) {
             $errors += "Must be an integer value"
         } else {
-            if ($ValidationMetadata.Minimum -ne $null -and $intValue -lt $ValidationMetadata.Minimum) {
+            if ($null -ne $ValidationMetadata.Minimum -and $intValue -lt $ValidationMetadata.Minimum) {
                 $errors += "Must be at least $($ValidationMetadata.Minimum)"
             }
-            if ($ValidationMetadata.Maximum -ne $null -and $intValue -gt $ValidationMetadata.Maximum) {
+            if ($null -ne $ValidationMetadata.Maximum -and $intValue -gt $ValidationMetadata.Maximum) {
                 $errors += "Must be at most $($ValidationMetadata.Maximum)"
             }
         }
@@ -481,10 +481,10 @@ function Test-ParameterValue {
         if (-not [double]::TryParse($Value, [ref]$numValue)) {
             $errors += "Must be a numeric value"
         } else {
-            if ($ValidationMetadata.Minimum -ne $null -and $numValue -lt $ValidationMetadata.Minimum) {
+            if ($null -ne $ValidationMetadata.Minimum -and $numValue -lt $ValidationMetadata.Minimum) {
                 $errors += "Must be at least $($ValidationMetadata.Minimum)"
             }
-            if ($ValidationMetadata.Maximum -ne $null -and $numValue -gt $ValidationMetadata.Maximum) {
+            if ($null -ne $ValidationMetadata.Maximum -and $numValue -gt $ValidationMetadata.Maximum) {
                 $errors += "Must be at most $($ValidationMetadata.Maximum)"
             }
         }
@@ -545,12 +545,12 @@ function Test-NumericValue {
     }
 
     # Check minimum constraint
-    if ($Minimum -ne $null -and $number -lt $Minimum) {
+    if ($null -ne $Minimum -and $number -lt $Minimum) {
         return @{ IsValid = $false; ErrorMessage = "Must be >= $Minimum" }
     }
 
     # Check maximum constraint
-    if ($Maximum -ne $null -and $number -gt $Maximum) {
+    if ($null -ne $Maximum -and $number -gt $Maximum) {
         return @{ IsValid = $false; ErrorMessage = "Must be <= $Maximum" }
     }
 
@@ -1338,7 +1338,7 @@ function Build-FilterFromInput {
     }
 
     $valueInput = Parse-FilterValueInput -Text $ValueInput.Text
-    if ($operator -ne "exists" -and $valueInput -eq $null) {
+    if ($operator -ne "exists" -and $null -eq $valueInput) {
         Show-FilterBuilderMessage -Message "Provide a value or range for the predicate."
         return $null
     }
@@ -1356,7 +1356,7 @@ function Build-FilterFromInput {
 
     if ($valueInput -and ($valueInput -is [System.Management.Automation.PSCustomObject] -or $valueInput -is [System.Collections.IDictionary])) {
         $predicate.range = $valueInput
-    } elseif ($valueInput -ne $null) {
+    } elseif ($null -ne $valueInput) {
         $predicate.value = $valueInput
     }
 
@@ -1486,7 +1486,7 @@ function Populate-InspectorTree {
         }
     }
     else {
-        $valueText = if ($Data -ne $null) { $Data.ToString() } else { "<null>" }
+        $valueText = if ($null -ne $Data) { $Data.ToString() } else { "<null>" }
         $node.Header = "$($Label): $valueText"
     }
 
@@ -1724,8 +1724,8 @@ function Get-GCConversationDetailsTimeline {
                                     Direction    = $direction
                                     QueueName    = $queueName
                                     FlowName     = $flowName
-                                    Mos          = $null
-                                    ErrorCode    = $null
+                                    Mos          = $mos
+                                    ErrorCode    = $errorCode
                                     Context      = "ANI: $ani, DNIS: $dnis"
                                     DisconnectType = $null
                                 })
@@ -3110,7 +3110,7 @@ function Format-ConversationReportText {
                 if ($participant.endTime) {
                     [void]$sb.AppendLine("    End Time: $($participant.endTime)")
                 }
-                if ($participant.wrapupRequired -ne $null) {
+                if ($null -ne $participant.wrapupRequired) {
                     [void]$sb.AppendLine("    Wrapup Required: $($participant.wrapupRequired)")
                 }
             }
