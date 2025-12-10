@@ -47,7 +47,6 @@ Collaboration Features
 User authentication and role-based access control within the app.
 Commenting and annotation on saved requests.
 Sharing saved requests and templates across a team.
-Integration with DevOps & CI/CD Tools
 
 Export API calls as part of build or deployment pipelines.
 Output API responses to logs or monitoring dashboards.
@@ -55,12 +54,7 @@ Trigger external scripts or workflows on API call success/failure.
 Advanced Debugging Tools
 
 Include HTTP traffic inspection (headers, raw request/response).
-Network simulation and latency testing.
-Mock API response generation for offline testing.
 Extensibility & Plugin System
-
-Allow users to write and load custom scripts or plugins to extend functionality.
-Provide hooks for integration with other PowerShell modules and scripts.
 
 
 # Enhancement Plan & Feature Integration
@@ -69,58 +63,57 @@ Your current app is solid, but to surpass the developer.genesys.cloud portal in 
 
 ### 1. **Improved User Experience & Usability**
 
-- **Persistent OAuth Token Management**  
-  - Securely store the OAuth token locally (already implemented with DPAPI).  
-  - Add a "Test Token" button to verify token validity instantly.
+- **Persistent OAuth Token Management**
+  - Securely store the OAuth token locally (already implemented with DPAPI).
 
-- **Enhanced Parameter Input**  
-  - For parameters with enums, replace free text with dropdowns.  
-  - For boolean parameters, use checkboxes.  
+- **Enhanced Parameter Input**
+  - For parameters with enums, replace free text with dropdowns.
+  - For boolean parameters, use checkboxes.
   - For array inputs, provide a JSON editor with syntax highlighting or a multi-line textbox with validation.
 
-- **Comprehensive HTTP Method Support**  
-  - Already supporting POST, PUT, PATCH bodies; extend support to DELETE with body if API allows.
+- **Comprehensive HTTP Method Support**
+  - Only support POST bodies and GET; Remove support to Put, Patch, DELETE API endpoints.
 
-- **Request History & Reuse**  
+- **Request History & Reuse**
   - Maintain a history of recent API calls (paths, methods, parameters, and bodies) allowing quick reuse and editing.
 
-- **Improved Async Handling & Progress Feedback**  
-  - Add a progress spinner or a progress bar during async API calls.  
+- **Improved Async Handling & Progress Feedback**
+  - Add a progress spinner or a progress bar during async API calls.
   - Disable only relevant controls during the request to keep UI responsive.
 
-- **Enhanced Response Viewer**  
-  - Syntax-highlighted, collapsible JSON viewer for API responses.  
+- **Enhanced Response Viewer**
+  - Syntax-highlighted, collapsible JSON viewer for API responses.
   - Option to toggle raw or formatted view.
 
-- **Error Handling & Logging**  
-  - Detailed error display with HTTP status code, headers, and message.  
+- **Error Handling & Logging**
+  - Detailed error display with HTTP status code, headers, and message.
   - Option to export error logs.
 
 ---
 
 ### 2. **Developer-Focused Features**
 
-- **Swagger/OpenAPI Integration**  
-  - Support loading multiple Swagger/OpenAPI specs dynamically.  
+- **Swagger/OpenAPI Integration**
+  - Support loading multiple Swagger/OpenAPI specs dynamically.
   - Display endpoint descriptions and parameter metadata inline.
 
-- **Request Customization**  
-  - Allow setting custom headers beyond Authorization and Content-Type.  
+- **Request Customization**
+  - Allow setting custom headers beyond Authorization and Content-Type.
   - Support multipart/form-data for file uploads.
 
-- **Code Snippet Generation**  
+- **Code Snippet Generation**
   - Generate cURL and PowerShell Invoke-RestMethod snippets side-by-side.
 
-- **Schema-aware Example Generation**  
+- **Schema-aware Example Generation**
   - Better example request body generation from schema with nested objects and arrays.
 
 ---
 
 ### 3. **UI/UX Layout and Accessibility**
 
-- Responsive layout to handle resizing.  
-- Keyboard shortcuts for common actions (submit, clear, save).  
-- Tooltips and inline help for parameters and buttons.  
+- Responsive layout to handle resizing.
+- Keyboard shortcuts for common actions (submit, clear, save).
+- Tooltips and inline help for parameters and buttons.
 - Dark mode toggle.
 
 ---
@@ -129,8 +122,8 @@ Your current app is solid, but to surpass the developer.genesys.cloud portal in 
 
 Below is the first part of the enhanced script focusing on:
 
-- UI layout refinements with resizing support.  
-- Parameter input improvements (checkboxes for booleans, comboboxes for enums).  
-- Token management with test token button.  
-- Request history UI and data structure.  
+- UI layout refinements with resizing support.
+- Parameter input improvements (checkboxes for booleans, comboboxes for enums).
+- Token management with test token button.
+- Request history UI and data structure.
 - Enhanced async request handling with progress indicator.
