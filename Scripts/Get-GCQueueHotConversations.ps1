@@ -257,7 +257,7 @@ function Get-GCQueueHotConversations {
     # Rank desc by smoke score; ignore boring conversations
     $ranked = $results |
         Where-Object { $_.SmokeScore -gt 0 } |
-        Sort-Object SmokeScore -Descending, ErrorSegments -Descending, ShortCalls -Descending |
+        Sort-Object SmokeScore -Descending ErrorSegments -Descending ShortCalls -Descending |
         Select-Object -First $TopN
 
     return $ranked
