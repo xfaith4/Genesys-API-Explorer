@@ -1751,8 +1751,14 @@ function Show-ConversationTimelineReport {
             $dialog.Title = "Export Conversation Timeline Report"
             $dialog.FileName = "ConversationTimeline_$($Report.ConversationId).txt"
             if ($dialog.ShowDialog() -eq $true) {
-                $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
-                Add-LogEntry "Timeline report exported to $($dialog.FileName)"
+                try {
+                    $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
+                    Add-LogEntry "Timeline report exported to $($dialog.FileName)"
+                }
+                catch {
+                    Add-LogEntry "Failed to export timeline report: $($_.Exception.Message)"
+                    [System.Windows.MessageBox]::Show("Failed to export timeline report: $($_.Exception.Message)", "Export Error")
+                }
             }
         })
     }
