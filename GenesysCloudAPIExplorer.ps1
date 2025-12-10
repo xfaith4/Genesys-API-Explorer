@@ -2220,6 +2220,139 @@ function Get-GCConversationDetailsTimeline {
         }
     }
 
+    # Extract events from SIP messages if available
+    if ($Report.SipMessages) {
+        foreach ($msg in $Report.SipMessages) {
+            if ($msg.timestamp) {
+                # Build error information from SIP status codes and reason phrases
+                $sipErrorInfo = $null
+                if ($msg.statusCode) {
+                    $sipErrorInfo = "SIP $($msg.statusCode)"
+                    if ($msg.reasonPhrase) {
+                        $sipErrorInfo += ": $($msg.reasonPhrase)"
+                    }
+                }
+
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($msg.timestamp, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "SIP"
+                    Participant    = $msg.participantId
+                    ParticipantId  = $msg.participantId
+                    SegmentId      = $null
+                    EventType      = "SIP_$($msg.method)"
+                    SegmentType    = $null
+                    MediaType      = "voice"
+                    Direction      = $msg.direction
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $sipErrorInfo
+                    Context        = $msg.method
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
+    # Extract events from speech & text analytics if available
+    if ($Report.SpeechTextAnalytics -and $Report.SpeechTextAnalytics.conversation) {
+        $convStart = $null
+        if ($Report.SpeechTextAnalytics.conversation.startTime) {
+            $convStart = [DateTime]::Parse($Report.SpeechTextAnalytics.conversation.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        }
+
+        if ($Report.SpeechTextAnalytics.conversation.topics) {
+            foreach ($topic in $Report.SpeechTextAnalytics.conversation.topics) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = $convStart
+                    Source         = "SpeechText"
+                    Participant    = $null
+                    ParticipantId  = $null
+                    SegmentId      = $null
+                    EventType      = "Topic"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Topic: $($topic.name)"
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
+    # Extract events from sentiment analysis if available
+    if ($Report.Sentiments -and $Report.Sentiments.sentiment) {
+        foreach ($sentiment in $Report.Sentiments.sentiment) {
+            if ($sentiment.time) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($sentiment.time, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "Sentiment"
+                    Participant    = $sentiment.participantId
+                    ParticipantId  = $sentiment.participantId
+                    SegmentId      = $null
+                    EventType      = "SentimentSample"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Sentiment: $($sentiment.label) ($($sentiment.score))"
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
+    # Extract events from recording metadata if available
+    if ($Report.RecordingMetadata) {
+        foreach ($rec in $Report.RecordingMetadata) {
+            if ($rec.startTime) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($rec.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "Recording"
+                    Participant    = $rec.participantId
+                    ParticipantId  = $rec.participantId
+                    SegmentId      = $null
+                    EventType      = "RecordingStart"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Recording ID: $($rec.id)"
+                    DisconnectType = $null
+                })
+            }
+            if ($rec.endTime) {
+                [void]$events.Add([PSCustomObject]@{
+                    Timestamp      = [DateTime]::Parse($rec.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    Source         = "Recording"
+                    Participant    = $rec.participantId
+                    ParticipantId  = $rec.participantId
+                    SegmentId      = $null
+                    EventType      = "RecordingEnd"
+                    SegmentType    = $null
+                    MediaType      = $null
+                    Direction      = $null
+                    QueueName      = $null
+                    FlowName       = $null
+                    Mos            = $null
+                    ErrorCode      = $null
+                    Context        = "Recording ID: $($rec.id)"
+                    DisconnectType = $null
+                })
+            }
+        }
+    }
+
     return $events
 }
 
