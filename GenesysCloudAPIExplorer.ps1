@@ -1701,10 +1701,10 @@ function Update-UrlParameter {
     if ($Path -match '^([^\?]+)(\?.*)$') {
         $pathPart = $matches[1]
         $queryPart = $matches[2]
-        # Check if parameter already exists in query
-        $paramPattern = "[&\?]$ParameterName=\d+"
+        # Check if parameter already exists in query (match any value, not just digits)
+        $paramPattern = "[&\?]$ParameterName=[^&]*"
         if ($queryPart -match $paramPattern) {
-            $queryPart = $queryPart -replace "([&\?])$ParameterName=\d+", "`${1}$ParameterName=$ParameterValue"
+            $queryPart = $queryPart -replace "([&\?])$ParameterName=[^&]*", "`${1}$ParameterName=$ParameterValue"
             return $pathPart + $queryPart
         }
         else {
