@@ -1151,6 +1151,8 @@ function Format-FilterSummary {
         $predicate.dimension
     } elseif ($predicate.metric) {
         $predicate.metric
+    } elseif ($predicate.property) {
+        "$($predicate.property) ($($predicate.propertyType))"
     } else {
         "<field>"
     }
@@ -1340,7 +1342,8 @@ function Build-FilterFromInput {
         $PredicateTypeCombo,
         $FieldCombo,
         $OperatorCombo,
-        $ValueInput
+        $ValueInput,
+        $PropertyTypeCombo
     )
 
     $filterType = if ($FilterTypeCombo -and $FilterTypeCombo.SelectedItem) { $FilterTypeCombo.SelectedItem } else { "and" }
@@ -1370,6 +1373,11 @@ function Build-FilterFromInput {
 
     if ($predicateType -eq "metric") {
         $predicate.metric = $fieldName
+    } elseif ($predicateType -eq "property") {
+        $predicate.property = $fieldName
+        if ($PropertyTypeCombo -and $PropertyTypeCombo.SelectedItem) {
+            $predicate.propertyType = $PropertyTypeCombo.SelectedItem
+        }
     } else {
         $predicate.dimension = $fieldName
     }
@@ -4042,7 +4050,7 @@ if ($filterBuilderBorder) {
 
     if ($addSegmentPredicateButton) {
         $addSegmentPredicateButton.Add_Click({
-            $filter = Build-FilterFromInput -Scope "Segment" -FilterTypeCombo $segmentFilterTypeCombo -PredicateTypeCombo $segmentPredicateTypeCombo -FieldCombo $segmentFieldCombo -OperatorCombo $segmentOperatorCombo -ValueInput $segmentValueInput
+            $filter = Build-FilterFromInput -Scope "Segment" -FilterTypeCombo $segmentFilterTypeCombo -PredicateTypeCombo $segmentPredicateTypeCombo -FieldCombo $segmentFieldCombo -OperatorCombo $segmentOperatorCombo -ValueInput $segmentValueInput -PropertyTypeCombo $segmentPropertyTypeCombo
             if ($filter) {
                 Add-FilterEntry -Scope "Segment" -FilterObject $filter
                 if ($segmentValueInput) { $segmentValueInput.Clear() }
