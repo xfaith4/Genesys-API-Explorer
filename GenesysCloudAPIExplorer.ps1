@@ -1073,9 +1073,12 @@ function Initialize-FilterBuilderEnum {
 
     $script:FilterBuilderEnums.Conversation.Dimensions = Get-EnumValues -Schema $convPredicate -PropertyName "dimension"
     $script:FilterBuilderEnums.Conversation.Metrics = Get-EnumValues -Schema $convPredicate -PropertyName "metric"
+    $script:FilterBuilderEnums.Conversation.Types = Get-EnumValues -Schema $convPredicate -PropertyName "type"
 
     $script:FilterBuilderEnums.Segment.Dimensions = Get-EnumValues -Schema $segmentPredicate -PropertyName "dimension"
     $script:FilterBuilderEnums.Segment.Metrics = Get-EnumValues -Schema $segmentPredicate -PropertyName "metric"
+    $script:FilterBuilderEnums.Segment.Types = Get-EnumValues -Schema $segmentPredicate -PropertyName "type"
+    $script:FilterBuilderEnums.Segment.PropertyTypes = Get-EnumValues -Schema $segmentPredicate -PropertyName "propertyType"
 
     $operatorValues = Get-EnumValues -Schema $convPredicate -PropertyName "operator"
     if ($operatorValues.Count -gt 0) {
@@ -1245,9 +1248,12 @@ function Update-FilterBuilderHint {
     if (-not $filterBuilderHintText) { return }
     $convDims = $script:FilterBuilderEnums.Conversation.Dimensions.Count
     $convMetrics = $script:FilterBuilderEnums.Conversation.Metrics.Count
+    $convTypes = $script:FilterBuilderEnums.Conversation.Types.Count
     $segDims = $script:FilterBuilderEnums.Segment.Dimensions.Count
     $segMetrics = $script:FilterBuilderEnums.Segment.Metrics.Count
-    $hint = "Conversation dims ($convDims) · metrics ($convMetrics); Segment dims ($segDims) · metrics ($segMetrics)."
+    $segTypes = $script:FilterBuilderEnums.Segment.Types.Count
+    $segPropTypes = $script:FilterBuilderEnums.Segment.PropertyTypes.Count
+    $hint = "Conversation types ($convTypes) · dims ($convDims) · metrics ($convMetrics); Segment types ($segTypes) · dims ($segDims) · metrics ($segMetrics) · prop types ($segPropTypes)."
     $filterBuilderHintText.Text = $hint
 }
 
@@ -1380,13 +1386,29 @@ function Initialize-FilterBuilderControl {
     $segmentFilterTypeCombo.SelectedIndex = 0
 
     $conversationPredicateTypeCombo.Items.Clear()
-    $conversationPredicateTypeCombo.Items.Add("dimension") | Out-Null
-    $conversationPredicateTypeCombo.Items.Add("metric") | Out-Null
+    if ($script:FilterBuilderEnums.Conversation.Types.Count -gt 0) {
+        foreach ($type in $script:FilterBuilderEnums.Conversation.Types) {
+            $conversationPredicateTypeCombo.Items.Add($type) | Out-Null
+        }
+    } else {
+        # Fallback to default values if enum extraction fails
+        $conversationPredicateTypeCombo.Items.Add("dimension") | Out-Null
+        $conversationPredicateTypeCombo.Items.Add("property") | Out-Null
+        $conversationPredicateTypeCombo.Items.Add("metric") | Out-Null
+    }
     $conversationPredicateTypeCombo.SelectedIndex = 0
 
     $segmentPredicateTypeCombo.Items.Clear()
-    $segmentPredicateTypeCombo.Items.Add("dimension") | Out-Null
-    $segmentPredicateTypeCombo.Items.Add("metric") | Out-Null
+    if ($script:FilterBuilderEnums.Segment.Types.Count -gt 0) {
+        foreach ($type in $script:FilterBuilderEnums.Segment.Types) {
+            $segmentPredicateTypeCombo.Items.Add($type) | Out-Null
+        }
+    } else {
+        # Fallback to default values if enum extraction fails
+        $segmentPredicateTypeCombo.Items.Add("dimension") | Out-Null
+        $segmentPredicateTypeCombo.Items.Add("property") | Out-Null
+        $segmentPredicateTypeCombo.Items.Add("metric") | Out-Null
+    }
     $segmentPredicateTypeCombo.SelectedIndex = 0
 
     if ($conversationOperatorCombo) {
@@ -1402,6 +1424,26 @@ function Initialize-FilterBuilderControl {
             $segmentOperatorCombo.Items.Add($op) | Out-Null
         }
         $segmentOperatorCombo.SelectedIndex = 0
+    }
+
+    if ($segmentPropertyTypeCombo) {
+        $segmentPropertyTypeCombo.Items.Clear()
+        if ($script:FilterBuilderEnums.Segment.PropertyTypes.Count -gt 0) {
+            foreach ($propType in $script:FilterBuilderEnums.Segment.PropertyTypes) {
+                $segmentPropertyTypeCombo.Items.Add($propType) | Out-Null
+            }
+        } else {
+            # Fallback to default values if enum extraction fails
+            $segmentPropertyTypeCombo.Items.Add("bool") | Out-Null
+            $segmentPropertyTypeCombo.Items.Add("integer") | Out-Null
+            $segmentPropertyTypeCombo.Items.Add("real") | Out-Null
+            $segmentPropertyTypeCombo.Items.Add("date") | Out-Null
+            $segmentPropertyTypeCombo.Items.Add("string") | Out-Null
+            $segmentPropertyTypeCombo.Items.Add("uuid") | Out-Null
+        }
+        if ($segmentPropertyTypeCombo.Items.Count -gt 0) {
+            $segmentPropertyTypeCombo.SelectedIndex = 0
+        }
     }
 
     Update-FilterFieldOptions -Scope "Conversation" -PredicateType "dimension" -ComboBox $conversationFieldCombo
@@ -3658,6 +3700,10 @@ $Xaml = @"
                   <ComboBox Name="SegmentOperatorCombo" Width="120" Margin="0 0 8 0"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
+                  <TextBox Name="SegmentPropertyInput" Width="120" Margin="0 0 8 0" ToolTip="Property name (for property type predicates)"/>
+                  <ComboBox Name="SegmentPropertyTypeCombo" Width="120" Margin="0 0 8 0" ToolTip="Property type (for property type predicates)"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
                   <TextBox Name="SegmentValueInput" Width="220" Margin="0 0 8 0" ToolTip="Enter a value or JSON range object (e.g. {'min':1,'max':5})."/>
                   <Button Name="AddSegmentPredicateButton" Content="Add" Width="90" Margin="0 0 4 0"/>
                   <Button Name="RemoveSegmentPredicateButton" Content="Remove" Width="90"/>
@@ -3931,6 +3977,8 @@ $segmentFilterTypeCombo = $Window.FindName("SegmentFilterTypeCombo")
 $segmentPredicateTypeCombo = $Window.FindName("SegmentPredicateTypeCombo")
 $segmentFieldCombo = $Window.FindName("SegmentFieldCombo")
 $segmentOperatorCombo = $Window.FindName("SegmentOperatorCombo")
+$segmentPropertyInput = $Window.FindName("SegmentPropertyInput")
+$segmentPropertyTypeCombo = $Window.FindName("SegmentPropertyTypeCombo")
 $segmentValueInput = $Window.FindName("SegmentValueInput")
 $addSegmentPredicateButton = $Window.FindName("AddSegmentPredicateButton")
 $removeSegmentPredicateButton = $Window.FindName("RemoveSegmentPredicateButton")
@@ -4028,10 +4076,13 @@ $script:FilterBuilderEnums = @{
     Conversation = @{
         Dimensions = @()
         Metrics = @()
+        Types = @()
     }
     Segment = @{
         Dimensions = @()
         Metrics = @()
+        Types = @()
+        PropertyTypes = @()
     }
     Operators = @("matches", "exists", "notExists")
 }
