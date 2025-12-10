@@ -1,0 +1,304 @@
+[
+  {
+    "Name": "Get Active Conversations",
+    "Method": "GET",
+    "Path": "/api/v2/conversations",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Specific Conversation Details",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/{conversationId}",
+    "Group": "Conversations",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Multiple Conversations by IDs",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/details",
+    "Group": "Analytics",
+    "Parameters": {
+      "id": "conversation-id-1,conversation-id-2,conversation-id-3"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Single Conversation Analytics",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/{conversationId}/details",
+    "Group": "Analytics",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Details - Last 7 Days",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
+    },
+    "Created": "2025-12-07 12:00:00"
+  },
+  {
+    "Name": "Query Conversation Details - Today",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Details - By Queue",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"queueId\",\n          \"value\": \"queue-id-goes-here\"\n        }\n      ]\n    }\n  ]\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Details - By Media Type",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ]\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Aggregates - Daily Stats",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\"],\n  \"metrics\": [\"nConnected\", \"tHandle\", \"tTalk\", \"tAcw\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Aggregates - Agent Performance",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"groupBy\": [\"userId\"],\n  \"metrics\": [\"nConnected\", \"tHandle\", \"tTalk\", \"tAcw\", \"tAnswered\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      }\n    ]\n  }\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Transcripts",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/transcripts/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"conversationId\",\n          \"value\": \"conversation-id-goes-here\"\n        }\n      ]\n    }\n  ],\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\"\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Create Conversation Details Job - Large Query",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/jobs",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"conversationFilters\": [],\n  \"segmentFilters\": []\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Conversation Details Job Status",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
+    "Group": "Analytics",
+    "Parameters": {
+      "jobId": "job-id-goes-here"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Conversation Details Job Results",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
+    "Group": "Analytics",
+    "Parameters": {
+      "jobId": "job-id-goes-here",
+      "pageSize": "100"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Query Conversation Activity",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/activity/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\"nOffered\", \"nConnected\", \"nOutbound\"]\n}"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Call History",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/calls/history",
+    "Group": "Conversations",
+    "Parameters": {
+      "pageSize": "25",
+      "pageNumber": "1"
+    },
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Callbacks",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/callbacks",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Calls",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/calls",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Chats",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/chats",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Active Emails",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/emails",
+    "Group": "Conversations",
+    "Parameters": {},
+    "Created": "2025-12-08 06:00:00"
+  },
+  {
+    "Name": "Get Speech and Text Analytics for Conversation",
+    "Method": "GET",
+    "Path": "/api/v2/speechandtextanalytics/conversations/{conversationId}",
+    "Group": "Speech and Text Analytics",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Conversation Recording Metadata",
+    "Method": "GET",
+    "Path": "/api/v2/conversations/{conversationId}/recordingmetadata",
+    "Group": "Conversations",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Sentiment Data for Conversation",
+    "Method": "GET",
+    "Path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/sentiments",
+    "Group": "Speech and Text Analytics",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get SIP Message for Conversation",
+    "Method": "GET",
+    "Path": "/api/v2/telephony/sipmessages/conversations/{conversationId}",
+    "Group": "Telephony",
+    "Parameters": {
+      "conversationId": "conversation-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Queue Details",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Queue Members",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}/members",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Routing Skills",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/routingskills",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Presence (Genesys Cloud)",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/presences/purecloud",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get Bulk User Presences (Genesys Cloud)",
+    "Method": "GET",
+    "Path": "/api/v2/users/presences/purecloud/bulk",
+    "Group": "Users",
+    "Parameters": {
+      "id": "user-id-1,user-id-2,user-id-3"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Routing Status",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/routingstatus",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  },
+  {
+    "Name": "Get User Details Job Status",
+    "Method": "GET",
+    "Path": "/api/v2/analytics/users/details/jobs/{jobId}",
+    "Group": "Analytics",
+    "Parameters": {
+      "jobId": "job-id-goes-here"
+    },
+    "Created": "2025-12-08 08:00:00"
+  }
+]
