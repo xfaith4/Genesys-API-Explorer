@@ -2,6 +2,80 @@
 # Core Genesys Cloud conversation analytics + timeline toolbox.
 # This module aggregates conversation-centric scripts into a reusable module.
 
+#region Module-Level Helper Functions
+
+<#
+.SYNOPSIS
+Internal helper function for making HTTP requests to Genesys Cloud API.
+
+.DESCRIPTION
+Centralized HTTP request wrapper used by all functions in this module.
+Handles authentication headers, URI construction, and JSON serialization.
+
+.PARAMETER BaseUri
+Base API URI for your region (e.g., https://api.usw2.pure.cloud)
+
+.PARAMETER AccessToken
+OAuth Bearer token for authentication
+
+.PARAMETER Method
+HTTP method (GET, POST, PUT, DELETE, PATCH)
+
+.PARAMETER Path
+API endpoint path (e.g., /api/v2/conversations/{id})
+
+.PARAMETER Body
+Optional request body (will be serialized to JSON if not already a string)
+#>
+function Invoke-GCRequest {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUri,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AccessToken,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('GET','POST','PUT','DELETE','PATCH')]
+        [string]$Method,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $false)]
+        [object]$Body
+    )
+
+    $uri = $BaseUri.TrimEnd('/') + $Path
+
+    $headers = @{
+        Authorization = "Bearer $AccessToken"
+    }
+
+    $invokeParams = @{
+        Method      = $Method
+        Uri         = $uri
+        Headers     = $headers
+        ErrorAction = 'Stop'
+    }
+
+    if ($Body) {
+        if ($Body -isnot [string]) {
+            $invokeParams['Body']        = ($Body | ConvertTo-Json -Depth 10)
+            $invokeParams['ContentType'] = 'application/json'
+        }
+        else {
+            $invokeParams['Body']        = $Body
+            $invokeParams['ContentType'] = 'application/json'
+        }
+    }
+
+    return Invoke-RestMethod @invokeParams
+}
+
+#endregion Module-Level Helper Functions
+
 ### BEGIN: Get-GCConversationTimeline
 function Get-GCConversationTimeline {
     <#
@@ -52,44 +126,16 @@ function Get-GCConversationTimeline {
         [string]$ConversationId
     )
 
-    # Local helper to keep HTTP calls consistent
-    function Invoke-GCRequest {
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory = $true)]
-            [ValidateSet('GET','POST','PUT','DELETE','PATCH')]
-            [string]$Method,
-
-            [Parameter(Mandatory = $true)]
-            [string]$Path
-        )
-
-        $uri = $BaseUri.TrimEnd('/') + $Path
-
-        $headers = @{
-            Authorization = "Bearer $AccessToken"
-        }
-
-        $invokeParams = @{
-            Method      = $Method
-            Uri         = $uri
-            Headers     = $headers
-            ErrorAction = 'Stop'
-        }
-
-        return Invoke-RestMethod @invokeParams
-    }
-
     Write-Verbose "Pulling core conversation for $ConversationId ..."
-    $coreConversation = Invoke-GCRequest -Method 'GET' -Path "/api/v2/conversations/$ConversationId"
+    $coreConversation = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'GET' -Path "/api/v2/conversations/$ConversationId"
 
     Write-Verbose "Pulling analytics details for $ConversationId ..."
-    $analyticsDetails = Invoke-GCRequest -Method 'GET' -Path "/api/v2/analytics/conversations/$ConversationId/details"
+    $analyticsDetails = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'GET' -Path "/api/v2/analytics/conversations/$ConversationId/details"
 
     Write-Verbose "Pulling speech & text analytics for $ConversationId ..."
     $speechText = $null
     try {
-        $speechText = Invoke-GCRequest -Method 'GET' -Path "/api/v2/speechandtextanalytics/conversations/$ConversationId"
+        $speechText = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'GET' -Path "/api/v2/speechandtextanalytics/conversations/$ConversationId"
     }
     catch {
         Write-Verbose "Speech/Text analytics not available for $($ConversationId): $($_.Exception.Message)"
@@ -98,7 +144,7 @@ function Get-GCConversationTimeline {
     Write-Verbose "Pulling recording metadata for $ConversationId ..."
     $recordingMeta = $null
     try {
-        $recordingMeta = Invoke-GCRequest -Method 'GET' -Path "/api/v2/conversations/$ConversationId/recordingmetadata"
+        $recordingMeta = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'GET' -Path "/api/v2/conversations/$ConversationId/recordingmetadata"
     }
     catch {
         Write-Verbose "Recording metadata not available for $($ConversationId): $($_.Exception.Message)"
@@ -107,7 +153,7 @@ function Get-GCConversationTimeline {
     Write-Verbose "Pulling sentiment data for $ConversationId ..."
     $sentiments = $null
     try {
-        $sentiments = Invoke-GCRequest -Method 'GET' -Path "/api/v2/speechandtextanalytics/conversations/$ConversationId/sentiments"
+        $sentiments = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'GET' -Path "/api/v2/speechandtextanalytics/conversations/$ConversationId/sentiments"
     }
     catch {
         Write-Verbose "Sentiments not available for $($ConversationId): $($_.Exception.Message)"
@@ -116,7 +162,7 @@ function Get-GCConversationTimeline {
     Write-Verbose "Pulling SIP messages for $ConversationId ..."
     $sipMessages = $null
     try {
-        $sipMessages = Invoke-GCRequest -Method 'GET' -Path "/api/v2/telephony/sipmessages/conversations/$ConversationId"
+        $sipMessages = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'GET' -Path "/api/v2/telephony/sipmessages/conversations/$ConversationId"
     }
     catch {
         Write-Verbose "SIP messages not available for $($ConversationId): $($_.Exception.Message)"
@@ -395,6 +441,324 @@ function Get-GCConversationTimeline {
 }
 ### END: Get-GCConversationTimeline
 
+### BEGIN: Export-GCConversationToExcel
+function Export-GCConversationToExcel {
+    <#
+        .SYNOPSIS
+        Exports Genesys Cloud conversation timeline data to a professionally formatted Excel workbook.
+
+        .DESCRIPTION
+        Takes the output from Get-GCConversationTimeline and exports it to Excel with:
+          - TableStyle Light11 for elegant formatting
+          - AutoFilter enabled for easy data filtering
+          - AutoSize columns for optimal readability
+          - Multiple worksheets for different data sources (Timeline, Core, Analytics, etc.)
+          - Professional presentation suitable for executive reporting
+
+        This function requires the ImportExcel PowerShell module.
+        Install it with: Install-Module ImportExcel -Scope CurrentUser
+
+        .PARAMETER ConversationData
+        The conversation data object returned by Get-GCConversationTimeline.
+        Must contain TimelineEvents property at minimum.
+
+        .PARAMETER OutputPath
+        Full path where the Excel file should be saved.
+        If not provided, defaults to ConversationTimeline_{ConversationId}_{timestamp}.xlsx
+        in the current directory.
+
+        .PARAMETER IncludeRawData
+        Switch to include additional worksheets with raw Core, Analytics, and other data sources.
+        By default, only the timeline events are exported.
+
+        .EXAMPLE
+        $timeline = Get-GCConversationTimeline -BaseUri $baseUri -AccessToken $token -ConversationId $convId
+        Export-GCConversationToExcel -ConversationData $timeline -OutputPath "C:\Reports\Conversation.xlsx"
+
+        .EXAMPLE
+        $timeline = Get-GCConversationTimeline -BaseUri $baseUri -AccessToken $token -ConversationId $convId
+        Export-GCConversationToExcel -ConversationData $timeline -IncludeRawData
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [PSCustomObject]$ConversationData,
+
+        [Parameter(Mandatory = $false)]
+        [string]$OutputPath,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$IncludeRawData
+    )
+
+    # Check if ImportExcel module is available
+    if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
+        Write-Error "ImportExcel module is required but not installed. Please run: Install-Module ImportExcel -Scope CurrentUser"
+        return
+    }
+
+    # Import the module if not already loaded
+    if (-not (Get-Module -Name ImportExcel)) {
+        Import-Module ImportExcel -ErrorAction Stop
+    }
+
+    # Generate default output path if not provided
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+        $convId = $ConversationData.ConversationId
+        $OutputPath = Join-Path -Path $PWD -ChildPath "ConversationTimeline_${convId}_${timestamp}.xlsx"
+    }
+
+    Write-Verbose "Exporting conversation data to: $OutputPath"
+
+    # Ensure output directory exists
+    $outputDir = Split-Path -Path $OutputPath -Parent
+    if (-not (Test-Path -Path $outputDir)) {
+        New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
+    }
+
+    # Remove existing file if present
+    if (Test-Path -Path $OutputPath) {
+        Remove-Item -Path $OutputPath -Force
+        Write-Verbose "Removed existing file: $OutputPath"
+    }
+
+    # Export Timeline Events - Main worksheet with professional formatting
+    if ($ConversationData.TimelineEvents -and $ConversationData.TimelineEvents.Count -gt 0) {
+        Write-Verbose "Exporting $($ConversationData.TimelineEvents.Count) timeline events..."
+        
+        # Flatten the Extra column for better Excel display
+        $flattenedEvents = $ConversationData.TimelineEvents | ForEach-Object {
+            $event = $_
+            $extraProps = @{}
+            
+            if ($event.Extra) {
+                foreach ($key in $event.Extra.Keys) {
+                    $value = $event.Extra[$key]
+                    # Convert arrays and objects to strings for Excel compatibility
+                    if ($value -is [array]) {
+                        $extraProps["Extra_$key"] = ($value -join ', ')
+                    }
+                    elseif ($value -is [hashtable] -or $value -is [PSCustomObject]) {
+                        $extraProps["Extra_$key"] = ($value | ConvertTo-Json -Compress)
+                    }
+                    else {
+                        $extraProps["Extra_$key"] = $value
+                    }
+                }
+            }
+            
+            # Create flattened object
+            [PSCustomObject]@{
+                ConversationId = $event.ConversationId
+                StartTime      = $event.StartTime
+                EndTime        = $event.EndTime
+                Source         = $event.Source
+                EventType      = $event.EventType
+                Participant    = $event.Participant
+                Queue          = $event.Queue
+                User           = $event.User
+                Direction      = $event.Direction
+                DisconnectType = $event.DisconnectType
+            } | Select-Object *, $extraProps.Keys | ForEach-Object {
+                $obj = $_
+                foreach ($key in $extraProps.Keys) {
+                    $obj.$key = $extraProps[$key]
+                }
+                $obj
+            }
+        }
+
+        $flattenedEvents | Export-Excel -Path $OutputPath `
+            -WorksheetName "Timeline Events" `
+            -TableName "ConversationTimeline" `
+            -TableStyle Light11 `
+            -AutoFilter `
+            -AutoSize `
+            -FreezeTopRow `
+            -BoldTopRow
+    }
+    else {
+        Write-Warning "No timeline events found in conversation data."
+    }
+
+    # Export additional raw data if requested
+    if ($IncludeRawData) {
+        # Core Conversation Data
+        if ($ConversationData.Core) {
+            Write-Verbose "Exporting core conversation data..."
+            $coreFlattened = @()
+            
+            if ($ConversationData.Core.participants) {
+                foreach ($participant in $ConversationData.Core.participants) {
+                    foreach ($segment in $participant.segments) {
+                        $coreFlattened += [PSCustomObject]@{
+                            ConversationId = $ConversationData.ConversationId
+                            ParticipantId  = $participant.participantId
+                            ParticipantName = $participant.name
+                            UserId         = $participant.userId
+                            QueueId        = $participant.queueId
+                            Purpose        = $participant.purpose
+                            SegmentType    = $segment.segmentType
+                            SegmentStart   = $segment.segmentStart
+                            SegmentEnd     = $segment.segmentEnd
+                            Direction      = $segment.direction
+                            DisconnectType = $segment.disconnectType
+                            Ani            = $segment.ani
+                            Dnis           = $segment.dnis
+                            WrapUpCode     = $segment.wrapUpCode
+                        }
+                    }
+                }
+            }
+            
+            if ($coreFlattened.Count -gt 0) {
+                $coreFlattened | Export-Excel -Path $OutputPath `
+                    -WorksheetName "Core Conversation" `
+                    -TableName "CoreConversation" `
+                    -TableStyle Light11 `
+                    -AutoFilter `
+                    -AutoSize `
+                    -FreezeTopRow `
+                    -BoldTopRow
+            }
+        }
+
+        # Analytics Details
+        if ($ConversationData.AnalyticsDetails -and $ConversationData.AnalyticsDetails.participants) {
+            Write-Verbose "Exporting analytics details..."
+            $analyticsFlattened = @()
+            
+            foreach ($participant in $ConversationData.AnalyticsDetails.participants) {
+                foreach ($session in $participant.sessions) {
+                    foreach ($segment in $session.segments) {
+                        $analyticsFlattened += [PSCustomObject]@{
+                            ConversationId  = $ConversationData.ConversationId
+                            ParticipantId   = $participant.participantId
+                            ParticipantName = $participant.participantName
+                            Purpose         = $participant.purpose
+                            SessionId       = $session.sessionId
+                            MediaType       = $session.mediaType
+                            Direction       = $session.direction
+                            SegmentType     = $segment.segmentType
+                            SegmentStart    = $segment.segmentStart
+                            SegmentEnd      = $segment.segmentEnd
+                            QueueId         = $segment.queueId
+                            DisconnectType  = $segment.disconnectType
+                            ErrorCode       = $segment.errorCode
+                        }
+                    }
+                }
+            }
+            
+            if ($analyticsFlattened.Count -gt 0) {
+                $analyticsFlattened | Export-Excel -Path $OutputPath `
+                    -WorksheetName "Analytics Details" `
+                    -TableName "AnalyticsDetails" `
+                    -TableStyle Light11 `
+                    -AutoFilter `
+                    -AutoSize `
+                    -FreezeTopRow `
+                    -BoldTopRow
+            }
+        }
+
+        # Media Endpoint Stats (if available in analytics)
+        if ($ConversationData.AnalyticsDetails -and $ConversationData.AnalyticsDetails.participants) {
+            Write-Verbose "Extracting MediaEndpointStats..."
+            $mediaStats = @()
+            
+            foreach ($participant in $ConversationData.AnalyticsDetails.participants) {
+                foreach ($session in $participant.sessions) {
+                    if ($session.metrics) {
+                        foreach ($metric in $session.metrics) {
+                            $mediaStats += [PSCustomObject]@{
+                                ConversationId  = $ConversationData.ConversationId
+                                ParticipantId   = $participant.participantId
+                                SessionId       = $session.sessionId
+                                MediaType       = $session.mediaType
+                                MetricName      = $metric.name
+                                MetricValue     = $metric.value
+                                EmitDate        = $metric.emitDate
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if ($mediaStats.Count -gt 0) {
+                $mediaStats | Export-Excel -Path $OutputPath `
+                    -WorksheetName "Media Stats" `
+                    -TableName "MediaEndpointStats" `
+                    -TableStyle Light11 `
+                    -AutoFilter `
+                    -AutoSize `
+                    -FreezeTopRow `
+                    -BoldTopRow
+            }
+        }
+
+        # SIP Messages
+        if ($ConversationData.SipMessages -and $ConversationData.SipMessages.Count -gt 0) {
+            Write-Verbose "Exporting SIP messages..."
+            $sipFlattened = $ConversationData.SipMessages | ForEach-Object {
+                [PSCustomObject]@{
+                    ConversationId = $ConversationData.ConversationId
+                    Timestamp      = $_.timestamp
+                    Method         = $_.method
+                    StatusCode     = $_.statusCode
+                    ReasonPhrase   = $_.reasonPhrase
+                    Direction      = $_.direction
+                    ParticipantId  = $_.participantId
+                }
+            }
+            
+            $sipFlattened | Export-Excel -Path $OutputPath `
+                -WorksheetName "SIP Messages" `
+                -TableName "SIPMessages" `
+                -TableStyle Light11 `
+                -AutoFilter `
+                -AutoSize `
+                -FreezeTopRow `
+                -BoldTopRow
+        }
+
+        # Sentiment Data
+        if ($ConversationData.Sentiments -and $ConversationData.Sentiments.sentiment) {
+            Write-Verbose "Exporting sentiment data..."
+            $sentimentFlattened = $ConversationData.Sentiments.sentiment | ForEach-Object {
+                [PSCustomObject]@{
+                    ConversationId = $ConversationData.ConversationId
+                    Time           = $_.time
+                    ParticipantId  = $_.participantId
+                    UserId         = $_.userId
+                    Score          = $_.score
+                    Label          = $_.label
+                }
+            }
+            
+            $sentimentFlattened | Export-Excel -Path $OutputPath `
+                -WorksheetName "Sentiment Analysis" `
+                -TableName "SentimentData" `
+                -TableStyle Light11 `
+                -AutoFilter `
+                -AutoSize `
+                -FreezeTopRow `
+                -BoldTopRow
+        }
+    }
+
+    Write-Host "✓ Conversation data exported successfully to: $OutputPath" -ForegroundColor Green
+    
+    # Return the output path for pipeline use
+    return [PSCustomObject]@{
+        OutputPath     = $OutputPath
+        ConversationId = $ConversationData.ConversationId
+        EventCount     = if ($ConversationData.TimelineEvents) { $ConversationData.TimelineEvents.Count } else { 0 }
+    }
+}
+### END: Export-GCConversationToExcel
+
 ### BEGIN: Get-GCQueueSmokeReport
 function Get-GCQueueSmokeReport {
     <#
@@ -457,48 +821,6 @@ function Get-GCQueueSmokeReport {
         [int]$TopN = 10
     )
 
-    # Local helper – simple POST wrapper, same idea as in the timeline function.
-    function Invoke-GCRequest {
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory = $true)]
-            [ValidateSet('GET','POST','PUT','DELETE','PATCH')]
-            [string]$Method,
-
-            [Parameter(Mandatory = $true)]
-            [string]$Path,
-
-            [Parameter(Mandatory = $false)]
-            [object]$Body
-        )
-
-        $uri = $BaseUri.TrimEnd('/') + $Path
-
-        $headers = @{
-            Authorization = "Bearer $AccessToken"
-        }
-
-        $invokeParams = @{
-            Method      = $Method
-            Uri         = $uri
-            Headers     = $headers
-            ErrorAction = 'Stop'
-        }
-
-        if ($Body) {
-            if ($Body -isnot [string]) {
-                $invokeParams['Body']        = ($Body | ConvertTo-Json -Depth 10)
-                $invokeParams['ContentType'] = 'application/json'
-            }
-            else {
-                $invokeParams['Body']        = $Body
-                $invokeParams['ContentType'] = 'application/json'
-            }
-        }
-
-        return Invoke-RestMethod @invokeParams
-    }
-
     # Base body for the aggregates query
     $baseBody = @{
         interval = $Interval
@@ -544,7 +866,7 @@ function Get-GCQueueSmokeReport {
     $queueBody.groupBy = @('queueId')
 
     Write-Verbose "Requesting queue aggregates for interval $Interval ..."
-    $queueAgg = Invoke-GCRequest -Method 'POST' -Path '/api/v2/analytics/conversations/aggregates/query' -Body $queueBody
+    $queueAgg = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'POST' -Path '/api/v2/analytics/conversations/aggregates/query' -Body $queueBody
 
     $queueRows = @()
     if ($queueAgg.results) {
@@ -597,7 +919,7 @@ function Get-GCQueueSmokeReport {
     $agentBody.groupBy = @('userId')
 
     Write-Verbose "Requesting agent aggregates for interval $Interval ..."
-    $agentAgg = Invoke-GCRequest -Method 'POST' -Path '/api/v2/analytics/conversations/aggregates/query' -Body $agentBody
+    $agentAgg = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'POST' -Path '/api/v2/analytics/conversations/aggregates/query' -Body $agentBody
 
     $agentRows = @()
     if ($agentAgg.results) {
@@ -727,48 +1049,6 @@ function Get-GCQueueHotConversations {
         [int]$TopN = 25
     )
 
-    # Local helper: simple JSON POST wrapper.
-    function Invoke-GCRequest {
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory = $true)]
-            [ValidateSet('GET','POST','PUT','DELETE','PATCH')]
-            [string]$Method,
-
-            [Parameter(Mandatory = $true)]
-            [string]$Path,
-
-            [Parameter(Mandatory = $false)]
-            [object]$Body
-        )
-
-        $uri = $BaseUri.TrimEnd('/') + $Path
-
-        $headers = @{
-            Authorization = "Bearer $AccessToken"
-        }
-
-        $invokeParams = @{
-            Method      = $Method
-            Uri         = $uri
-            Headers     = $headers
-            ErrorAction = 'Stop'
-        }
-
-        if ($Body) {
-            if ($Body -isnot [string]) {
-                $invokeParams['Body']        = ($Body | ConvertTo-Json -Depth 10)
-                $invokeParams['ContentType'] = 'application/json'
-            }
-            else {
-                $invokeParams['Body']        = $Body
-                $invokeParams['ContentType'] = 'application/json'
-            }
-        }
-
-        return Invoke-RestMethod @invokeParams
-    }
-
     # Build the details query body based on the queue + interval
     $body = @{
         interval = $Interval
@@ -793,7 +1073,7 @@ function Get-GCQueueHotConversations {
     }
 
     Write-Verbose "Requesting conversation details for queue $QueueId, interval $Interval ..."
-    $details = Invoke-GCRequest -Method 'POST' -Path '/api/v2/analytics/conversations/details/query' -Body $body
+    $details = Invoke-GCRequest -BaseUri $BaseUri -AccessToken $AccessToken -Method 'POST' -Path '/api/v2/analytics/conversations/details/query' -Body $body
 
     if (-not $details -or -not $details.conversations) {
         Write-Verbose "No conversations returned for queue $QueueId in interval $Interval."
