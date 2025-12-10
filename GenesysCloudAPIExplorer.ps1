@@ -1665,6 +1665,104 @@ function Show-DataInspector {
     $inspectorWindow.ShowDialog() | Out-Null
 }
 
+<#
+.SYNOPSIS
+    Displays a formatted conversation timeline report in a popup window.
+.DESCRIPTION
+    Shows the chronological timeline report with all events from the conversation,
+    including timing, errors, MOS scores, hold times, queue wait times, and flow path.
+.PARAMETER Report
+    The conversation report object containing all data from 6 API endpoints
+#>
+function Show-ConversationTimelineReport {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Report
+    )
+
+    if (-not $Report) {
+        Add-LogEntry "No conversation report data to display."
+        return
+    }
+
+    # Generate the formatted timeline report text
+    $reportText = Format-ConversationReportText -Report $Report
+
+    $timelineXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Conversation Timeline Report - $($Report.ConversationId)" Height="700" Width="1000" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="10">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 0 0 8">
+      <Button Name="CopyReportButton" Width="110" Height="28" Content="Copy Report" Margin="0 0 10 0"/>
+      <Button Name="ExportReportButton" Width="130" Height="28" Content="Export Report"/>
+    </StackPanel>
+    <TextBox Name="TimelineReportText" TextWrapping="Wrap" AcceptsReturn="True"
+             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
+             FontFamily="Consolas" FontSize="11"/>
+  </DockPanel>
+</Window>
+"@
+
+    try {
+        $timelineWindow = [System.Windows.Markup.XamlReader]::Parse($timelineXaml)
+    }
+    catch {
+        Add-LogEntry "Failed to create timeline window: $($_.Exception.Message)"
+        [System.Windows.MessageBox]::Show("Failed to create timeline window: $($_.Exception.Message)", "Error")
+        return
+    }
+
+    if (-not $timelineWindow) {
+        Add-LogEntry "Timeline report window failed to load."
+        return
+    }
+
+    $timelineTextBox = $timelineWindow.FindName("TimelineReportText")
+    $copyButton = $timelineWindow.FindName("CopyReportButton")
+    $exportButton = $timelineWindow.FindName("ExportReportButton")
+
+    if ($timelineTextBox) {
+        $timelineTextBox.Text = $reportText
+    }
+
+    if ($copyButton) {
+        $copyButton.Add_Click({
+            try {
+                if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
+                    Set-Clipboard -Value $reportText
+                    Add-LogEntry "Timeline report copied to clipboard."
+                }
+                else {
+                    [System.Windows.Clipboard]::SetText($reportText)
+                    Add-LogEntry "Timeline report copied to clipboard."
+                }
+            }
+            catch {
+                Add-LogEntry "Failed to copy timeline report: $($_.Exception.Message)"
+            }
+        })
+    }
+
+    if ($exportButton) {
+        $exportButton.Add_Click({
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+            $dialog.Title = "Export Conversation Timeline Report"
+            $dialog.FileName = "ConversationTimeline_$($Report.ConversationId).txt"
+            if ($dialog.ShowDialog() -eq $true) {
+                $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
+                Add-LogEntry "Timeline report exported to $($dialog.FileName)"
+            }
+        })
+    }
+
+    if ($Window) {
+        $timelineWindow.Owner = $Window
+    }
+    $timelineWindow.ShowDialog() | Out-Null
+}
+
 function Job-StatusIsPending {
     param ([string]$Status)
 
@@ -5517,8 +5615,8 @@ if ($runConversationReportButton) {
 
 if ($inspectConversationReportButton) {
     $inspectConversationReportButton.Add_Click({
-        if ($script:LastConversationReportJson) {
-            Show-DataInspector -JsonText $script:LastConversationReportJson
+        if ($script:LastConversationReport) {
+            Show-ConversationTimelineReport -Report $script:LastConversationReport
         }
         else {
             Add-LogEntry "No conversation report data to inspect."
