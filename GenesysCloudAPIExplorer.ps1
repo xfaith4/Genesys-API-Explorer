@@ -1054,14 +1054,22 @@ function Get-EnumValues {
         return @()
     }
 
-    $member = $Schema.PSObject.Properties[$PropertyName]
-    if (-not $member) {
+    # First check if the schema has properties
+    $properties = $Schema.properties
+    if (-not $properties) {
         return @()
     }
 
-    $value = $member.Value
-    if ($value -and $value.enum) {
-        return ,$value.enum
+    # Look for the property by name
+    $property = $properties.PSObject.Properties[$PropertyName]
+    if (-not $property) {
+        return @()
+    }
+
+    # Check if the property has enum values
+    $propValue = $property.Value
+    if ($propValue -and $propValue.enum) {
+        return ,$propValue.enum
     }
 
     return @()
