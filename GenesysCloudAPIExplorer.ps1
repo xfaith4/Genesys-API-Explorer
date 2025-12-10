@@ -3502,6 +3502,22 @@ $script:LastResponseText = ""
 $script:LastResponseRaw = ""
 $paramInputs = @{}
 $pendingFavoriteParameters = $null
+$script:FilterBuilderData = @{
+    ConversationFilters = New-Object System.Collections.ArrayList
+    SegmentFilters = New-Object System.Collections.ArrayList
+    Interval = "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+}
+$script:FilterBuilderEnums = @{
+    Conversation = @{
+        Dimensions = @()
+        Metrics = @()
+    }
+    Segment = @{
+        Dimensions = @()
+        Metrics = @()
+    }
+    Operators = @("matches", "exists", "notExists")
+}
 
 $ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
 if (-not $ScriptRoot) {
@@ -4081,25 +4097,6 @@ $script:RequestHistory = New-Object System.Collections.ObjectModel.ObservableCol
 $script:ResponseViewMode = "Formatted"  # Can be "Formatted" or "Raw"
 $script:Templates = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
 $script:TemplatesFilePath = Join-Path -Path $env:USERPROFILE -ChildPath "GenesysApiExplorerTemplates.json"
-$script:FilterBuilderData = @{
-    ConversationFilters = New-Object System.Collections.ArrayList
-    SegmentFilters = New-Object System.Collections.ArrayList
-    Interval = "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
-}
-$script:FilterBuilderEnums = @{
-    Conversation = @{
-        Dimensions = @()
-        Metrics = @()
-        Types = @()
-    }
-    Segment = @{
-        Dimensions = @()
-        Metrics = @()
-        Types = @()
-        PropertyTypes = @()
-    }
-    Operators = @("matches", "exists", "notExists")
-}
 $script:CurrentBodyControl = $null
 $script:CurrentBodySchema = $null
 
