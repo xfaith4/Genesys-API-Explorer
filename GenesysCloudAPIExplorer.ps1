@@ -2225,10 +2225,11 @@ function Get-GCConversationDetailsTimeline {
         foreach ($msg in $Report.SipMessages) {
             if ($msg.timestamp) {
                 # Build error information from SIP status codes and reason phrases
+                # Only include status codes that indicate errors (4xx, 5xx, 6xx)
                 $sipErrorInfo = $null
-                if ($msg.statusCode) {
+                if ($msg.statusCode -and $msg.statusCode -ge 400) {
                     $sipErrorInfo = "SIP $($msg.statusCode)"
-                    if ($msg.reasonPhrase) {
+                    if ($msg.reasonPhrase -and -not [string]::IsNullOrWhiteSpace($msg.reasonPhrase)) {
                         $sipErrorInfo += ": $($msg.reasonPhrase)"
                     }
                 }
