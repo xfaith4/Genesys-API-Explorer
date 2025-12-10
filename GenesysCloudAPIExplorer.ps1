@@ -1674,6 +1674,51 @@ function Job-StatusIsPending {
 
 <#
 .SYNOPSIS
+    Updates or adds a query parameter in a URL.
+.DESCRIPTION
+    Safely updates an existing query parameter or adds a new one to a URL path.
+    Handles URLs with or without existing query strings.
+.PARAMETER Path
+    The URL path (may include existing query string)
+.PARAMETER ParameterName
+    The query parameter name to update or add
+.PARAMETER ParameterValue
+    The value to set for the parameter
+.OUTPUTS
+    Updated URL path with query parameter
+#>
+function Update-UrlParameter {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$ParameterName,
+        [Parameter(Mandatory = $true)]
+        [string]$ParameterValue
+    )
+    
+    # Parse URL into path and query parts
+    if ($Path -match '^([^\?]+)(\?.*)$') {
+        $pathPart = $matches[1]
+        $queryPart = $matches[2]
+        # Check if parameter already exists in query
+        $paramPattern = "[&\?]$ParameterName=\d+"
+        if ($queryPart -match $paramPattern) {
+            $queryPart = $queryPart -replace "([&\?])$ParameterName=\d+", "`${1}$ParameterName=$ParameterValue"
+            return $pathPart + $queryPart
+        }
+        else {
+            return "$Path&$ParameterName=$ParameterValue"
+        }
+    }
+    else {
+        # No query string yet
+        return "$Path?$ParameterName=$ParameterValue"
+    }
+}
+
+<#
+.SYNOPSIS
     Fetches all pages from a paginated API endpoint.
 .DESCRIPTION
     Handles three types of pagination:
@@ -1779,23 +1824,8 @@ function Get-PaginatedResults {
             elseif ($data.pageCount -and $data.pageNumber) {
                 if ($data.pageNumber -lt $data.pageCount) {
                     $nextPage = $data.pageNumber + 1
-                    # Parse URL to safely update pageNumber parameter
-                    if ($InitialPath -match '^([^\?]+)(\?.*)$') {
-                        $pathPart = $matches[1]
-                        $queryPart = $matches[2]
-                        # Check if pageNumber already exists in query
-                        if ($queryPart -match '[&\?]pageNumber=\d+') {
-                            $queryPart = $queryPart -replace '([&\?])pageNumber=\d+', "`${1}pageNumber=$nextPage"
-                            $currentPath = $pathPart + $queryPart
-                        }
-                        else {
-                            $currentPath = "$InitialPath&pageNumber=$nextPage"
-                        }
-                    }
-                    else {
-                        # No query string yet
-                        $currentPath = "$InitialPath?pageNumber=$nextPage"
-                    }
+                    # Use helper function to safely update pageNumber parameter
+                    $currentPath = Update-UrlParameter -Path $InitialPath -ParameterName "pageNumber" -ParameterValue $nextPage
                     $pageNumber++
                 }
                 else {
@@ -1822,6 +1852,32 @@ function Get-PaginatedResults {
     return $allResults
 }
 
+<#
+.SYNOPSIS
+    Generates a comprehensive conversation report by querying multiple API endpoints.
+.DESCRIPTION
+    Queries 6 different Genesys Cloud API endpoints to gather comprehensive conversation data:
+    - Conversation Details (required)
+    - Analytics Details (required)
+    - Speech & Text Analytics (optional)
+    - Recording Metadata (optional)
+    - Sentiments (optional)
+    - SIP Messages (optional)
+    
+    Reports progress via optional callback for real-time UI updates.
+.PARAMETER ConversationId
+    The conversation ID to retrieve data for
+.PARAMETER Headers
+    HTTP headers including authorization (Authorization: Bearer token)
+.PARAMETER BaseUrl
+    Base API URL for the region (e.g., https://api.usw2.pure.cloud)
+.PARAMETER ProgressCallback
+    Optional scriptblock called for each endpoint with parameters:
+    -PercentComplete (int), -Status (string), -EndpointName (string),
+    -IsStarting (bool), -IsSuccess (bool), -IsOptional (bool)
+.OUTPUTS
+    PSCustomObject with ConversationId, endpoint data properties, RetrievedAt, Errors array, and EndpointLog
+#>
 function Get-ConversationReport {
     param (
         [Parameter(Mandatory = $true)]
