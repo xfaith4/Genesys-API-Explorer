@@ -1688,10 +1688,17 @@ function Show-ConversationTimelineReport {
     # Generate the formatted timeline report text
     $reportText = Format-ConversationReportText -Report $Report
 
+    # Sanitize ConversationId for safe use in XAML Title (prevent XML injection)
+    $safeConvId = if ($Report.ConversationId) {
+        [System.Security.SecurityElement]::Escape($Report.ConversationId)
+    } else {
+        "Unknown"
+    }
+
     $timelineXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Conversation Timeline Report - $($Report.ConversationId)" Height="700" Width="1000" WindowStartupLocation="CenterOwner">
+        Title="Conversation Timeline Report - $safeConvId" Height="700" Width="1000" WindowStartupLocation="CenterOwner">
   <DockPanel Margin="10">
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 0 0 8">
       <Button Name="CopyReportButton" Width="110" Height="28" Content="Copy Report" Margin="0 0 10 0"/>
@@ -1746,10 +1753,17 @@ function Show-ConversationTimelineReport {
 
     if ($exportButton) {
         $exportButton.Add_Click({
+            # Sanitize ConversationId for safe use in filename (remove invalid filename characters)
+            $safeFilenameConvId = if ($Report.ConversationId) {
+                $Report.ConversationId -replace '[\\/:*?"<>|]', '_'
+            } else {
+                "Unknown"
+            }
+            
             $dialog = New-Object Microsoft.Win32.SaveFileDialog
             $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
             $dialog.Title = "Export Conversation Timeline Report"
-            $dialog.FileName = "ConversationTimeline_$($Report.ConversationId).txt"
+            $dialog.FileName = "ConversationTimeline_$safeFilenameConvId.txt"
             if ($dialog.ShowDialog() -eq $true) {
                 try {
                     $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
