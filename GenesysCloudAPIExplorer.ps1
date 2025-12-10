@@ -3715,7 +3715,15 @@ $Xaml = @"
       </TabItem>
       <TabItem Header="Transparency Log">
         <Grid>
-          <TextBox Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0 0 0 8">
+            <Button Name="ExportLogButton" Width="120" Height="30" Content="Export Log" ToolTip="Export transparency log to a text file"/>
+            <Button Name="ClearLogButton" Width="120" Height="30" Content="Clear Log" Margin="10 0 0 0" ToolTip="Clear all log entries"/>
+          </StackPanel>
+          <TextBox Grid.Row="1" Name="LogText" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                    HorizontalScrollBarVisibility="Auto" IsReadOnly="True"
                    VerticalAlignment="Stretch" MinHeight="220"/>
         </Grid>
@@ -3890,6 +3898,8 @@ $exportConversationReportTextButton = $Window.FindName("ExportConversationReport
 $conversationReportText = $Window.FindName("ConversationReportText")
 $conversationReportStatus = $Window.FindName("ConversationReportStatus")
 $settingsMenuItem = $Window.FindName("SettingsMenuItem")
+$exportLogButton = $Window.FindName("ExportLogButton")
+$clearLogButton = $Window.FindName("ClearLogButton")
 $resetEndpointsMenuItem = $Window.FindName("ResetEndpointsMenuItem")
 $requestHistoryList = $Window.FindName("RequestHistoryList")
 $replayRequestButton = $Window.FindName("ReplayRequestButton")
@@ -5704,6 +5714,48 @@ $btnSave.Add_Click({
         Add-LogEntry "Saved response to $($dialog.FileName)"
     }
 })
+
+if ($exportLogButton) {
+    $exportLogButton.Add_Click({
+        if (-not $logBox -or [string]::IsNullOrWhiteSpace($logBox.Text)) {
+            $statusText.Text = "No log entries to export."
+            return
+        }
+
+        $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "Text Files (*.txt)|*.txt|Log Files (*.log)|*.log|All Files (*.*)|*.*"
+        $dialog.Title = "Export Transparency Log"
+        $dialog.FileName = "GenesysAPIExplorer_Log_$timestamp.txt"
+
+        if ($dialog.ShowDialog() -eq $true) {
+            $logBox.Text | Out-File -FilePath $dialog.FileName -Encoding utf8
+            $statusText.Text = "Log exported to $($dialog.FileName)"
+            Add-LogEntry "Transparency log exported to $($dialog.FileName)"
+        }
+    })
+}
+
+if ($clearLogButton) {
+    $clearLogButton.Add_Click({
+        if (-not $logBox) {
+            return
+        }
+
+        $result = [System.Windows.MessageBox]::Show(
+            "Are you sure you want to clear all log entries? This action cannot be undone.",
+            "Clear Log",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Question
+        )
+
+        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+            $logBox.Clear()
+            $statusText.Text = "Log cleared."
+            Add-LogEntry "Log was cleared by user."
+        }
+    })
+}
 
 Add-LogEntry "Loaded $($GroupMap.Keys.Count) groups from the API catalog."
 $Window.ShowDialog() | Out-Null
