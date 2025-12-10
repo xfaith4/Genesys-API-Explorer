@@ -51,7 +51,12 @@ Export-GCConversationToExcel `
 - Dynamically generated parameter editors (query/path/body/header) with required-field hints and schema preview powered by the Genesys OpenAPI definitions
 - Dispatches requests with `Invoke-WebRequest`, logs every request/response, and formats big JSON results in the inspector/export dialogs
 - Job Watch tab polls `/jobs` endpoints until they complete, downloads results to temp files, and exposes export/copy hooks so the UI never freezes on large payloads
-- **Conversation Report tab** merges real-time conversation details with analytics data into a unified report, with export options for JSON and human-readable text formats
+- **Conversation Report tab** queries 6 API endpoints with real-time progress tracking, automatic pagination support, and comprehensive visibility into conversation data. Features include:
+  - Progress bar and timestamped endpoint query log
+  - 6-endpoint coverage: Conversation Details, Analytics, Speech/Text Analytics, Recording Metadata, Sentiments, SIP Messages
+  - Automatic pagination detection and handling for jobs endpoints
+  - Export options for JSON and human-readable text formats
+  - 📖 **[Complete Conversation Report Documentation](docs/CONVERSATION_REPORT_ENHANCEMENTS.md)**
 - Favorites persist under `%USERPROFILE%\GenesysApiExplorerFavorites.json` and capture endpoint + payload details for reuse
 - Inspector lets you explore large responses via tree view, raw text, clipboard/export, and warns before parsing huge files
 
