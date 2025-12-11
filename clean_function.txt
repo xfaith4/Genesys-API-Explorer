@@ -1,0 +1,69 @@
+function Format-GCConversationTimelineText {
+    param (
+        [Parameter(Mandatory = $true)]
+        [array]$Events
+    )
+
+    $sb = [System.Text.StringBuilder]::new()
+
+    foreach ($event in $Events) {
+        $timestamp = $event.Timestamp.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssK')
+        $eventType = $event.EventType.PadRight(18)
+
+        $participantStr = ''
+        if ($event.FlowName) {
+            $participantStr = 'Flow: ' + $event.FlowName
+        }
+        elseif ($event.QueueName) {
+            $participantStr = 'Queue: ' + $event.QueueName
+        }
+        elseif ($event.Participant) {
+            $participantStr = $event.Participant
+        }
+        else {
+            $participantStr = '(unknown)'
+        }
+
+        $segmentStr = if ($event.SegmentId) { 'seg=' + $event.SegmentId } else { '' }
+
+        $mediaStr = ''
+        if ($event.MediaType -or $event.Direction) {
+            $parts = @()
+            if ($event.MediaType) { $parts += 'media=' + $event.MediaType }
+            if ($event.Direction) { $parts += 'dir=' + $event.Direction }
+            $mediaStr = $parts -join ' | '
+        }
+
+        $mosStr = ''
+        if ($null -ne $event.Mos) {
+            $mosValue = 0.0
+            if ([double]::TryParse($event.Mos.ToString(), [ref]$mosValue)) {
+                if ($mosValue -lt 3.5) {
+                    $mosStr = 'MOS=' + $mosValue.ToString('0.00') + ' (DEGRADED)'
+                }
+                else {
+                    $mosStr = 'MOS=' + $mosValue.ToString('0.00')
+                }
+            }
+        }
+
+        $errorStr = if ($event.ErrorCode) { 'errorCode=' + $event.ErrorCode } else { '' }
+
+        $disconnectStr = ''
+        if ($event.EventType -eq 'Disconnect' -and $event.DisconnectType) {
+            $disconnectStr = $event.Participant + ' disconnected (' + $event.DisconnectType + ')'
+        }
+
+        $lineParts = @($timestamp, '|', $eventType, '|', $participantStr)
+        if ($segmentStr) { $lineParts += '| ' + $segmentStr }
+        if ($mediaStr) { $lineParts += '| ' + $mediaStr }
+        if ($mosStr) { $lineParts += '| ' + $mosStr }
+        if ($errorStr) { $lineParts += '| ' + $errorStr }
+        if ($disconnectStr) { $lineParts += '| ' + $disconnectStr }
+
+        $line = $lineParts -join ' '
+        [void]$sb.AppendLine($line.Trim())
+    }
+
+    return $sb.ToString()
+}

@@ -1,0 +1,89 @@
+Import-Module : The specified module 'posh-git' was not 
+loaded because no valid module file was found in any 
+module directory.
+At C:\Users\benfu\OneDrive\Documents\WindowsPowerShell\pr
+ofile.ps1:2 char:1
++ Import-Module posh-git
++ ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ResourceUnavailable: (posh 
+   -git:String) [Import-Module], FileNotFoundException
+    + FullyQualifiedErrorId : Modules_ModuleNotFound,Mic 
+   rosoft.PowerShell.Commands.ImportModuleCommand
+ 
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2821 char:38
++         $lineParts = @($timestamp, "|", $eventType, 
+"|", $participant ...
++                                      ~~~~~~~~~~~~~~~~
+Expressions are only allowed as the first element of a 
+pipeline.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2821 char:55
++ ...     $lineParts = @($timestamp, "|", $eventType, 
+"|", $participantStr)
++                                                       
+~~~~~~~~~~~~~~~~~~~
+Expressions are only allowed as the first element of a 
+pipeline.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2822 char:45
++         if ($segmentStr) { $lineParts += "| 
+$segmentStr" }
++                                             ~~~~~~~~~~~
+Expressions are only allowed as the first element of a 
+pipeline.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2822 char:56
++         if ($segmentStr) { $lineParts += "| 
+$segmentStr" }
++                                                        
+~~~
+Unexpected token '" }
+        if ($mediaStr) { $lineParts += "' in expression 
+or statement.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2823 char:43
++         if ($mediaStr) { $lineParts += "| $mediaStr" }
++                                           ~~~~~~~~~
+Expressions are only allowed as the first element of a 
+pipeline.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2823 char:52
++         if ($mediaStr) { $lineParts += "| $mediaStr" }
++                                                    ~~~
+Unexpected token '" }
+        if ($mosStr) { $lineParts += "' in expression or 
+statement.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2824 char:41
++         if ($mosStr) { $lineParts += "| $mosStr" }
++                                         ~~~~~~~
+Expressions are only allowed as the first element of a 
+pipeline.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2824 char:48
++         if ($mosStr) { $lineParts += "| $mosStr" }
++                                                ~~~
+Unexpected token '" }
+        if ($errorStr) { $lineParts += "' in expression 
+or statement.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2825 char:43
++         if ($errorStr) { $lineParts += "| $errorStr" }
++                                           ~~~~~~~~~
+Expressions are only allowed as the first element of a 
+pipeline.
+At G:\Development\20_Staging\Genesys-API-Explorer\Genesys
+CloudAPIExplorer.ps1:2825 char:52
++         if ($errorStr) { $lineParts += "| $errorStr" }
++                                                    ~~~
+Unexpected token '" }
+        if ($disconnectStr) { $lineParts += "' in 
+expression or statement.
+Not all parse errors were reported.  Correct the 
+reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], Paren 
+   tContainsErrorRecordException
+    + FullyQualifiedErrorId : ExpressionsMustBeFirstInPi 
+   peline
+ 

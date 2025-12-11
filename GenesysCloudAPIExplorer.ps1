@@ -24,7 +24,8 @@ function Launch-Url {
     if (-not $Url) { return }
     try {
         Start-Process -FilePath $Url
-    } catch {
+    }
+    catch {
         Write-Warning "Unable to open URL '$Url': $($_.Exception.Message)"
     }
 }
@@ -116,10 +117,14 @@ function Show-SettingsDialog {
 
     <StackPanel Margin="0 0 0 15">
       <TextBlock Text="Upload Custom Endpoints JSON:" FontWeight="Bold" Margin="0 0 0 8"/>
-      <StackPanel Orientation="Horizontal">
-      <TextBox Name="SelectedFileText" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0" MinWidth="400" HorizontalAlignment="Stretch"/>
-        <Button Name="BrowseButton" Content="Browse..." Width="100" Height="30"/>
-      </StackPanel>
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox Name="SelectedFileText" Grid.Column="0" Height="30" Padding="8" IsReadOnly="True" Margin="0 0 10 0"/>
+        <Button Name="BrowseButton" Grid.Column="1" Content="Browse..." Width="100" Height="30"/>
+      </Grid>
       <TextBlock Text="Select a JSON file containing Genesys Cloud API endpoint definitions." Foreground="Gray" Margin="0 8 0 0" TextWrapping="Wrap"/>
     </StackPanel>
 
@@ -145,7 +150,8 @@ function Show-SettingsDialog {
     if (-not $CurrentJsonPath) {
         $CurrentJsonPath = if ($PSScriptRoot) {
             Join-Path -Path $PSScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
-        } else {
+        }
+        else {
             Join-Path -Path (Split-Path -Parent $MyInvocation.MyCommand.Definition) -ChildPath "GenesysCloudAPIEndpoints.json"
         }
     }
@@ -158,76 +164,298 @@ function Show-SettingsDialog {
     $script:SettingsDialogSelectedFile = ""
 
     $browseButton.Add_Click({
-        $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
-        $openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
-        $initialDir = if ($CurrentJsonPath -and (Test-Path -Path $CurrentJsonPath)) {
-            Split-Path -Parent $CurrentJsonPath
-        } else {
-            (Get-Location).ProviderPath
-        }
-        if (-not $initialDir) {
-            $initialDir = (Get-Location).ProviderPath
-        }
-        $openFileDialog.InitialDirectory = $initialDir
-
-        if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $script:SettingsDialogSelectedFile = $openFileDialog.FileName
-            if ($selectedFileText) {
-                $selectedFileText.Text = $script:SettingsDialogSelectedFile
+            $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+            $openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+            $initialDir = if ($CurrentJsonPath -and (Test-Path -Path $CurrentJsonPath)) {
+                Split-Path -Parent $CurrentJsonPath
             }
-        }
-    })
+            else {
+                (Get-Location).ProviderPath
+            }
+            if (-not $initialDir) {
+                $initialDir = (Get-Location).ProviderPath
+            }
+            $openFileDialog.InitialDirectory = $initialDir
 
-    $applyButton.Add_Click({
-        if (-not $script:SettingsDialogSelectedFile) {
-            [System.Windows.MessageBox]::Show("Please select a JSON file.", "No File Selected", "OK", "Information")
-            return
-        }
-
-        if (-not (Test-Path -Path $script:SettingsDialogSelectedFile)) {
-            [System.Windows.MessageBox]::Show("The selected file does not exist.", "File Not Found", "OK", "Error")
-            return
-        }
-
-        try {
-            $testJson = Get-Content -Path $script:SettingsDialogSelectedFile -Raw | ConvertFrom-Json -ErrorAction Stop
-
-            $hasPaths = $false
-            if ($testJson.paths) {
-                $hasPaths = $true
-            } else {
-                foreach ($prop in $testJson.PSObject.Properties) {
-                    if ($prop.Value -and $prop.Value.paths) {
-                        $hasPaths = $true
-                        break
-                    }
+            if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $script:SettingsDialogSelectedFile = $openFileDialog.FileName
+                if ($selectedFileText) {
+                    $selectedFileText.Text = $script:SettingsDialogSelectedFile
                 }
             }
+        })
 
-            if (-not $hasPaths) {
-                [System.Windows.MessageBox]::Show("The selected file does not contain valid Genesys Cloud API endpoint definitions (missing 'paths' property).", "Invalid Format", "OK", "Error")
+    $applyButton.Add_Click({
+            if (-not $script:SettingsDialogSelectedFile) {
+                [System.Windows.MessageBox]::Show("Please select a JSON file.", "No File Selected", "OK", "Information")
                 return
             }
 
-            $settingsWindow.DialogResult = $true
-            $settingsWindow.Close()
-        } catch {
-            [System.Windows.MessageBox]::Show("Error reading JSON file: $($_.Exception.Message)", "JSON Error", "OK", "Error")
-        }
-    })
+            if (-not (Test-Path -Path $script:SettingsDialogSelectedFile)) {
+                [System.Windows.MessageBox]::Show("The selected file does not exist.", "File Not Found", "OK", "Error")
+                return
+            }
+
+            try {
+                $testJson = Get-Content -Path $script:SettingsDialogSelectedFile -Raw | ConvertFrom-Json -ErrorAction Stop
+
+                $hasPaths = $false
+                if ($testJson.paths) {
+                    $hasPaths = $true
+                }
+                else {
+                    foreach ($prop in $testJson.PSObject.Properties) {
+                        if ($prop.Value -and $prop.Value.paths) {
+                            $hasPaths = $true
+                            break
+                        }
+                    }
+                }
+
+                if (-not $hasPaths) {
+                    [System.Windows.MessageBox]::Show("The selected file does not contain valid Genesys Cloud API endpoint definitions (missing 'paths' property).", "Invalid Format", "OK", "Error")
+                    return
+                }
+
+                $settingsWindow.DialogResult = $true
+                $settingsWindow.Close()
+            }
+            catch {
+                [System.Windows.MessageBox]::Show("Error reading JSON file: $($_.Exception.Message)", "JSON Error", "OK", "Error")
+            }
+        })
 
     $cancelButton.Add_Click({
-        $settingsWindow.DialogResult = $false
-        $settingsWindow.Close()
-    })
+            $settingsWindow.DialogResult = $false
+            $settingsWindow.Close()
+        })
 
     $settingsWindow.ShowDialog() | Out-Null
 
     if ($settingsWindow.DialogResult) {
         return $script:SettingsDialogSelectedFile
-    } else {
+    }
+    else {
         return $null
     }
+}
+
+function Show-LoginWindow {
+    $loginXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Genesys Cloud Login" Height="450" Width="500" ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20">
+    <TabControl Name="LoginTabs">
+      <TabItem Header="User Login (Web)">
+        <StackPanel Margin="10">
+          <TextBlock Text="Region" FontWeight="Bold" Margin="0 0 0 5"/>
+          <ComboBox Name="UserRegionCombo" Margin="0 0 0 15" SelectedIndex="0">
+            <ComboBoxItem Content="mypurecloud.com (US East)"/>
+            <ComboBoxItem Content="usw2.pure.cloud (US West)"/>
+            <ComboBoxItem Content="mypurecloud.ie (EU West)"/>
+            <ComboBoxItem Content="mypurecloud.de (EU Central)"/>
+            <ComboBoxItem Content="mypurecloud.jp (Japan)"/>
+            <ComboBoxItem Content="mypurecloud.com.au (Australia)"/>
+            <ComboBoxItem Content="use2.us-gov-pure.cloud (FedRAMP)"/>
+          </ComboBox>
+          
+          <TextBlock Text="Client ID (PKCE Grant)" FontWeight="Bold" Margin="0 0 0 5"/>
+          <TextBox Name="UserClientIdInput" Height="28" Margin="0 0 0 5"/>
+          <TextBlock Text="Ensure this Client ID is configured for Code Grant (PKCE) with Redirect URI: http://localhost:8080" FontSize="10" Foreground="Gray" TextWrapping="Wrap" Margin="0 0 0 15"/>
+          
+          <Button Name="UserLoginButton" Content="Login with Browser" Height="32" Margin="0 10 0 0"/>
+        </StackPanel>
+      </TabItem>
+      
+      <TabItem Header="Client Credentials">
+        <StackPanel Margin="10">
+          <TextBlock Text="Region" FontWeight="Bold" Margin="0 0 0 5"/>
+          <ComboBox Name="ClientRegionCombo" Margin="0 0 0 15" SelectedIndex="0">
+            <ComboBoxItem Content="mypurecloud.com (US East)"/>
+            <ComboBoxItem Content="usw2.pure.cloud (US West)"/>
+            <ComboBoxItem Content="mypurecloud.ie (EU West)"/>
+            <ComboBoxItem Content="mypurecloud.de (EU Central)"/>
+            <ComboBoxItem Content="mypurecloud.jp (Japan)"/>
+            <ComboBoxItem Content="mypurecloud.com.au (Australia)"/>
+            <ComboBoxItem Content="use2.us-gov-pure.cloud (FedRAMP)"/>
+          </ComboBox>
+          
+          <TextBlock Text="Client ID" FontWeight="Bold" Margin="0 0 0 5"/>
+          <TextBox Name="ClientClientIdInput" Height="28" Margin="0 0 0 15"/>
+          
+          <TextBlock Text="Client Secret" FontWeight="Bold" Margin="0 0 0 5"/>
+          <PasswordBox Name="ClientSecretInput" Height="28" Margin="0 0 0 15"/>
+          
+          <Button Name="ClientLoginButton" Content="Get Token" Height="32" Margin="0 10 0 0"/>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>
+"@
+
+    $loginWindow = [System.Windows.Markup.XamlReader]::Parse($loginXaml)
+    if (-not $loginWindow) { return $null }
+    
+    if ($Window) { $loginWindow.Owner = $Window }
+    
+    # User Login Controls
+    $userRegionCombo = $loginWindow.FindName("UserRegionCombo")
+    $userClientIdInput = $loginWindow.FindName("UserClientIdInput")
+    $userLoginButton = $loginWindow.FindName("UserLoginButton")
+    
+    # Client Login Controls
+    $clientRegionCombo = $loginWindow.FindName("ClientRegionCombo")
+    $clientClientIdInput = $loginWindow.FindName("ClientClientIdInput")
+    $clientSecretInput = $loginWindow.FindName("ClientSecretInput")
+    $clientLoginButton = $loginWindow.FindName("ClientLoginButton")
+    
+    # Stored Settings Key (simple persistence for convenience)
+    $settingsPath = Join-Path -Path $env:USERPROFILE -ChildPath "GenesysApiExplorer.settings.json"
+    $savedSettings = @{}
+    if (Test-Path $settingsPath) {
+        try { $savedSettings = Get-Content $settingsPath -Raw | ConvertFrom-Json } catch {}
+    }
+    
+    # Restore saved values
+    if ($savedSettings.UserClientId) { $userClientIdInput.Text = $savedSettings.UserClientId }
+    if ($savedSettings.ClientClientId) { $clientClientIdInput.Text = $savedSettings.ClientClientId }
+    if ($savedSettings.Region) {
+        $idx = -1
+        foreach ($item in $userRegionCombo.Items) {
+            $idx++
+            if ($item.Content -match $savedSettings.Region) {
+                $userRegionCombo.SelectedIndex = $idx
+                $clientRegionCombo.SelectedIndex = $idx
+                break
+            }
+        }
+    }
+
+    $script:LoginResult = $null
+    
+    # --- Client Credentials Flow ---
+    $clientLoginButton.Add_Click({
+            $regionText = $clientRegionCombo.SelectedItem.Content.ToString().Split(' ')[0]
+            $clientId = $clientClientIdInput.Text.Trim()
+            $clientSecret = $clientSecretInput.Password
+        
+            if (-not $clientId -or -not $clientSecret) {
+                [System.Windows.MessageBox]::Show("Please enter Client ID and Secret.", "Missing Credentials", "OK", "Warning")
+                return
+            }
+        
+            try {
+                $authHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${clientId}:${clientSecret}"))
+                $body = @{ grant_type = "client_credentials" }
+            
+                $loginWindow.Cursor = [System.Windows.Input.Cursors]::Wait
+            
+                $response = Invoke-RestMethod -Uri "https://login.$regionText/oauth/token" -Method Post -Headers @{ Authorization = "Basic $authHeader" } -Body $body
+            
+                if ($response.access_token) {
+                    $script:LoginResult = $response.access_token
+                
+                    # Save settings
+                    $savedSettings.ClientClientId = $clientId
+                    $savedSettings.Region = $regionText
+                    $savedSettings | ConvertTo-Json | Set-Content $settingsPath
+                
+                    $loginWindow.Close()
+                }
+            }
+            catch {
+                [System.Windows.MessageBox]::Show("Authentication failed: $($_.Exception.Message)", "Login Error", "OK", "Error")
+            }
+            finally {
+                $loginWindow.Cursor = [System.Windows.Input.Cursors]::Arrow
+            }
+        })
+    
+    # --- User PKCE Flow ---
+    $userLoginButton.Add_Click({
+            $regionText = $userRegionCombo.SelectedItem.Content.ToString().Split(' ')[0]
+            $clientId = $userClientIdInput.Text.Trim()
+            $redirectUri = "http://localhost:8080"
+        
+            if (-not $clientId) {
+                [System.Windows.MessageBox]::Show("Please enter a Client ID.", "Missing info", "OK", "Warning")
+                return
+            }
+        
+            # Save settings immediately
+            $savedSettings.UserClientId = $clientId
+            $savedSettings.Region = $regionText
+            $savedSettings | ConvertTo-Json | Set-Content $settingsPath
+        
+            # 1. Generate Code Verifier and Challenge (PKCE)
+            # Verifier: Random 32-96 bytes, base64url encoded
+            $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+            $bytes = New-Object byte[] 32
+            $rng.GetBytes($bytes)
+            $verifier = [Convert]::ToBase64String($bytes).Replace('+', '-').Replace('/', '_').Replace('=', '')
+        
+            # Challenge: SHA256(verifier) -> base64url
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            $challengeBytes = $sha256.ComputeHash([Text.Encoding]::ASCII.GetBytes($verifier))
+            $challenge = [Convert]::ToBase64String($challengeBytes).Replace('+', '-').Replace('/', '_').Replace('=', '')
+
+            $authUrl = "https://login.$regionText/oauth/authorize?client_id=$clientId&response_type=code&redirect_uri=$redirectUri&code_challenge=$challenge&code_challenge_method=S256"
+        
+            # Create a browser window
+            $browserXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        Title="Genesys Cloud Authorization" Height="600" Width="500" WindowStartupLocation="CenterScreen">
+  <WebBrowser Name="AuthBrowser"/>
+</Window>
+"@
+            $browserWindow = [System.Windows.Markup.XamlReader]::Parse($browserXaml)
+            $browser = $browserWindow.FindName("AuthBrowser")
+        
+            $browser.Add_Navigated({
+                    param($sender, $e)
+                    $url = $e.Uri.AbsoluteUri
+            
+                    # Check for Authorization Code redirect
+                    if ($url -match "[?&]code=([^&]+)") {
+                        $authCode = $Matches[1]
+                        $browserWindow.Close() # Close immediately to prevent user confusion
+                
+                        # 2. Exchange Code for Token
+                        try {
+                            $loginWindow.Cursor = [System.Windows.Input.Cursors]::Wait
+                    
+                            $tokenBody = @{
+                                grant_type    = "authorization_code"
+                                client_id     = $clientId
+                                code          = $authCode
+                                redirect_uri  = $redirectUri
+                                code_verifier = $verifier
+                            }
+                    
+                            $response = Invoke-RestMethod -Uri "https://login.$regionText/oauth/token" -Method Post -Body $tokenBody
+                    
+                            if ($response.access_token) {
+                                $script:LoginResult = $response.access_token
+                                $loginWindow.Close()
+                            }
+                        }
+                        catch {
+                            [System.Windows.MessageBox]::Show("Token exchange failed: $($_.Exception.Message)", "Login Error", "OK", "Error")
+                        }
+                        finally {
+                            $loginWindow.Cursor = [System.Windows.Input.Cursors]::Arrow
+                        }
+                    }
+                })
+        
+            $browser.Navigate($authUrl)
+            $browserWindow.ShowDialog() | Out-Null
+        })
+
+    $loginWindow.ShowDialog() | Out-Null
+    return $script:LoginResult
 }
 
 function Show-SplashScreen {
@@ -247,7 +475,7 @@ function Show-SplashScreen {
       <TextBlock Text="• Job Watch tab polls bulk jobs and stages outputs in temp files for export." Margin="0 2"/>
       <TextBlock Text="• Favorites persist locally and include payloads for reuse." Margin="0 2"/>
       <TextBlock TextWrapping="Wrap" Margin="0 10 0 0">
-        Visit the Genesys Cloud developer documentation or help center from the Help menu when you’re ready for deeper reference.
+        Visit the Genesys Cloud developer documentation or help center from the Help menu when you're ready for deeper reference.
       </TextBlock>
       <Button Name="ContinueButton" Content="Continue" Width="120" Height="32" HorizontalAlignment="Right" Margin="0 12 0 0"/>
     </StackPanel>
@@ -263,8 +491,8 @@ function Show-SplashScreen {
     $continueButton = $splashWindow.FindName("ContinueButton")
     if ($continueButton) {
         $continueButton.Add_Click({
-            $splashWindow.Close()
-        })
+                $splashWindow.Close()
+            })
     }
 
     $splashWindow.ShowDialog() | Out-Null
@@ -356,7 +584,8 @@ function Get-ParameterControlValue {
         $checkBox = $Control.ValueControl
         if ($checkBox.IsChecked -eq $true) {
             return "true"
-        } elseif ($checkBox.IsChecked -eq $false) {
+        }
+        elseif ($checkBox.IsChecked -eq $false) {
             return "false"
         }
     }
@@ -409,9 +638,11 @@ function Set-ParameterControlValue {
         $checkBox = $Control.ValueControl
         if ($Value -eq "true" -or $Value -eq $true) {
             $checkBox.IsChecked = $true
-        } elseif ($Value -eq "false" -or $Value -eq $false) {
+        }
+        elseif ($Value -eq "false" -or $Value -eq $false) {
             $checkBox.IsChecked = $false
-        } else {
+        }
+        else {
             $checkBox.IsChecked = $null
         }
     }
@@ -439,7 +670,8 @@ function Test-JsonString {
     try {
         $null = $JsonString | ConvertFrom-Json -ErrorAction Stop
         return $true
-    } catch {
+    }
+    catch {
         return $false
     }
 }
@@ -465,7 +697,8 @@ function Test-ParameterValue {
         $intValue = $null
         if (-not [int]::TryParse($Value, [ref]$intValue)) {
             $errors += "Must be an integer value"
-        } else {
+        }
+        else {
             if ($null -ne $ValidationMetadata.Minimum -and $intValue -lt $ValidationMetadata.Minimum) {
                 $errors += "Must be at least $($ValidationMetadata.Minimum)"
             }
@@ -480,7 +713,8 @@ function Test-ParameterValue {
         $numValue = $null
         if (-not [double]::TryParse($Value, [ref]$numValue)) {
             $errors += "Must be a numeric value"
-        } else {
+        }
+        else {
             if ($null -ne $ValidationMetadata.Minimum -and $numValue -lt $ValidationMetadata.Minimum) {
                 $errors += "Must be at least $($ValidationMetadata.Minimum)"
             }
@@ -537,7 +771,8 @@ function Test-NumericValue {
         if (-not $parseSuccess) {
             return @{ IsValid = $false; ErrorMessage = "Must be a valid integer" }
         }
-    } elseif ($Type -eq "number") {
+    }
+    elseif ($Type -eq "number") {
         $parseSuccess = [double]::TryParse($Value, [ref]$number)
         if (-not $parseSuccess) {
             return @{ IsValid = $false; ErrorMessage = "Must be a valid number" }
@@ -574,7 +809,8 @@ function Test-StringFormat {
             if ($Value -notmatch $Pattern) {
                 return @{ IsValid = $false; ErrorMessage = "Does not match required pattern" }
             }
-        } catch {
+        }
+        catch {
             # Regex error - skip pattern validation
         }
     }
@@ -699,7 +935,8 @@ function Update-ParameterVisibility {
             if ($parent -and $parent -is [System.Windows.Controls.Grid]) {
                 if ($isVisible) {
                     $parent.Visibility = "Visible"
-                } else {
+                }
+                else {
                     $parent.Visibility = "Collapsed"
                 }
             }
@@ -901,10 +1138,12 @@ function Resolve-SchemaReference {
             $refName = $Matches[1]
             if ($Definitions -and $Definitions.$refName) {
                 $current = $Definitions.$refName
-            } else {
+            }
+            else {
                 return $current
             }
-        } else {
+        }
+        else {
             break
         }
         $depth++
@@ -1032,11 +1271,11 @@ function Update-SchemaList {
     $entries = Flatten-Schema -Schema $Schema -Definitions $Definitions
     if (-not $entries -or $entries.Count -eq 0) {
         $entries = @([PSCustomObject]@{
-            Field       = "(no schema available)"
-            Type        = ""
-            Description = ""
-            Required    = ""
-        })
+                Field       = "(no schema available)"
+                Type        = ""
+                Description = ""
+                Required    = ""
+            })
     }
 
     foreach ($entry in $entries) {
@@ -1071,7 +1310,7 @@ function Get-EnumValues {
     if ($propValue -and $propValue.enum) {
         # Comma operator forces PowerShell to treat the array as a single object
         # preventing automatic unwrapping when the array is returned
-        return ,$propValue.enum
+        return , $propValue.enum
     }
 
     return @()
@@ -1149,18 +1388,22 @@ function Format-FilterSummary {
 
     $fieldName = if ($predicate.dimension) {
         $predicate.dimension
-    } elseif ($predicate.metric) {
+    }
+    elseif ($predicate.metric) {
         $predicate.metric
-    } elseif ($predicate.property) {
+    }
+    elseif ($predicate.property) {
         "$($predicate.property) ($($predicate.propertyType))"
-    } else {
+    }
+    else {
         "<field>"
     }
 
     $valueText = "<no value>"
     if ($predicate.range) {
         $valueText = "(range)"
-    } elseif ($predicate.value -ne $null) {
+    }
+    elseif ($predicate.value -ne $null) {
         $valueText = $predicate.value
     }
 
@@ -1201,7 +1444,7 @@ function Refresh-FilterList {
             $segmentFiltersList.Items.Add($summary) | Out-Null
         }
     }
- }
+}
 
 function Get-BodyTextBox {
     if ($script:CurrentBodyControl) {
@@ -1220,7 +1463,8 @@ function Invoke-FilterBuilderBody {
 
     $intervalValue = if ($filterIntervalInput -and ($filterIntervalInput.Text.Trim())) {
         $filterIntervalInput.Text.Trim()
-    } else {
+    }
+    else {
         $script:FilterBuilderData.Interval
     }
 
@@ -1256,7 +1500,8 @@ function Set-FilterBuilderVisibility {
         if ($filterBuilderHintText) {
             $filterBuilderHintText.Text = ""
         }
-    } else {
+    }
+    else {
         Initialize-FilterBuilderControl
     }
 }
@@ -1304,7 +1549,8 @@ function Parse-FilterValueInput {
         try {
             $parsed = $value | ConvertFrom-Json -ErrorAction Stop
             return $parsed
-        } catch {
+        }
+        catch {
             Write-Verbose "Filter value is not valid JSON; falling back to literal string."
         }
     }
@@ -1320,7 +1566,8 @@ function Add-FilterEntry {
 
     if ($Scope -eq "Conversation") {
         $script:FilterBuilderData.ConversationFilters.Add($FilterObject) | Out-Null
-    } else {
+    }
+    else {
         $script:FilterBuilderData.SegmentFilters.Add($FilterObject) | Out-Null
     }
     Refresh-FilterList -Scope $Scope
@@ -1373,18 +1620,21 @@ function Build-FilterFromInput {
 
     if ($predicateType -eq "metric") {
         $predicate.metric = $fieldName
-    } elseif ($predicateType -eq "property") {
+    }
+    elseif ($predicateType -eq "property") {
         $predicate.property = $fieldName
         if ($PropertyTypeCombo -and $PropertyTypeCombo.SelectedItem) {
             $predicate.propertyType = $PropertyTypeCombo.SelectedItem
         }
-    } else {
+    }
+    else {
         $predicate.dimension = $fieldName
     }
 
     if ($valueInput -and ($valueInput -is [System.Management.Automation.PSCustomObject] -or $valueInput -is [System.Collections.IDictionary])) {
         $predicate.range = $valueInput
-    } elseif ($null -ne $valueInput) {
+    }
+    elseif ($null -ne $valueInput) {
         $predicate.value = $valueInput
     }
 
@@ -1412,7 +1662,8 @@ function Initialize-FilterBuilderControl {
         foreach ($type in $script:FilterBuilderEnums.Conversation.Types) {
             $conversationPredicateTypeCombo.Items.Add($type) | Out-Null
         }
-    } else {
+    }
+    else {
         # Fallback to default values if enum extraction fails
         $conversationPredicateTypeCombo.Items.Add("dimension") | Out-Null
         $conversationPredicateTypeCombo.Items.Add("property") | Out-Null
@@ -1425,7 +1676,8 @@ function Initialize-FilterBuilderControl {
         foreach ($type in $script:FilterBuilderEnums.Segment.Types) {
             $segmentPredicateTypeCombo.Items.Add($type) | Out-Null
         }
-    } else {
+    }
+    else {
         # Fallback to default values if enum extraction fails
         $segmentPredicateTypeCombo.Items.Add("dimension") | Out-Null
         $segmentPredicateTypeCombo.Items.Add("property") | Out-Null
@@ -1454,7 +1706,8 @@ function Initialize-FilterBuilderControl {
             foreach ($propType in $script:FilterBuilderEnums.Segment.PropertyTypes) {
                 $segmentPropertyTypeCombo.Items.Add($propType) | Out-Null
             }
-        } else {
+        }
+        else {
             # Fallback to default values if enum extraction fails
             $segmentPropertyTypeCombo.Items.Add("bool") | Out-Null
             $segmentPropertyTypeCombo.Items.Add("integer") | Out-Null
@@ -1581,7 +1834,8 @@ function Show-DataInspector {
 
     try {
         $parsed = $sourceText | ConvertFrom-Json -ErrorAction Stop
-    } catch {
+    }
+    catch {
         [System.Windows.MessageBox]::Show("Unable to parse current response for inspection.`n$($_.Exception.Message)", "Data Inspector")
         return
     }
@@ -1636,27 +1890,28 @@ function Show-DataInspector {
 
     if ($copyButton) {
         $copyButton.Add_Click({
-            if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
-                Set-Clipboard -Value $sourceText
-                Add-LogEntry "Raw JSON copied to clipboard via inspector."
-            } else {
-                [System.Windows.MessageBox]::Show("Clipboard access is not available in this host.", "Clipboard")
-                Add-LogEntry "Clipboard copy skipped (command missing)."
-            }
-        })
+                if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
+                    Set-Clipboard -Value $sourceText
+                    Add-LogEntry "Raw JSON copied to clipboard via inspector."
+                }
+                else {
+                    [System.Windows.MessageBox]::Show("Clipboard access is not available in this host.", "Clipboard")
+                    Add-LogEntry "Clipboard copy skipped (command missing)."
+                }
+            })
     }
 
     if ($exportButton) {
         $exportButton.Add_Click({
-            $dialog = New-Object Microsoft.Win32.SaveFileDialog
-            $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-            $dialog.FileName = "GenesysData.json"
-            $dialog.Title = "Export Inspector JSON"
-            if ($dialog.ShowDialog() -eq $true) {
-                $JsonText | Out-File -FilePath $dialog.FileName -Encoding utf8
-                Add-LogEntry "Inspector JSON exported to $($dialog.FileName)"
-            }
-        })
+                $dialog = New-Object Microsoft.Win32.SaveFileDialog
+                $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+                $dialog.FileName = "GenesysData.json"
+                $dialog.Title = "Export Inspector JSON"
+                if ($dialog.ShowDialog() -eq $true) {
+                    $JsonText | Out-File -FilePath $dialog.FileName -Encoding utf8
+                    Add-LogEntry "Inspector JSON exported to $($dialog.FileName)"
+                }
+            })
     }
 
     if ($Window) {
@@ -1691,7 +1946,8 @@ function Show-ConversationTimelineReport {
     # Sanitize ConversationId for safe use in XAML Title (prevent XML injection)
     $safeConvId = if ($Report.ConversationId) {
         [System.Security.SecurityElement]::Escape($Report.ConversationId)
-    } else {
+    }
+    else {
         "Unknown"
     }
 
@@ -1735,46 +1991,47 @@ function Show-ConversationTimelineReport {
 
     if ($copyButton) {
         $copyButton.Add_Click({
-            try {
-                if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
-                    Set-Clipboard -Value $reportText
-                    Add-LogEntry "Timeline report copied to clipboard."
+                try {
+                    if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
+                        Set-Clipboard -Value $reportText
+                        Add-LogEntry "Timeline report copied to clipboard."
+                    }
+                    else {
+                        [System.Windows.Clipboard]::SetText($reportText)
+                        Add-LogEntry "Timeline report copied to clipboard."
+                    }
                 }
-                else {
-                    [System.Windows.Clipboard]::SetText($reportText)
-                    Add-LogEntry "Timeline report copied to clipboard."
+                catch {
+                    Add-LogEntry "Failed to copy timeline report: $($_.Exception.Message)"
                 }
-            }
-            catch {
-                Add-LogEntry "Failed to copy timeline report: $($_.Exception.Message)"
-            }
-        })
+            })
     }
 
     if ($exportButton) {
         $exportButton.Add_Click({
-            # Sanitize ConversationId for safe use in filename (remove invalid filename characters)
-            $safeFilenameConvId = if ($Report.ConversationId) {
-                $Report.ConversationId -replace '[\\/:*?"<>|]', '_'
-            } else {
-                "Unknown"
-            }
+                # Sanitize ConversationId for safe use in filename (remove invalid filename characters)
+                $safeFilenameConvId = if ($Report.ConversationId) {
+                    $Report.ConversationId -replace '[\\/:*?"<>|]', '_'
+                }
+                else {
+                    "Unknown"
+                }
             
-            $dialog = New-Object Microsoft.Win32.SaveFileDialog
-            $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
-            $dialog.Title = "Export Conversation Timeline Report"
-            $dialog.FileName = "ConversationTimeline_$safeFilenameConvId.txt"
-            if ($dialog.ShowDialog() -eq $true) {
-                try {
-                    $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
-                    Add-LogEntry "Timeline report exported to $($dialog.FileName)"
+                $dialog = New-Object Microsoft.Win32.SaveFileDialog
+                $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+                $dialog.Title = "Export Conversation Timeline Report"
+                $dialog.FileName = "ConversationTimeline_$safeFilenameConvId.txt"
+                if ($dialog.ShowDialog() -eq $true) {
+                    try {
+                        $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
+                        Add-LogEntry "Timeline report exported to $($dialog.FileName)"
+                    }
+                    catch {
+                        Add-LogEntry "Failed to export timeline report: $($_.Exception.Message)"
+                        [System.Windows.MessageBox]::Show("Failed to export timeline report: $($_.Exception.Message)", "Export Error")
+                    }
                 }
-                catch {
-                    Add-LogEntry "Failed to export timeline report: $($_.Exception.Message)"
-                    [System.Windows.MessageBox]::Show("Failed to export timeline report: $($_.Exception.Message)", "Export Error")
-                }
-            }
-        })
+            })
     }
 
     if ($Window) {
@@ -1886,9 +2143,9 @@ function Get-PaginatedResults {
             $url = if ($currentPath -match '^https?://') { $currentPath } else { "$BaseUrl$currentPath" }
             
             $invokeParams = @{
-                Uri     = $url
-                Method  = $Method
-                Headers = $Headers
+                Uri         = $url
+                Method      = $Method
+                Headers     = $Headers
                 ErrorAction = 'Stop'
             }
 
@@ -2017,16 +2274,16 @@ function Get-ConversationReport {
     )
 
     $result = [PSCustomObject]@{
-        ConversationId         = $ConversationId
-        ConversationDetails    = $null
-        AnalyticsDetails       = $null
-        SpeechTextAnalytics    = $null
-        RecordingMetadata      = $null
-        Sentiments             = $null
-        SipMessages            = $null
-        RetrievedAt            = (Get-Date).ToString("o")
-        Errors                 = @()
-        EndpointLog            = [System.Collections.ArrayList]::new()
+        ConversationId      = $ConversationId
+        ConversationDetails = $null
+        AnalyticsDetails    = $null
+        SpeechTextAnalytics = $null
+        RecordingMetadata   = $null
+        Sentiments          = $null
+        SipMessages         = $null
+        RetrievedAt         = (Get-Date).ToString("o")
+        Errors              = @()
+        EndpointLog         = [System.Collections.ArrayList]::new()
     }
 
     $totalEndpoints = $endpoints.Count
@@ -2044,10 +2301,10 @@ function Get-ConversationReport {
         $url = "$BaseUrl$($endpoint.Path)"
         $logEntry = [PSCustomObject]@{
             Timestamp = (Get-Date).ToString("HH:mm:ss.fff")
-            Endpoint = $endpoint.Name
-            Path = $endpoint.Path
-            Status = "Pending"
-            Message = ""
+            Endpoint  = $endpoint.Name
+            Path      = $endpoint.Path
+            Status    = "Pending"
+            Message   = ""
         }
 
         try {
@@ -2153,44 +2410,44 @@ function Get-GCConversationDetailsTimeline {
                             # Segment start event - parse with InvariantCulture for reliable ISO 8601 parsing
                             if ($segment.segmentStart) {
                                 [void]$events.Add([PSCustomObject]@{
-                                    Timestamp    = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                                    Source       = "AnalyticsDetails"
-                                    Participant  = $participantName
-                                    ParticipantId = $participantId
-                                    SegmentId    = $segmentId
-                                    EventType    = "SegmentStart"
-                                    SegmentType  = $segmentType
-                                    MediaType    = $mediaType
-                                    Direction    = $direction
-                                    QueueName    = $queueName
-                                    FlowName     = $flowName
-                                    Mos          = $sessionMos
-                                    ErrorCode    = $errorCode
-                                    Context      = "ANI: $ani, DNIS: $dnis"
-                                    DisconnectType = $null
-                                })
+                                        Timestamp      = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                        Source         = "AnalyticsDetails"
+                                        Participant    = $participantName
+                                        ParticipantId  = $participantId
+                                        SegmentId      = $segmentId
+                                        EventType      = "SegmentStart"
+                                        SegmentType    = $segmentType
+                                        MediaType      = $mediaType
+                                        Direction      = $direction
+                                        QueueName      = $queueName
+                                        FlowName       = $flowName
+                                        Mos            = $sessionMos
+                                        ErrorCode      = $errorCode
+                                        Context        = "ANI: $ani, DNIS: $dnis"
+                                        DisconnectType = $null
+                                    })
                             }
 
                             # Segment end event - parse with InvariantCulture
                             if ($segment.segmentEnd) {
                                 $disconnectType = $segment.disconnectType
                                 [void]$events.Add([PSCustomObject]@{
-                                    Timestamp    = [DateTime]::Parse($segment.segmentEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                                    Source       = "AnalyticsDetails"
-                                    Participant  = $participantName
-                                    ParticipantId = $participantId
-                                    SegmentId    = $segmentId
-                                    EventType    = if ($disconnectType) { "Disconnect" } else { "SegmentEnd" }
-                                    SegmentType  = $segmentType
-                                    MediaType    = $mediaType
-                                    Direction    = $direction
-                                    QueueName    = $queueName
-                                    FlowName     = $flowName
-                                    Mos          = $sessionMos
-                                    ErrorCode    = $errorCode
-                                    Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
-                                    DisconnectType = $disconnectType
-                                })
+                                        Timestamp      = [DateTime]::Parse($segment.segmentEnd, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                        Source         = "AnalyticsDetails"
+                                        Participant    = $participantName
+                                        ParticipantId  = $participantId
+                                        SegmentId      = $segmentId
+                                        EventType      = if ($disconnectType) { "Disconnect" } else { "SegmentEnd" }
+                                        SegmentType    = $segmentType
+                                        MediaType      = $mediaType
+                                        Direction      = $direction
+                                        QueueName      = $queueName
+                                        FlowName       = $flowName
+                                        Mos            = $sessionMos
+                                        ErrorCode      = $errorCode
+                                        Context        = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
+                                        DisconnectType = $disconnectType
+                                    })
                             }
                         }
                     }
@@ -2208,44 +2465,44 @@ function Get-GCConversationDetailsTimeline {
             # Start time event - parse with InvariantCulture
             if ($participant.startTime) {
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp    = [DateTime]::Parse($participant.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    Source       = "Conversations"
-                    Participant  = $participantName
-                    ParticipantId = $participantId
-                    SegmentId    = $null
-                    EventType    = "ParticipantJoined"
-                    SegmentType  = $null
-                    MediaType    = $null
-                    Direction    = $null
-                    QueueName    = $null
-                    FlowName     = $null
-                    Mos          = $null
-                    ErrorCode    = $null
-                    Context      = "Purpose: $($participant.purpose)"
-                    DisconnectType = $null
-                })
+                        Timestamp      = [DateTime]::Parse($participant.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                        Source         = "Conversations"
+                        Participant    = $participantName
+                        ParticipantId  = $participantId
+                        SegmentId      = $null
+                        EventType      = "ParticipantJoined"
+                        SegmentType    = $null
+                        MediaType      = $null
+                        Direction      = $null
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $null
+                        Context        = "Purpose: $($participant.purpose)"
+                        DisconnectType = $null
+                    })
             }
 
             # End time / disconnect event - parse with InvariantCulture
             if ($participant.endTime) {
                 $disconnectType = $participant.disconnectType
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp    = [DateTime]::Parse($participant.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    Source       = "Conversations"
-                    Participant  = $participantName
-                    ParticipantId = $participantId
-                    SegmentId    = $null
-                    EventType    = if ($disconnectType) { "Disconnect" } else { "ParticipantLeft" }
-                    SegmentType  = $null
-                    MediaType    = $null
-                    Direction    = $null
-                    QueueName    = $null
-                    FlowName     = $null
-                    Mos          = $null
-                    ErrorCode    = $null
-                    Context      = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
-                    DisconnectType = $disconnectType
-                })
+                        Timestamp      = [DateTime]::Parse($participant.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                        Source         = "Conversations"
+                        Participant    = $participantName
+                        ParticipantId  = $participantId
+                        SegmentId      = $null
+                        EventType      = if ($disconnectType) { "Disconnect" } else { "ParticipantLeft" }
+                        SegmentType    = $null
+                        MediaType      = $null
+                        Direction      = $null
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $null
+                        Context        = if ($disconnectType) { "DisconnectType: $disconnectType" } else { $null }
+                        DisconnectType = $disconnectType
+                    })
             }
 
             # Process calls/chats for state changes
@@ -2253,41 +2510,41 @@ function Get-GCConversationDetailsTimeline {
                 foreach ($call in $participant.calls) {
                     if ($call.state -and $call.connectedTime) {
                         [void]$events.Add([PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($call.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                            Source       = "Conversations"
-                            Participant  = $participantName
-                            ParticipantId = $participantId
-                            SegmentId    = $null
-                            EventType    = "StateChange"
-                            SegmentType  = $null
-                            MediaType    = "voice"
-                            Direction    = $call.direction
-                            QueueName    = $null
-                            FlowName     = $null
-                            Mos          = $null
-                            ErrorCode    = $null
-                            Context      = "State: connected"
-                            DisconnectType = $null
-                        })
+                                Timestamp      = [DateTime]::Parse($call.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                Source         = "Conversations"
+                                Participant    = $participantName
+                                ParticipantId  = $participantId
+                                SegmentId      = $null
+                                EventType      = "StateChange"
+                                SegmentType    = $null
+                                MediaType      = "voice"
+                                Direction      = $call.direction
+                                QueueName      = $null
+                                FlowName       = $null
+                                Mos            = $null
+                                ErrorCode      = $null
+                                Context        = "State: connected"
+                                DisconnectType = $null
+                            })
                     }
                     if ($call.disconnectedTime) {
                         [void]$events.Add([PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($call.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                            Source       = "Conversations"
-                            Participant  = $participantName
-                            ParticipantId = $participantId
-                            SegmentId    = $null
-                            EventType    = "Disconnect"
-                            SegmentType  = $null
-                            MediaType    = "voice"
-                            Direction    = $call.direction
-                            QueueName    = $null
-                            FlowName     = $null
-                            Mos          = $null
-                            ErrorCode    = $null
-                            Context      = "State: disconnected"
-                            DisconnectType = $call.disconnectType
-                        })
+                                Timestamp      = [DateTime]::Parse($call.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                Source         = "Conversations"
+                                Participant    = $participantName
+                                ParticipantId  = $participantId
+                                SegmentId      = $null
+                                EventType      = "Disconnect"
+                                SegmentType    = $null
+                                MediaType      = "voice"
+                                Direction      = $call.direction
+                                QueueName      = $null
+                                FlowName       = $null
+                                Mos            = $null
+                                ErrorCode      = $null
+                                Context        = "State: disconnected"
+                                DisconnectType = $call.disconnectType
+                            })
                     }
                 }
             }
@@ -2297,41 +2554,41 @@ function Get-GCConversationDetailsTimeline {
                 foreach ($chat in $participant.chats) {
                     if ($chat.state -and $chat.connectedTime) {
                         [void]$events.Add([PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($chat.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                            Source       = "Conversations"
-                            Participant  = $participantName
-                            ParticipantId = $participantId
-                            SegmentId    = $null
-                            EventType    = "StateChange"
-                            SegmentType  = $null
-                            MediaType    = "chat"
-                            Direction    = $chat.direction
-                            QueueName    = $null
-                            FlowName     = $null
-                            Mos          = $null
-                            ErrorCode    = $null
-                            Context      = "State: connected"
-                            DisconnectType = $null
-                        })
+                                Timestamp      = [DateTime]::Parse($chat.connectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                Source         = "Conversations"
+                                Participant    = $participantName
+                                ParticipantId  = $participantId
+                                SegmentId      = $null
+                                EventType      = "StateChange"
+                                SegmentType    = $null
+                                MediaType      = "chat"
+                                Direction      = $chat.direction
+                                QueueName      = $null
+                                FlowName       = $null
+                                Mos            = $null
+                                ErrorCode      = $null
+                                Context        = "State: connected"
+                                DisconnectType = $null
+                            })
                     }
                     if ($chat.disconnectedTime) {
                         [void]$events.Add([PSCustomObject]@{
-                            Timestamp    = [DateTime]::Parse($chat.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                            Source       = "Conversations"
-                            Participant  = $participantName
-                            ParticipantId = $participantId
-                            SegmentId    = $null
-                            EventType    = "Disconnect"
-                            SegmentType  = $null
-                            MediaType    = "chat"
-                            Direction    = $chat.direction
-                            QueueName    = $null
-                            FlowName     = $null
-                            Mos          = $null
-                            ErrorCode    = $null
-                            Context      = "State: disconnected"
-                            DisconnectType = $chat.disconnectType
-                        })
+                                Timestamp      = [DateTime]::Parse($chat.disconnectedTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                Source         = "Conversations"
+                                Participant    = $participantName
+                                ParticipantId  = $participantId
+                                SegmentId      = $null
+                                EventType      = "Disconnect"
+                                SegmentType    = $null
+                                MediaType      = "chat"
+                                Direction      = $chat.direction
+                                QueueName      = $null
+                                FlowName       = $null
+                                Mos            = $null
+                                ErrorCode      = $null
+                                Context        = "State: disconnected"
+                                DisconnectType = $chat.disconnectType
+                            })
                     }
                 }
             }
@@ -2353,22 +2610,22 @@ function Get-GCConversationDetailsTimeline {
                 }
 
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp      = [DateTime]::Parse($msg.timestamp, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    Source         = "SIP"
-                    Participant    = $msg.participantId
-                    ParticipantId  = $msg.participantId
-                    SegmentId      = $null
-                    EventType      = "SIP_$($msg.method)"
-                    SegmentType    = $null
-                    MediaType      = "voice"
-                    Direction      = $msg.direction
-                    QueueName      = $null
-                    FlowName       = $null
-                    Mos            = $null
-                    ErrorCode      = $sipErrorInfo
-                    Context        = $msg.method
-                    DisconnectType = $null
-                })
+                        Timestamp      = [DateTime]::Parse($msg.timestamp, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                        Source         = "SIP"
+                        Participant    = $msg.participantId
+                        ParticipantId  = $msg.participantId
+                        SegmentId      = $null
+                        EventType      = "SIP_$($msg.method)"
+                        SegmentType    = $null
+                        MediaType      = "voice"
+                        Direction      = $msg.direction
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $sipErrorInfo
+                        Context        = $msg.method
+                        DisconnectType = $null
+                    })
             }
         }
     }
@@ -2383,22 +2640,22 @@ function Get-GCConversationDetailsTimeline {
         if ($Report.SpeechTextAnalytics.conversation.topics) {
             foreach ($topic in $Report.SpeechTextAnalytics.conversation.topics) {
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp      = $convStart
-                    Source         = "SpeechText"
-                    Participant    = $null
-                    ParticipantId  = $null
-                    SegmentId      = $null
-                    EventType      = "Topic"
-                    SegmentType    = $null
-                    MediaType      = $null
-                    Direction      = $null
-                    QueueName      = $null
-                    FlowName       = $null
-                    Mos            = $null
-                    ErrorCode      = $null
-                    Context        = "Topic: $($topic.name)"
-                    DisconnectType = $null
-                })
+                        Timestamp      = $convStart
+                        Source         = "SpeechText"
+                        Participant    = $null
+                        ParticipantId  = $null
+                        SegmentId      = $null
+                        EventType      = "Topic"
+                        SegmentType    = $null
+                        MediaType      = $null
+                        Direction      = $null
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $null
+                        Context        = "Topic: $($topic.name)"
+                        DisconnectType = $null
+                    })
             }
         }
     }
@@ -2408,22 +2665,22 @@ function Get-GCConversationDetailsTimeline {
         foreach ($sentiment in $Report.Sentiments.sentiment) {
             if ($sentiment.time) {
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp      = [DateTime]::Parse($sentiment.time, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    Source         = "Sentiment"
-                    Participant    = $sentiment.participantId
-                    ParticipantId  = $sentiment.participantId
-                    SegmentId      = $null
-                    EventType      = "SentimentSample"
-                    SegmentType    = $null
-                    MediaType      = $null
-                    Direction      = $null
-                    QueueName      = $null
-                    FlowName       = $null
-                    Mos            = $null
-                    ErrorCode      = $null
-                    Context        = "Sentiment: $($sentiment.label) ($($sentiment.score))"
-                    DisconnectType = $null
-                })
+                        Timestamp      = [DateTime]::Parse($sentiment.time, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                        Source         = "Sentiment"
+                        Participant    = $sentiment.participantId
+                        ParticipantId  = $sentiment.participantId
+                        SegmentId      = $null
+                        EventType      = "SentimentSample"
+                        SegmentType    = $null
+                        MediaType      = $null
+                        Direction      = $null
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $null
+                        Context        = "Sentiment: $($sentiment.label) ($($sentiment.score))"
+                        DisconnectType = $null
+                    })
             }
         }
     }
@@ -2433,41 +2690,41 @@ function Get-GCConversationDetailsTimeline {
         foreach ($rec in $Report.RecordingMetadata) {
             if ($rec.startTime) {
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp      = [DateTime]::Parse($rec.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    Source         = "Recording"
-                    Participant    = $rec.participantId
-                    ParticipantId  = $rec.participantId
-                    SegmentId      = $null
-                    EventType      = "RecordingStart"
-                    SegmentType    = $null
-                    MediaType      = $null
-                    Direction      = $null
-                    QueueName      = $null
-                    FlowName       = $null
-                    Mos            = $null
-                    ErrorCode      = $null
-                    Context        = "Recording ID: $($rec.id)"
-                    DisconnectType = $null
-                })
+                        Timestamp      = [DateTime]::Parse($rec.startTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                        Source         = "Recording"
+                        Participant    = $rec.participantId
+                        ParticipantId  = $rec.participantId
+                        SegmentId      = $null
+                        EventType      = "RecordingStart"
+                        SegmentType    = $null
+                        MediaType      = $null
+                        Direction      = $null
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $null
+                        Context        = "Recording ID: $($rec.id)"
+                        DisconnectType = $null
+                    })
             }
             if ($rec.endTime) {
                 [void]$events.Add([PSCustomObject]@{
-                    Timestamp      = [DateTime]::Parse($rec.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    Source         = "Recording"
-                    Participant    = $rec.participantId
-                    ParticipantId  = $rec.participantId
-                    SegmentId      = $null
-                    EventType      = "RecordingEnd"
-                    SegmentType    = $null
-                    MediaType      = $null
-                    Direction      = $null
-                    QueueName      = $null
-                    FlowName       = $null
-                    Mos            = $null
-                    ErrorCode      = $null
-                    Context        = "Recording ID: $($rec.id)"
-                    DisconnectType = $null
-                })
+                        Timestamp      = [DateTime]::Parse($rec.endTime, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                        Source         = "Recording"
+                        Participant    = $rec.participantId
+                        ParticipantId  = $rec.participantId
+                        SegmentId      = $null
+                        EventType      = "RecordingEnd"
+                        SegmentType    = $null
+                        MediaType      = $null
+                        Direction      = $null
+                        QueueName      = $null
+                        FlowName       = $null
+                        Mos            = $null
+                        ErrorCode      = $null
+                        Context        = "Recording ID: $($rec.id)"
+                        DisconnectType = $null
+                    })
             }
         }
     }
@@ -2501,6 +2758,7 @@ function Merge-GCConversationEvents {
     Creates a text-based timeline with each event on a line showing timestamp,
     event type, participant, segment ID, MOS score, and error code.
 #>
+
 function Format-GCConversationTimelineText {
     param (
         [Parameter(Mandatory = $true)]
@@ -2510,65 +2768,61 @@ function Format-GCConversationTimelineText {
     $sb = [System.Text.StringBuilder]::new()
 
     foreach ($event in $Events) {
-        # Format timestamp in UTC with proper ISO 8601 format
-        $timestamp = $event.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
+        $timestamp = $event.Timestamp.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssK')
         $eventType = $event.EventType.PadRight(18)
 
-        # Build participant/context string
-        $participantStr = ""
+        $participantStr = ''
         if ($event.FlowName) {
-            $participantStr = "Flow: $($event.FlowName)"
-        } elseif ($event.QueueName) {
-            $participantStr = "Queue: $($event.QueueName)"
-        } elseif ($event.Participant) {
+            $participantStr = 'Flow: ' + $event.FlowName
+        }
+        elseif ($event.QueueName) {
+            $participantStr = 'Queue: ' + $event.QueueName
+        }
+        elseif ($event.Participant) {
             $participantStr = $event.Participant
-        } else {
-            $participantStr = "(unknown)"
+        }
+        else {
+            $participantStr = '(unknown)'
         }
 
-        # Build segment string
-        $segmentStr = if ($event.SegmentId) { "seg=$($event.SegmentId)" } else { "" }
+        $segmentStr = if ($event.SegmentId) { 'seg=' + $event.SegmentId } else { '' }
 
-        # Build media/direction string
-        $mediaStr = ""
+        $mediaStr = ''
         if ($event.MediaType -or $event.Direction) {
             $parts = @()
-            if ($event.MediaType) { $parts += "media=$($event.MediaType)" }
-            if ($event.Direction) { $parts += "dir=$($event.Direction)" }
-            $mediaStr = $parts -join " | "
+            if ($event.MediaType) { $parts += 'media=' + $event.MediaType }
+            if ($event.Direction) { $parts += 'dir=' + $event.Direction }
+            $mediaStr = $parts -join ' | '
         }
 
-        # Build MOS string with degraded marker - use TryParse for safe conversion
-        $mosStr = ""
+        $mosStr = ''
         if ($null -ne $event.Mos) {
             $mosValue = 0.0
             if ([double]::TryParse($event.Mos.ToString(), [ref]$mosValue)) {
                 if ($mosValue -lt 3.5) {
-                    $mosStr = "MOS=$($mosValue.ToString('0.00')) (DEGRADED)"
-                } else {
-                    $mosStr = "MOS=$($mosValue.ToString('0.00'))"
+                    $mosStr = 'MOS=' + $mosValue.ToString('0.00') + ' (DEGRADED)'
+                }
+                else {
+                    $mosStr = 'MOS=' + $mosValue.ToString('0.00')
                 }
             }
         }
 
-        # Build error code string
-        $errorStr = if ($event.ErrorCode) { "errorCode=$($event.ErrorCode)" } else { "" }
+        $errorStr = if ($event.ErrorCode) { 'errorCode=' + $event.ErrorCode } else { '' }
 
-        # Build disconnect info
-        $disconnectStr = ""
-        if ($event.EventType -eq "Disconnect" -and $event.DisconnectType) {
-            $disconnectStr = "$($event.Participant) disconnected ($($event.DisconnectType))"
+        $disconnectStr = ''
+        if ($event.EventType -eq 'Disconnect' -and $event.DisconnectType) {
+            $disconnectStr = $event.Participant + ' disconnected (' + $event.DisconnectType + ')'
         }
 
-        # Construct the line
-        $lineParts = @($timestamp, "|", $eventType, "|", $participantStr)
-        if ($segmentStr) { $lineParts += "| $segmentStr" }
-        if ($mediaStr) { $lineParts += "| $mediaStr" }
-        if ($mosStr) { $lineParts += "| $mosStr" }
-        if ($errorStr) { $lineParts += "| $errorStr" }
-        if ($disconnectStr) { $lineParts += "| $disconnectStr" }
+        $lineParts = @($timestamp, '|', $eventType, '|', $participantStr)
+        if ($segmentStr) { $lineParts += '| ' + $segmentStr }
+        if ($mediaStr) { $lineParts += '| ' + $mediaStr }
+        if ($mosStr) { $lineParts += '| ' + $mosStr }
+        if ($errorStr) { $lineParts += '| ' + $errorStr }
+        if ($disconnectStr) { $lineParts += '| ' + $disconnectStr }
 
-        $line = $lineParts -join " "
+        $line = $lineParts -join ' '
         [void]$sb.AppendLine($line.Trim())
     }
 
@@ -2666,9 +2920,9 @@ function Format-GCConversationSummaryText {
             $endTime = $seg.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssK")
 
             $participantStr = if ($seg.QueueName) { "Queue: $($seg.QueueName)" } `
-                              elseif ($seg.FlowName) { "Flow: $($seg.FlowName)" } `
-                              elseif ($seg.Participant) { $seg.Participant } `
-                              else { "(unknown)" }
+                elseif ($seg.FlowName) { "Flow: $($seg.FlowName)" } `
+                elseif ($seg.Participant) { $seg.Participant } `
+                else { "(unknown)" }
 
             # Use TryParse for safe MOS value conversion
             $mosValue = 0.0
@@ -2840,24 +3094,24 @@ function Get-GCParticipantStatistics {
             $purpose = $participant.purpose
 
             $participantStat = [PSCustomObject]@{
-                Name           = $participantName
-                ParticipantId  = $participant.participantId
-                Purpose        = $purpose
-                SessionCount   = 0
-                SegmentCount   = 0
+                Name                 = $participantName
+                ParticipantId        = $participant.participantId
+                Purpose              = $purpose
+                SessionCount         = 0
+                SegmentCount         = 0
                 TotalDurationSeconds = 0
-                MediaTypes     = [System.Collections.ArrayList]::new()
-                DisconnectType = $null
-                HasErrors      = $false
-                ErrorCodes     = [System.Collections.ArrayList]::new()
-                MosScores      = [System.Collections.ArrayList]::new()
-                FlowNames      = [System.Collections.ArrayList]::new()
-                QueueNames     = [System.Collections.ArrayList]::new()
-                HasRecording   = $false
-                Providers      = [System.Collections.ArrayList]::new()
-                RemoteName     = $null
-                ANI            = $null
-                DNIS           = $null
+                MediaTypes           = [System.Collections.ArrayList]::new()
+                DisconnectType       = $null
+                HasErrors            = $false
+                ErrorCodes           = [System.Collections.ArrayList]::new()
+                MosScores            = [System.Collections.ArrayList]::new()
+                FlowNames            = [System.Collections.ArrayList]::new()
+                QueueNames           = [System.Collections.ArrayList]::new()
+                HasRecording         = $false
+                Providers            = [System.Collections.ArrayList]::new()
+                RemoteName           = $null
+                ANI                  = $null
+                DNIS                 = $null
             }
 
             if ($participant.sessions) {
@@ -3052,43 +3306,43 @@ function Get-GCConversationKeyInsights {
         $minMos = $Report.AnalyticsDetails.mediaStatsMinConversationMos
         if ($minMos -lt 3.0) {
             [void]$insights.Add([PSCustomObject]@{
-                Category = "CRITICAL"
-                Type     = "Quality"
-                Message  = "Very poor voice quality detected (MOS: $([Math]::Round($minMos, 2))). Call likely had significant audio issues."
-            })
+                    Category = "CRITICAL"
+                    Type     = "Quality"
+                    Message  = "Very poor voice quality detected (MOS: $([Math]::Round($minMos, 2))). Call likely had significant audio issues."
+                })
         }
         elseif ($minMos -lt 3.5) {
             [void]$insights.Add([PSCustomObject]@{
-                Category = "WARNING"
-                Type     = "Quality"
-                Message  = "Below-average voice quality detected (MOS: $([Math]::Round($minMos, 2))). Some audio degradation may have occurred."
-            })
+                    Category = "WARNING"
+                    Type     = "Quality"
+                    Message  = "Below-average voice quality detected (MOS: $([Math]::Round($minMos, 2))). Some audio degradation may have occurred."
+                })
         }
         elseif ($minMos -ge 4.0) {
             [void]$insights.Add([PSCustomObject]@{
-                Category = "OK"
-                Type     = "Quality"
-                Message  = "Good voice quality maintained throughout (MOS: $([Math]::Round($minMos, 2)))."
-            })
+                    Category = "OK"
+                    Type     = "Quality"
+                    Message  = "Good voice quality maintained throughout (MOS: $([Math]::Round($minMos, 2)))."
+                })
         }
     }
 
     # Insight: Long hold times
     if ($DurationAnalysis.HoldTimeSeconds -gt 300) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "WARNING"
-            Type     = "Experience"
-            Message  = "Extended hold time detected ($([Math]::Round($DurationAnalysis.HoldTimeSeconds / 60, 1)) minutes). Customer may have experienced frustration."
-        })
+                Category = "WARNING"
+                Type     = "Experience"
+                Message  = "Extended hold time detected ($([Math]::Round($DurationAnalysis.HoldTimeSeconds / 60, 1)) minutes). Customer may have experienced frustration."
+            })
     }
 
     # Insight: Long IVR time
     if ($DurationAnalysis.IvrTimeSeconds -gt 180) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "INFO"
-            Type     = "Flow"
-            Message  = "Extended IVR navigation ($([Math]::Round($DurationAnalysis.IvrTimeSeconds / 60, 1)) minutes). Consider reviewing IVR flow complexity."
-        })
+                Category = "INFO"
+                Type     = "Flow"
+                Message  = "Extended IVR navigation ($([Math]::Round($DurationAnalysis.IvrTimeSeconds / 60, 1)) minutes). Consider reviewing IVR flow complexity."
+            })
     }
 
     # Insight: Multiple transfers
@@ -3100,10 +3354,10 @@ function Get-GCConversationKeyInsights {
     }
     if ($transferCount -gt 2) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "WARNING"
-            Type     = "Flow"
-            Message  = "Multiple transfers occurred ($transferCount agent/queue handoffs). Customer experience may be affected."
-        })
+                Category = "WARNING"
+                Type     = "Flow"
+                Message  = "Multiple transfers occurred ($transferCount agent/queue handoffs). Customer experience may be affected."
+            })
     }
 
     # Insight: Error conditions
@@ -3121,10 +3375,10 @@ function Get-GCConversationKeyInsights {
     }
     if ($hasErrors) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "WARNING"
-            Type     = "Error"
-            Message  = "Technical errors occurred during the conversation: $($errorTypes -join ', ')"
-        })
+                Category = "WARNING"
+                Type     = "Error"
+                Message  = "Technical errors occurred during the conversation: $($errorTypes -join ', ')"
+            })
     }
 
     # Insight: Abnormal disconnect
@@ -3132,38 +3386,38 @@ function Get-GCConversationKeyInsights {
     foreach ($stat in $ParticipantStats) {
         if ($null -ne $stat.DisconnectType -and $stat.DisconnectType -ne "" -and $abnormalDisconnects -contains $stat.DisconnectType.ToLower()) {
             [void]$insights.Add([PSCustomObject]@{
-                Category = "WARNING"
-                Type     = "Disconnect"
-                Message  = "$($stat.Name) disconnected abnormally ($($stat.DisconnectType)). May indicate technical issue."
-            })
+                    Category = "WARNING"
+                    Type     = "Disconnect"
+                    Message  = "$($stat.Name) disconnected abnormally ($($stat.DisconnectType)). May indicate technical issue."
+                })
         }
     }
 
     # Insight: Conference call
     if ($DurationAnalysis.ConferenceSeconds -gt 0) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "INFO"
-            Type     = "Flow"
-            Message  = "Conference call included ($([Math]::Round($DurationAnalysis.ConferenceSeconds / 60, 1)) minutes with multiple parties)."
-        })
+                Category = "INFO"
+                Type     = "Flow"
+                Message  = "Conference call included ($([Math]::Round($DurationAnalysis.ConferenceSeconds / 60, 1)) minutes with multiple parties)."
+            })
     }
 
     # Insight: Long total duration
     if ($DurationAnalysis.TotalDurationSeconds -gt 3600) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "INFO"
-            Type     = "Duration"
-            Message  = "Extended conversation duration ($([Math]::Round($DurationAnalysis.TotalDurationSeconds / 60, 0)) minutes). May require follow-up review."
-        })
+                Category = "INFO"
+                Type     = "Duration"
+                Message  = "Extended conversation duration ($([Math]::Round($DurationAnalysis.TotalDurationSeconds / 60, 0)) minutes). May require follow-up review."
+            })
     }
 
     # Insight: Short conversation (might be abandoned)
     if ($DurationAnalysis.TotalDurationSeconds -gt 0 -and $DurationAnalysis.TotalDurationSeconds -lt 30) {
         [void]$insights.Add([PSCustomObject]@{
-            Category = "INFO"
-            Type     = "Duration"
-            Message  = "Very short conversation ($([Math]::Round($DurationAnalysis.TotalDurationSeconds, 0)) seconds). May indicate abandoned call or quick resolution."
-        })
+                Category = "INFO"
+                Type     = "Duration"
+                Message  = "Very short conversation ($([Math]::Round($DurationAnalysis.TotalDurationSeconds, 0)) seconds). May indicate abandoned call or quick resolution."
+            })
     }
 
     # Add a general quality rating
@@ -3186,10 +3440,10 @@ function Get-GCConversationKeyInsights {
     else { $qualityRating = "Needs Review" }
 
     [void]$insights.Insert(0, [PSCustomObject]@{
-        Category = "OVERALL"
-        Type     = "Rating"
-        Message  = "Overall Quality: $qualityRating (Score: $ratingScore/8)"
-    })
+            Category = "OVERALL"
+            Type     = "Rating"
+            Message  = "Overall Quality: $qualityRating (Score: $ratingScore/8)"
+        })
 
     return $insights
 }
@@ -3208,22 +3462,22 @@ function Get-GCErrorExplanation {
     )
 
     $explanations = @{
-        "error.ininedgecontrol.session.inactive"         = "Session became inactive, possibly due to network issues or timeout."
+        "error.ininedgecontrol.session.inactive"               = "Session became inactive, possibly due to network issues or timeout."
         "error.ininedgecontrol.connection.media.endpoint.idle" = "Media endpoint went idle, often due to prolonged silence or network dropout."
-        "sip:400" = "Bad Request - The SIP request was malformed or invalid."
-        "sip:403" = "Forbidden - The request was understood but refused."
-        "sip:404" = "Not Found - The requested resource could not be found."
-        "sip:408" = "Request Timeout - The server timed out waiting for the request."
-        "sip:410" = "Gone - The resource is no longer available (often indicates transfer completion)."
-        "sip:480" = "Temporarily Unavailable - The callee is currently unavailable."
-        "sip:486" = "Busy Here - The callee is busy."
-        "sip:487" = "Request Terminated - The request was terminated by a BYE or CANCEL."
-        "sip:500" = "Server Internal Error - An internal server error occurred."
-        "sip:502" = "Bad Gateway - The gateway received an invalid response."
-        "sip:503" = "Service Unavailable - The service is temporarily unavailable."
-        "sip:504" = "Gateway Timeout - The gateway timed out."
-        "network.packetloss" = "Network packet loss detected, causing audio quality degradation."
-        "network.jitter" = "Network jitter detected, causing inconsistent audio delivery."
+        "sip:400"                                              = "Bad Request - The SIP request was malformed or invalid."
+        "sip:403"                                              = "Forbidden - The request was understood but refused."
+        "sip:404"                                              = "Not Found - The requested resource could not be found."
+        "sip:408"                                              = "Request Timeout - The server timed out waiting for the request."
+        "sip:410"                                              = "Gone - The resource is no longer available (often indicates transfer completion)."
+        "sip:480"                                              = "Temporarily Unavailable - The callee is currently unavailable."
+        "sip:486"                                              = "Busy Here - The callee is busy."
+        "sip:487"                                              = "Request Terminated - The request was terminated by a BYE or CANCEL."
+        "sip:500"                                              = "Server Internal Error - An internal server error occurred."
+        "sip:502"                                              = "Bad Gateway - The gateway received an invalid response."
+        "sip:503"                                              = "Service Unavailable - The service is temporarily unavailable."
+        "sip:504"                                              = "Gateway Timeout - The gateway timed out."
+        "network.packetloss"                                   = "Network packet loss detected, causing audio quality degradation."
+        "network.jitter"                                       = "Network jitter detected, causing inconsistent audio delivery."
     }
 
     if ($explanations.ContainsKey($ErrorCode)) {
@@ -3264,11 +3518,11 @@ function Format-GCKeyInsightsText {
     foreach ($insight in $Insights) {
         $icon = switch ($insight.Category) {
             "CRITICAL" { "[!!!]" }
-            "WARNING"  { "[!]  " }
-            "INFO"     { "[i]  " }
-            "OK"       { "[OK] " }
-            "OVERALL"  { "[*]  " }
-            default    { "     " }
+            "WARNING" { "[!]  " }
+            "INFO" { "[i]  " }
+            "OK" { "[OK] " }
+            "OVERALL" { "[*]  " }
+            default { "     " }
         }
         [void]$sb.AppendLine("$icon $($insight.Message)")
     }
@@ -3411,11 +3665,11 @@ function Format-GCParticipantStatisticsText {
         $roleIcon = switch ($stat.Purpose) {
             "customer" { "[C]" }
             "external" { "[E]" }
-            "agent"    { "[A]" }
-            "acd"      { "[Q]" }
-            "ivr"      { "[I]" }
+            "agent" { "[A]" }
+            "acd" { "[Q]" }
+            "ivr" { "[I]" }
             "voicemail" { "[V]" }
-            default    { "[?]" }
+            default { "[?]" }
         }
 
         [void]$sb.AppendLine("$roleIcon $($stat.Name)")
@@ -3508,11 +3762,11 @@ function Format-GCConversationFlowText {
         $roleIcon = switch ($step.Purpose) {
             "customer" { "[CUSTOMER]" }
             "external" { "[EXTERNAL]" }
-            "agent"    { "[AGENT]   " }
-            "acd"      { "[QUEUE]   " }
-            "ivr"      { "[IVR]     " }
+            "agent" { "[AGENT]   " }
+            "acd" { "[QUEUE]   " }
+            "ivr" { "[IVR]     " }
             "voicemail" { "[VM]      " }
-            default    { "[OTHER]   " }
+            default { "[OTHER]   " }
         }
 
         $connector = if ($lastPurpose) { "     |" } else { "" }
@@ -3868,8 +4122,8 @@ function Start-JobPolling {
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [System.TimeSpan]::FromSeconds(6)
     $timer.Add_Tick({
-        Poll-JobStatus
-    })
+            Poll-JobStatus
+        })
     $JobTracker.Timer = $timer
     $timer.Start()
     Poll-JobStatus
@@ -3894,7 +4148,8 @@ function Poll-JobStatus {
             Stop-JobPolling
             Fetch-JobResults
         }
-    } catch {
+    }
+    catch {
         Add-LogEntry "Job status poll failed: $($_.Exception.Message)"
     }
 }
@@ -3954,7 +4209,8 @@ function Fetch-JobResults {
         $responseBox.Text = "Job $($JobTracker.JobId) completed; $($allResults.Count) results saved to temp file."
         Add-LogEntry "Job results downloaded: $($allResults.Count) total items saved to $tempFile"
         Update-JobPanel -Status $JobTracker.Status -Updated (Get-Date).ToString("HH:mm:ss")
-    } catch {
+    }
+    catch {
         $errorMessage = $_.Exception.Message
         Add-LogEntry "Fetching job results failed: $errorMessage"
         $responseBox.Text = "Failed to download job results: $errorMessage"
@@ -3976,7 +4232,8 @@ function Load-FavoritesFromDisk {
         }
 
         return $content | ConvertFrom-Json -ErrorAction Stop
-    } catch {
+    }
+    catch {
         Write-Warning "Unable to load favorites: $($_.Exception.Message)"
         return @()
     }
@@ -3990,7 +4247,8 @@ function Save-FavoritesToDisk {
 
     try {
         $Favorites | ConvertTo-Json -Depth 5 | Set-Content -Path $Path -Encoding utf8
-    } catch {
+    }
+    catch {
         Write-Warning "Unable to save favorites: $($_.Exception.Message)"
     }
 }
@@ -4008,7 +4266,8 @@ function Build-FavoritesCollection {
         foreach ($item in $Source) {
             $list.Add($item) | Out-Null
         }
-    } else {
+    }
+    else {
         $list.Add($Source) | Out-Null
     }
 
@@ -4029,7 +4288,8 @@ function Load-TemplatesFromDisk {
         }
 
         return $content | ConvertFrom-Json -ErrorAction Stop
-    } catch {
+    }
+    catch {
         Write-Warning "Unable to load templates: $($_.Exception.Message)"
         return @()
     }
@@ -4043,7 +4303,8 @@ function Save-TemplatesToDisk {
 
     try {
         $Templates | ConvertTo-Json -Depth 5 | Set-Content -Path $Path -Encoding utf8
-    } catch {
+    }
+    catch {
         Write-Warning "Unable to save templates: $($_.Exception.Message)"
     }
 }
@@ -4054,19 +4315,19 @@ $paramInputs = @{}
 $pendingFavoriteParameters = $null
 $script:FilterBuilderData = @{
     ConversationFilters = New-Object System.Collections.ArrayList
-    SegmentFilters = New-Object System.Collections.ArrayList
-    Interval = "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+    SegmentFilters      = New-Object System.Collections.ArrayList
+    Interval            = "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
 }
 $script:FilterBuilderEnums = @{
     Conversation = @{
         Dimensions = @()
-        Metrics = @()
+        Metrics    = @()
     }
-    Segment = @{
+    Segment      = @{
         Dimensions = @()
-        Metrics = @()
+        Metrics    = @()
     }
-    Operators = @("matches", "exists", "notExists")
+    Operators    = @("matches", "exists", "notExists")
 }
 
 $ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
@@ -4107,7 +4368,8 @@ if (-not $TemplatesData -or $TemplatesData.Count -eq 0) {
                 Save-TemplatesToDisk -Path $TemplatesFilePath -Templates $TemplatesData
                 Write-Host "Initialized with $($TemplatesData.Count) default conversation templates."
             }
-        } catch {
+        }
+        catch {
             Write-Warning "Could not load default templates from '$DefaultTemplatesPath': $($_.Exception.Message)"
         }
     }
@@ -4119,7 +4381,8 @@ $script:ExamplePostBodies = @{}
 if (Test-Path -Path $ExamplePostBodiesPath) {
     try {
         $script:ExamplePostBodies = Get-Content -Path $ExamplePostBodiesPath -Raw | ConvertFrom-Json -ErrorAction Stop
-    } catch {
+    }
+    catch {
         Write-Warning "Could not load example POST bodies from '$ExamplePostBodiesPath': $($_.Exception.Message)"
     }
 }
@@ -4147,7 +4410,7 @@ $Xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Genesys Cloud API Explorer" Height="860" Width="1000"
-        MinHeight="780" MinWidth="950"
+        MinHeight="600" MinWidth="800"
         WindowStartupLocation="CenterScreen">
   <DockPanel LastChildFill="True">
     <Menu DockPanel.Dock="Top">
@@ -4168,7 +4431,8 @@ $Xaml = @"
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
-      <RowDefinition Height="2*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
@@ -4179,7 +4443,8 @@ $Xaml = @"
 
     <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0 0 0 10">
       <TextBlock Text="OAuth Token:" VerticalAlignment="Center" Margin="0 0 5 0"/>
-      <TextBox Name="TokenInput" Width="450" Margin="0 0 10 0" ToolTip="Paste your Genesys Cloud OAuth token here."/>
+      <TextBox Name="TokenInput" Width="400" Margin="0 0 10 0" ToolTip="Paste your Genesys Cloud OAuth token here."/>
+      <Button Name="LoginButton" Width="80" Height="26" Content="Login..." Margin="0 0 10 0" Background="#E0E0FF"/>
       <Button Name="TestTokenButton" Width="90" Height="26" Content="Test Token" Margin="0 0 10 0" ToolTip="Verify token validity"/>
       <TextBlock Name="TokenStatusText" VerticalAlignment="Center" Foreground="Gray" Text="Not tested"/>
     </StackPanel>
@@ -4209,7 +4474,7 @@ $Xaml = @"
 
     <Expander Grid.Row="3" Name="ParametersExpander" Header="Parameters" IsExpanded="True" Margin="0 0 0 10">
       <Border BorderBrush="LightGray" BorderThickness="1" Padding="10">
-        <ScrollViewer Height="220" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Name="ParameterPanel"/>
         </ScrollViewer>
       </Border>
@@ -4510,6 +4775,7 @@ $btnSave = $Window.FindName("SaveButton")
 $responseBox = $Window.FindName("ResponseText")
 $logBox = $Window.FindName("LogText")
 $tokenBox = $Window.FindName("TokenInput")
+$loginButton = $Window.FindName("LoginButton")
 $testTokenButton = $Window.FindName("TestTokenButton")
 $tokenStatusText = $Window.FindName("TokenStatusText")
 $progressIndicator = $Window.FindName("ProgressIndicator")
@@ -4587,74 +4853,74 @@ if ($filterBuilderBorder) {
 
     if ($conversationPredicateTypeCombo) {
         $conversationPredicateTypeCombo.Add_SelectionChanged({
-            Update-FilterFieldOptions -Scope "Conversation" -PredicateType $conversationPredicateTypeCombo.SelectedItem -ComboBox $conversationFieldCombo
-        })
+                Update-FilterFieldOptions -Scope "Conversation" -PredicateType $conversationPredicateTypeCombo.SelectedItem -ComboBox $conversationFieldCombo
+            })
     }
     if ($segmentPredicateTypeCombo) {
         $segmentPredicateTypeCombo.Add_SelectionChanged({
-            Update-FilterFieldOptions -Scope "Segment" -PredicateType $segmentPredicateTypeCombo.SelectedItem -ComboBox $segmentFieldCombo
-        })
+                Update-FilterFieldOptions -Scope "Segment" -PredicateType $segmentPredicateTypeCombo.SelectedItem -ComboBox $segmentFieldCombo
+            })
     }
 
     if ($addConversationPredicateButton) {
         $addConversationPredicateButton.Add_Click({
-            $filter = Build-FilterFromInput -Scope "Conversation" -FilterTypeCombo $conversationFilterTypeCombo -PredicateTypeCombo $conversationPredicateTypeCombo -FieldCombo $conversationFieldCombo -OperatorCombo $conversationOperatorCombo -ValueInput $conversationValueInput
-            if ($filter) {
-                Add-FilterEntry -Scope "Conversation" -FilterObject $filter
-                if ($conversationValueInput) { $conversationValueInput.Clear() }
-            }
-        })
+                $filter = Build-FilterFromInput -Scope "Conversation" -FilterTypeCombo $conversationFilterTypeCombo -PredicateTypeCombo $conversationPredicateTypeCombo -FieldCombo $conversationFieldCombo -OperatorCombo $conversationOperatorCombo -ValueInput $conversationValueInput
+                if ($filter) {
+                    Add-FilterEntry -Scope "Conversation" -FilterObject $filter
+                    if ($conversationValueInput) { $conversationValueInput.Clear() }
+                }
+            })
     }
 
     if ($addSegmentPredicateButton) {
         $addSegmentPredicateButton.Add_Click({
-            $filter = Build-FilterFromInput -Scope "Segment" -FilterTypeCombo $segmentFilterTypeCombo -PredicateTypeCombo $segmentPredicateTypeCombo -FieldCombo $segmentFieldCombo -OperatorCombo $segmentOperatorCombo -ValueInput $segmentValueInput -PropertyTypeCombo $segmentPropertyTypeCombo
-            if ($filter) {
-                Add-FilterEntry -Scope "Segment" -FilterObject $filter
-                if ($segmentValueInput) { $segmentValueInput.Clear() }
-            }
-        })
+                $filter = Build-FilterFromInput -Scope "Segment" -FilterTypeCombo $segmentFilterTypeCombo -PredicateTypeCombo $segmentPredicateTypeCombo -FieldCombo $segmentFieldCombo -OperatorCombo $segmentOperatorCombo -ValueInput $segmentValueInput -PropertyTypeCombo $segmentPropertyTypeCombo
+                if ($filter) {
+                    Add-FilterEntry -Scope "Segment" -FilterObject $filter
+                    if ($segmentValueInput) { $segmentValueInput.Clear() }
+                }
+            })
     }
 
     if ($conversationFiltersList -and $removeConversationPredicateButton) {
         $conversationFiltersList.Add_SelectionChanged({
-            $removeConversationPredicateButton.IsEnabled = ($conversationFiltersList.SelectedIndex -ge 0)
-        })
+                $removeConversationPredicateButton.IsEnabled = ($conversationFiltersList.SelectedIndex -ge 0)
+            })
         $removeConversationPredicateButton.Add_Click({
-            $index = $conversationFiltersList.SelectedIndex
-            if ($index -ge 0) {
-                $script:FilterBuilderData.ConversationFilters.RemoveAt($index)
-                Refresh-FilterList -Scope "Conversation"
-                $removeConversationPredicateButton.IsEnabled = $false
-            }
-        })
+                $index = $conversationFiltersList.SelectedIndex
+                if ($index -ge 0) {
+                    $script:FilterBuilderData.ConversationFilters.RemoveAt($index)
+                    Refresh-FilterList -Scope "Conversation"
+                    $removeConversationPredicateButton.IsEnabled = $false
+                }
+            })
     }
 
     if ($segmentFiltersList -and $removeSegmentPredicateButton) {
         $segmentFiltersList.Add_SelectionChanged({
-            $removeSegmentPredicateButton.IsEnabled = ($segmentFiltersList.SelectedIndex -ge 0)
-        })
+                $removeSegmentPredicateButton.IsEnabled = ($segmentFiltersList.SelectedIndex -ge 0)
+            })
         $removeSegmentPredicateButton.Add_Click({
-            $index = $segmentFiltersList.SelectedIndex
-            if ($index -ge 0) {
-                $script:FilterBuilderData.SegmentFilters.RemoveAt($index)
-                Refresh-FilterList -Scope "Segment"
-                $removeSegmentPredicateButton.IsEnabled = $false
-            }
-        })
+                $index = $segmentFiltersList.SelectedIndex
+                if ($index -ge 0) {
+                    $script:FilterBuilderData.SegmentFilters.RemoveAt($index)
+                    Refresh-FilterList -Scope "Segment"
+                    $removeSegmentPredicateButton.IsEnabled = $false
+                }
+            })
     }
 
-        if ($refreshFiltersButton) {
-            $refreshFiltersButton.Add_Click({
+    if ($refreshFiltersButton) {
+        $refreshFiltersButton.Add_Click({
                 Invoke-FilterBuilderBody
             })
-        }
+    }
     if ($resetFiltersButton) {
         $resetFiltersButton.Add_Click({
-            Reset-FilterBuilderData
-            Refresh-FilterList -Scope "Conversation"
-            Refresh-FilterList -Scope "Segment"
-        })
+                Reset-FilterBuilderData
+                Refresh-FilterList -Scope "Conversation"
+                Refresh-FilterList -Scope "Segment"
+            })
     }
 }
 $script:LastConversationReport = $null
@@ -4713,7 +4979,8 @@ function Invoke-ReloadEndpoints {
         Add-LogEntry "Endpoints reloaded from: $JsonPath"
 
         return $true
-    } catch {
+    }
+    catch {
         [System.Windows.MessageBox]::Show("Error loading endpoints: $($_.Exception.Message)", "Load Error", "OK", "Error")
         Add-LogEntry "Error reloading endpoints: $($_.Exception.Message)"
         return $false
@@ -4752,1100 +5019,1133 @@ Update-JobPanel -Status "" -Updated ""
 
 if ($Favorites.Count -gt 0) {
     Add-LogEntry "Loaded $($Favorites.Count) favorites from $FavoritesFile."
-} else {
+}
+else {
     Add-LogEntry "No favorites saved yet; create one from your current request."
 }
 
 Show-SplashScreen
 
 $groupCombo.Add_SelectionChanged({
-    $parameterPanel.Children.Clear()
-    $paramInputs.Clear()
-    $pathCombo.Items.Clear()
-    $methodCombo.Items.Clear()
-    $responseBox.Text = ""
-    $btnSave.IsEnabled = $false
-
-    $selectedGroup = $groupCombo.SelectedItem
-    if (-not $selectedGroup) {
-        return
-    }
-
-    $paths = $script:GroupMap[$selectedGroup]
-    if (-not $paths) { return }
-    foreach ($path in ($paths | Sort-Object)) {
-        $pathCombo.Items.Add($path) | Out-Null
-    }
-
-    $statusText.Text = "Group '$selectedGroup' selected. Choose a path."
-})
-
-$pathCombo.Add_SelectionChanged({
-    $methodCombo.Items.Clear()
-    $parameterPanel.Children.Clear()
-    $paramInputs.Clear()
-    $responseBox.Text = ""
-    $btnSave.IsEnabled = $false
-
-    $selectedPath = $pathCombo.SelectedItem
-    if (-not $selectedPath) { return }
-
-    $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
-    if (-not $pathObject) { return }
-
-    # Filter methods to only include GET and POST (read-only mode)
-    $allowedMethods = @('get', 'post')
-    foreach ($method in $pathObject.PSObject.Properties | Select-Object -ExpandProperty Name) {
-        if ($allowedMethods -contains $method.ToLower()) {
-            $methodCombo.Items.Add($method) | Out-Null
-        }
-    }
-
-    $statusText.Text = "Path '$selectedPath' loaded. Select a method."
-})
-
-$methodCombo.Add_SelectionChanged({
-    $parameterPanel.Children.Clear()
-    $paramInputs.Clear()
-    $responseBox.Text = ""
-    $btnSave.IsEnabled = $false
-
-    $selectedPath = $pathCombo.SelectedItem
-    $selectedMethod = $methodCombo.SelectedItem
-    if (-not $selectedPath -or -not $selectedMethod) {
-        return
-    }
-
-    $script:CurrentBodyControl = $null
-    $script:CurrentBodySchema = $null
-    Reset-FilterBuilderData
-    Set-FilterBuilderVisibility -Visible $false
-
-    $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
-    $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
-    if (-not $methodObject) {
-        return
-    }
-
-    $params = $methodObject.parameters
-    if (-not $params) { return }
-
-    foreach ($param in $params) {
-        $row = New-Object System.Windows.Controls.Grid
-        $row.Margin = New-Object System.Windows.Thickness 0,0,0,8
-
-        $col0 = New-Object System.Windows.Controls.ColumnDefinition
-        $col0.Width = New-Object System.Windows.GridLength 240
-        $row.ColumnDefinitions.Add($col0)
-
-        $col1 = New-Object System.Windows.Controls.ColumnDefinition
-        $col1.Width = New-Object System.Windows.GridLength 1, ([System.Windows.GridUnitType]::Star)
-        $row.ColumnDefinitions.Add($col1)
-
-        $label = New-Object System.Windows.Controls.TextBlock
-        $label.Text = "$($param.name) ($($param.in))"
-        if ($param.required) {
-            $label.Text += " (required)"
-        }
-        $label.VerticalAlignment = "Center"
-        $label.ToolTip = $param.description
-        $label.Margin = New-Object System.Windows.Thickness 0,0,10,0
-        [System.Windows.Controls.Grid]::SetColumn($label, 0)
-
-        # Create appropriate control based on parameter type and metadata
-        $inputControl = $null
-
-        # Check if parameter is array type (special handling)
-        if ($param.type -eq "array") {
-            $textbox = New-Object System.Windows.Controls.TextBox
-            $textbox.MinWidth = 360
-            $textbox.HorizontalAlignment = "Stretch"
-            $textbox.TextWrapping = "Wrap"
-            $textbox.Height = 28
-            if ($param.required) {
-                $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
-            }
-
-            # Build enhanced tooltip with array information
-            $arrayTooltip = $param.description
-            if ($param.items -and $param.items.type) {
-                $arrayTooltip += "`n`nArray of: $($param.items.type)"
-            }
-            $arrayTooltip += "`n`nEnter comma-separated values (e.g., value1, value2, value3)"
-            $textbox.ToolTip = $arrayTooltip
-
-            # Store metadata for validation
-            $textbox.Tag = @{
-                Type = "array"
-                ItemType = if ($param.items) { $param.items.type } else { "string" }
-            }
-
-            [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
-            $inputControl = $textbox
-        }
-
-        # Check if parameter has enum values (dropdown)
-        elseif ($param.enum -and $param.enum.Count -gt 0) {
-            $comboBox = New-Object System.Windows.Controls.ComboBox
-            $comboBox.MinWidth = 360
-            $comboBox.HorizontalAlignment = "Stretch"
-            $comboBox.Height = 28
-            if ($param.required) {
-                $comboBox.Background = [System.Windows.Media.Brushes]::LightYellow
-            }
-            $comboBox.ToolTip = $param.description
-
-            # Add empty option for optional parameters
-            if (-not $param.required) {
-                $comboBox.Items.Add("") | Out-Null
-            }
-
-            # Add enum values
-            foreach ($enumValue in $param.enum) {
-                $comboBox.Items.Add($enumValue) | Out-Null
-            }
-
-            # Set default value if exists
-            if ($param.default) {
-                $comboBox.SelectedItem = $param.default
-            }
-
-            [System.Windows.Controls.Grid]::SetColumn($comboBox, 1)
-            $inputControl = $comboBox
-        }
-        # Check if parameter is boolean type (checkbox)
-        elseif ($param.type -eq "boolean") {
-            $checkBoxPanel = New-Object System.Windows.Controls.StackPanel
-            $checkBoxPanel.Orientation = "Horizontal"
-
-            $checkBox = New-Object System.Windows.Controls.CheckBox
-            $checkBox.VerticalAlignment = "Center"
-            $checkBox.ToolTip = $param.description
-            $checkBox.Margin = New-Object System.Windows.Thickness 0,0,10,0
-
-            # Set default value if exists
-            if ($param.default -ne $null) {
-                if ($param.default -eq $true -or $param.default -eq "true") {
-                    $checkBox.IsChecked = $true
-                }
-            }
-
-            $checkBoxLabel = New-Object System.Windows.Controls.TextBlock
-            $checkBoxLabel.Text = if ($param.default -ne $null) { "(default: $($param.default))" } else { "" }
-            $checkBoxLabel.VerticalAlignment = "Center"
-            $checkBoxLabel.Foreground = [System.Windows.Media.Brushes]::Gray
-            $checkBoxLabel.FontSize = 11
-
-            $checkBoxPanel.Children.Add($checkBox) | Out-Null
-            $checkBoxPanel.Children.Add($checkBoxLabel) | Out-Null
-
-            [System.Windows.Controls.Grid]::SetColumn($checkBoxPanel, 1)
-            $inputControl = $checkBoxPanel
-            # Store reference to the checkbox itself for value retrieval
-            $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $checkBox
-        }
-        # Check if parameter is array type
-        elseif ($param.type -eq "array") {
-            # Create a container for textbox and hint
-            $arrayPanel = New-Object System.Windows.Controls.StackPanel
-            $arrayPanel.Orientation = "Vertical"
-
-            $textbox = New-Object System.Windows.Controls.TextBox
-            $textbox.MinWidth = 360
-            $textbox.HorizontalAlignment = "Stretch"
-            $textbox.Height = 28
-            if ($param.required) {
-                $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
-            }
-            $textbox.ToolTip = $param.description
-
-            # Store array metadata for validation
-            $textbox | Add-Member -NotePropertyName "IsArrayType" -NotePropertyValue $true
-            $textbox | Add-Member -NotePropertyName "ArrayItems" -NotePropertyValue $param.items
-
-            # Add hint text
-            $hintText = New-Object System.Windows.Controls.TextBlock
-            $itemTypeStr = if ($param.items -and $param.items.type) { $param.items.type } else { "string" }
-            $hintText.Text = "Enter comma-separated values (type: $itemTypeStr)"
-            $hintText.FontSize = 10
-            $hintText.Foreground = [System.Windows.Media.Brushes]::Gray
-            $hintText.Margin = New-Object System.Windows.Thickness 0,2,0,0
-
-            # Add validation indicator
-            $validationText = New-Object System.Windows.Controls.TextBlock
-            $validationText.FontSize = 10
-            $validationText.Margin = New-Object System.Windows.Thickness 0,2,0,0
-            $validationText.Visibility = "Collapsed"
-
-            # Store reference to validation text for later updates
-            $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
-
-            # Add real-time validation for array parameters
-            $textbox.Add_TextChanged({
-                param($sender, $e)
-                $text = $sender.Text.Trim()
-                $validationTextBlock = $sender.ValidationText
-
-                if ([string]::IsNullOrWhiteSpace($text)) {
-                    $sender.BorderBrush = $null
-                    $sender.BorderThickness = New-Object System.Windows.Thickness 1
-                    $validationTextBlock.Visibility = "Collapsed"
-                } else {
-                    $testResult = Test-ArrayValue -Value $text -ItemType $sender.ArrayItems
-                    if ($testResult.IsValid) {
-                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
-                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
-                        $validationTextBlock.Visibility = "Collapsed"
-                    } else {
-                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
-                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
-                        $validationTextBlock.Text = "✗ " + $testResult.ErrorMessage
-                        $validationTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
-                        $validationTextBlock.Visibility = "Visible"
-                    }
-                }
-            })
-
-            $arrayPanel.Children.Add($textbox) | Out-Null
-            $arrayPanel.Children.Add($hintText) | Out-Null
-            $arrayPanel.Children.Add($validationText) | Out-Null
-
-            [System.Windows.Controls.Grid]::SetColumn($arrayPanel, 1)
-            $inputControl = $arrayPanel
-            # Store reference to the textbox itself for value retrieval
-            $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
-        }
-        # Default: use textbox
-        else {
-            $textbox = New-Object System.Windows.Controls.TextBox
-            $textbox.MinWidth = 360
-            $textbox.HorizontalAlignment = "Stretch"
-            $textbox.TextWrapping = "Wrap"
-            $textbox.AcceptsReturn = ($param.in -eq "body")
-            $textbox.Height = if ($param.in -eq "body") { 80 } else { 28 }
-            if ($param.required) {
-                $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
-            }
-
-            # Build enhanced tooltip with validation constraints
-            $enhancedTooltip = $param.description
-            if ($param.type -eq "integer" -or $param.type -eq "number") {
-                if ($param.minimum -ne $null) {
-                    $enhancedTooltip += "`n`nMinimum: $($param.minimum)"
-                }
-                if ($param.maximum -ne $null) {
-                    $enhancedTooltip += "`n`nMaximum: $($param.maximum)"
-                }
-                if ($param.format) {
-                    $enhancedTooltip += "`n`nFormat: $($param.format)"
-                }
-            }
-            if ($param.default -ne $null) {
-                $enhancedTooltip += "`n`nDefault: $($param.default)"
-            }
-            $textbox.ToolTip = $enhancedTooltip
-
-            # Store parameter metadata for validation
-            if ($param.in -eq "body") {
-                $textbox.Tag = "body"
-            } else {
-                # Store type and validation constraints
-                $textbox.Tag = @{
-                    Type = $param.type
-                    Format = $param.format
-                    Minimum = $param.minimum
-                    Maximum = $param.maximum
-                }
-            }
-
-            # Add real-time JSON validation for body parameters
-            if ($param.in -eq "body") {
-                $textbox.Tag = "body"
-
-                # Create container for body textbox with character count
-                $bodyPanel = New-Object System.Windows.Controls.StackPanel
-                $bodyPanel.Orientation = "Vertical"
-
-                # Add line number and character count info
-                $infoText = New-Object System.Windows.Controls.TextBlock
-                $infoText.FontSize = 10
-                $infoText.Foreground = [System.Windows.Media.Brushes]::Gray
-                $infoText.Margin = New-Object System.Windows.Thickness 0,2,0,0
-                $infoText.Text = "Lines: 0 | Characters: 0"
-
-                # Store reference for updates
-                $textbox | Add-Member -NotePropertyName "InfoText" -NotePropertyValue $infoText
-
-                $textbox.Add_TextChanged({
-                    param($sender, $e)
-                    $text = $sender.Text.Trim()
-                    $infoTextBlock = $sender.InfoText
-
-                    # Update character count and line count
-                    $charCount = $sender.Text.Length
-                    $lineCount = ($sender.Text -split "`n").Count
-                    $infoTextBlock.Text = "Lines: $lineCount | Characters: $charCount"
-
-                    if ([string]::IsNullOrWhiteSpace($text)) {
-                        # Empty is OK - will be checked as required field
-                        $sender.BorderBrush = $null
-                        $sender.BorderThickness = New-Object System.Windows.Thickness 1
-                        $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Gray
-                    } elseif (Test-JsonString -JsonString $text) {
-                        # Valid JSON - green border and checkmark
-                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
-                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
-                        $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Green
-                    } else {
-                        # Invalid JSON - red border and X
-                        $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
-                        $sender.BorderThickness = New-Object System.Windows.Thickness 2
-                        $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
-                    }
-                })
-
-                # Replace the textbox with the panel containing textbox and info
-                $bodyPanel.Children.Add($textbox) | Out-Null
-                $bodyPanel.Children.Add($infoText) | Out-Null
-                [System.Windows.Controls.Grid]::SetColumn($bodyPanel, 1)
-                $inputControl = $bodyPanel
-                # Store reference to the textbox for value retrieval
-                $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
-            }
-            # Add real-time validation for numeric and format parameters
-            elseif ($param.type -in @("integer", "number") -or $param.format -or $param.pattern) {
-                # Create container for textbox and validation message
-                $validatedPanel = New-Object System.Windows.Controls.StackPanel
-                $validatedPanel.Orientation = "Vertical"
-
-                $validationText = New-Object System.Windows.Controls.TextBlock
-                $validationText.FontSize = 10
-                $validationText.Margin = New-Object System.Windows.Thickness 0,2,0,0
-                $validationText.Visibility = "Collapsed"
-
-                # Store reference to validation text
-                $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
-
-                $textbox.Add_TextChanged({
-                    param($sender, $e)
-                    $text = $sender.Text.Trim()
-                    $validationTextBlock = $sender.ValidationText
-
-                    if ([string]::IsNullOrWhiteSpace($text)) {
-                        $sender.BorderBrush = $null
-                        $sender.BorderThickness = New-Object System.Windows.Thickness 1
-                        $validationTextBlock.Visibility = "Collapsed"
-                    } else {
-                        $isValid = $true
-                        $errorMsg = ""
-
-                        # Validate numeric types
-                        if ($sender.ParamType -in @("integer", "number")) {
-                            $testResult = Test-NumericValue -Value $text -Type $sender.ParamType -Minimum $sender.ParamMinimum -Maximum $sender.ParamMaximum
-                            $isValid = $testResult.IsValid
-                            $errorMsg = $testResult.ErrorMessage
-                        }
-                        # Validate string formats
-                        elseif ($sender.ParamFormat -or $sender.ParamPattern) {
-                            $testResult = Test-StringFormat -Value $text -Format $sender.ParamFormat -Pattern $sender.ParamPattern
-                            $isValid = $testResult.IsValid
-                            $errorMsg = $testResult.ErrorMessage
-                        }
-
-                        if ($isValid) {
-                            $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
-                            $sender.BorderThickness = New-Object System.Windows.Thickness 2
-                            $validationTextBlock.Visibility = "Collapsed"
-                        } else {
-                            $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
-                            $sender.BorderThickness = New-Object System.Windows.Thickness 2
-                            $validationTextBlock.Text = "✗ " + $errorMsg
-                            $validationTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
-                            $validationTextBlock.Visibility = "Visible"
-                        }
-                    }
-                })
-
-                $validatedPanel.Children.Add($textbox) | Out-Null
-                $validatedPanel.Children.Add($validationText) | Out-Null
-                [System.Windows.Controls.Grid]::SetColumn($validatedPanel, 1)
-                $inputControl = $validatedPanel
-                # Store reference to the textbox for value retrieval
-                $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
-            }
-            else {
-                [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
-                $inputControl = $textbox
-            }
-        }
-
-        $row.Children.Add($label) | Out-Null
-        $row.Children.Add($inputControl) | Out-Null
-
-        $parameterPanel.Children.Add($row) | Out-Null
-        $paramInputs[$param.name] = $inputControl
-        if ($param.in -eq "body") {
-            $script:CurrentBodyControl = $inputControl
-            $script:CurrentBodySchema = $param.schema
-        }
-
-        # Add event handlers for conditional parameter visibility updates
-        # This infrastructure is ready for future use when API schema includes parameter dependencies
-        try {
-            $actualControl = $inputControl
-
-            # Get the actual input control (unwrap if in panel)
-            if ($inputControl.ValueControl) {
-                $actualControl = $inputControl.ValueControl
-            }
-
-            # Add change handler to trigger visibility updates
-            if ($actualControl -is [System.Windows.Controls.ComboBox]) {
-                $actualControl.Add_SelectionChanged({
-                    # Update-ParameterVisibility would be called here when dependencies exist
-                    # Currently a no-op as API schema doesn't define conditional parameters
-                })
-            } elseif ($actualControl -is [System.Windows.Controls.CheckBox]) {
-                $actualControl.Add_Checked({
-                    # Update-ParameterVisibility would be called here when dependencies exist
-                })
-                $actualControl.Add_Unchecked({
-                    # Update-ParameterVisibility would be called here when dependencies exist
-                })
-            } elseif ($actualControl -is [System.Windows.Controls.TextBox]) {
-                # TextChanged would be too frequent; use LostFocus instead
-                $actualControl.Add_LostFocus({
-                    # Update-ParameterVisibility would be called here when dependencies exist
-                })
-            }
-        } catch {
-            # Silently continue if event handler setup fails
-        }
-    }
-
-    $bodySchemaResolved = Resolve-SchemaReference -Schema $script:CurrentBodySchema -Definitions $script:Definitions
-    $builderActive = $bodySchemaResolved -and $bodySchemaResolved.properties `
-        -and ($bodySchemaResolved.properties.conversationFilters -or $bodySchemaResolved.properties.segmentFilters)
-
-    if ($builderActive) {
-        Set-FilterBuilderVisibility -Visible $true
-        Update-FilterBuilderHint
-    } else {
-        Set-FilterBuilderVisibility -Visible $false
-        if ($filterBuilderHintText) {
-            $filterBuilderHintText.Text = ""
-        }
-    }
-
-    $statusText.Text = "Provide values for the parameters and submit."
-    if ($pendingFavoriteParameters) {
-        Populate-ParameterValues -ParameterSet $pendingFavoriteParameters
-        $pendingFavoriteParameters = $null
-    } else {
-        # Try to populate body parameter with example template if available
-        $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
-        if ($exampleBody) {
-            # Find the body parameter input and populate it
-            foreach ($param in $params) {
-                if ($param.in -eq "body") {
-                    $bodyInput = $paramInputs[$param.name]
-                    if ($bodyInput) {
-                        $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
-                        if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
-                            $bodyTextControl.Text = $exampleBody
-                        }
-                        $statusText.Text = "Example body template loaded. Modify as needed and submit."
-                    }
-                    break
-                }
-            }
-        }
-    }
-    $responseSchema = Get-ResponseSchema -MethodObject $methodObject
-    Update-SchemaList -Schema $responseSchema
-})
-
-if ($favoritesList) {
-    $favoritesList.Add_SelectionChanged({
-        $favorite = $favoritesList.SelectedItem
-        if (-not $favorite) { return }
-
-        $favoritePath = $favorite.Path
-        $favoriteMethod = $favorite.Method
-        $favoriteGroup = if ($favorite.Group) { $favorite.Group } else { Get-GroupForPath -Path $favoritePath }
-
-        if ($favoriteGroup -and $GroupMap.ContainsKey($favoriteGroup)) {
-            $groupCombo.SelectedItem = $favoriteGroup
-        }
-
-        if ($favoritePath) {
-            $pathCombo.SelectedItem = $favoritePath
-        }
-
-        if ($favoriteMethod) {
-            $pendingFavoriteParameters = $favorite.Parameters
-            $methodCombo.SelectedItem = $favoriteMethod
-        }
-
-        $statusText.Text = "Favorite '$($favorite.Name)' loaded."
-        Add-LogEntry "Favorite applied: $($favorite.Name)"
-    })
-}
-
-if ($saveFavoriteButton) {
-    $saveFavoriteButton.Add_Click({
-        $favoriteName = if ($favoriteNameInput) { $favoriteNameInput.Text.Trim() } else { "" }
-
-        if (-not $favoriteName) {
-            $statusText.Text = "Enter a name before saving a favorite."
+        $parameterPanel.Children.Clear()
+        $paramInputs.Clear()
+        $pathCombo.Items.Clear()
+        $methodCombo.Items.Clear()
+        $responseBox.Text = ""
+        $btnSave.IsEnabled = $false
+
+        $selectedGroup = $groupCombo.SelectedItem
+        if (-not $selectedGroup) {
             return
         }
+
+        $paths = $script:GroupMap[$selectedGroup]
+        if (-not $paths) { return }
+        foreach ($path in ($paths | Sort-Object)) {
+            $pathCombo.Items.Add($path) | Out-Null
+        }
+
+        $statusText.Text = "Group '$selectedGroup' selected. Choose a path."
+    })
+
+$pathCombo.Add_SelectionChanged({
+        $methodCombo.Items.Clear()
+        $parameterPanel.Children.Clear()
+        $paramInputs.Clear()
+        $responseBox.Text = ""
+        $btnSave.IsEnabled = $false
+
+        $selectedPath = $pathCombo.SelectedItem
+        if (-not $selectedPath) { return }
+
+        $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
+        if (-not $pathObject) { return }
+
+        # Filter methods to only include GET and POST (read-only mode)
+        $allowedMethods = @('get', 'post')
+        foreach ($method in $pathObject.PSObject.Properties | Select-Object -ExpandProperty Name) {
+            if ($allowedMethods -contains $method.ToLower()) {
+                $methodCombo.Items.Add($method) | Out-Null
+            }
+        }
+
+        $statusText.Text = "Path '$selectedPath' loaded. Select a method."
+    })
+
+$methodCombo.Add_SelectionChanged({
+        $parameterPanel.Children.Clear()
+        $paramInputs.Clear()
+        $responseBox.Text = ""
+        $btnSave.IsEnabled = $false
 
         $selectedPath = $pathCombo.SelectedItem
         $selectedMethod = $methodCombo.SelectedItem
         if (-not $selectedPath -or -not $selectedMethod) {
-            $statusText.Text = "Pick an endpoint and method before saving."
             return
         }
 
-        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+        $script:CurrentBodyControl = $null
+        $script:CurrentBodySchema = $null
+        Reset-FilterBuilderData
+        Set-FilterBuilderVisibility -Visible $false
+
+        $pathObject = Get-PathObject -ApiPaths $script:ApiPaths -Path $selectedPath
         $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
         if (-not $methodObject) {
-            $statusText.Text = "Unable to read the selected method metadata."
             return
         }
 
         $params = $methodObject.parameters
-        $paramData = @()
+        if (-not $params) { return }
+
         foreach ($param in $params) {
-            $value = ""
-            $input = $paramInputs[$param.name]
-            if ($input) {
-                $value = $input.Text
+            $row = New-Object System.Windows.Controls.Grid
+            $row.Margin = New-Object System.Windows.Thickness 0, 0, 0, 8
+
+            $col0 = New-Object System.Windows.Controls.ColumnDefinition
+            $col0.Width = New-Object System.Windows.GridLength 240
+            $row.ColumnDefinitions.Add($col0)
+
+            $col1 = New-Object System.Windows.Controls.ColumnDefinition
+            $col1.Width = New-Object System.Windows.GridLength 1, ([System.Windows.GridUnitType]::Star)
+            $row.ColumnDefinitions.Add($col1)
+
+            $label = New-Object System.Windows.Controls.TextBlock
+            $label.Text = "$($param.name) ($($param.in))"
+            if ($param.required) {
+                $label.Text += " (required)"
+            }
+            $label.VerticalAlignment = "Center"
+            $label.ToolTip = $param.description
+            $label.Margin = New-Object System.Windows.Thickness 0, 0, 10, 0
+            [System.Windows.Controls.Grid]::SetColumn($label, 0)
+
+            # Create appropriate control based on parameter type and metadata
+            $inputControl = $null
+
+            # Check if parameter is array type (special handling)
+            if ($param.type -eq "array") {
+                $textbox = New-Object System.Windows.Controls.TextBox
+                $textbox.MinWidth = 360
+                $textbox.HorizontalAlignment = "Stretch"
+                $textbox.TextWrapping = "Wrap"
+                $textbox.Height = 28
+                if ($param.required) {
+                    $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+                }
+
+                # Build enhanced tooltip with array information
+                $arrayTooltip = $param.description
+                if ($param.items -and $param.items.type) {
+                    $arrayTooltip += "`n`nArray of: $($param.items.type)"
+                }
+                $arrayTooltip += "`n`nEnter comma-separated values (e.g., value1, value2, value3)"
+                $textbox.ToolTip = $arrayTooltip
+
+                # Store metadata for validation
+                $textbox.Tag = @{
+                    Type     = "array"
+                    ItemType = if ($param.items) { $param.items.type } else { "string" }
+                }
+
+                [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+                $inputControl = $textbox
             }
 
-            $paramData += [PSCustomObject]@{
-                name  = $param.name
-                in    = $param.in
-                value = $value
+            # Check if parameter has enum values (dropdown)
+            elseif ($param.enum -and $param.enum.Count -gt 0) {
+                $comboBox = New-Object System.Windows.Controls.ComboBox
+                $comboBox.MinWidth = 360
+                $comboBox.HorizontalAlignment = "Stretch"
+                $comboBox.Height = 28
+                if ($param.required) {
+                    $comboBox.Background = [System.Windows.Media.Brushes]::LightYellow
+                }
+                $comboBox.ToolTip = $param.description
+
+                # Add empty option for optional parameters
+                if (-not $param.required) {
+                    $comboBox.Items.Add("") | Out-Null
+                }
+
+                # Add enum values
+                foreach ($enumValue in $param.enum) {
+                    $comboBox.Items.Add($enumValue) | Out-Null
+                }
+
+                # Set default value if exists
+                if ($param.default) {
+                    $comboBox.SelectedItem = $param.default
+                }
+
+                [System.Windows.Controls.Grid]::SetColumn($comboBox, 1)
+                $inputControl = $comboBox
+            }
+            # Check if parameter is boolean type (checkbox)
+            elseif ($param.type -eq "boolean") {
+                $checkBoxPanel = New-Object System.Windows.Controls.StackPanel
+                $checkBoxPanel.Orientation = "Horizontal"
+
+                $checkBox = New-Object System.Windows.Controls.CheckBox
+                $checkBox.VerticalAlignment = "Center"
+                $checkBox.ToolTip = $param.description
+                $checkBox.Margin = New-Object System.Windows.Thickness 0, 0, 10, 0
+
+                # Set default value if exists
+                if ($param.default -ne $null) {
+                    if ($param.default -eq $true -or $param.default -eq "true") {
+                        $checkBox.IsChecked = $true
+                    }
+                }
+
+                $checkBoxLabel = New-Object System.Windows.Controls.TextBlock
+                $checkBoxLabel.Text = if ($param.default -ne $null) { "(default: $($param.default))" } else { "" }
+                $checkBoxLabel.VerticalAlignment = "Center"
+                $checkBoxLabel.Foreground = [System.Windows.Media.Brushes]::Gray
+                $checkBoxLabel.FontSize = 11
+
+                $checkBoxPanel.Children.Add($checkBox) | Out-Null
+                $checkBoxPanel.Children.Add($checkBoxLabel) | Out-Null
+
+                [System.Windows.Controls.Grid]::SetColumn($checkBoxPanel, 1)
+                $inputControl = $checkBoxPanel
+                # Store reference to the checkbox itself for value retrieval
+                $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $checkBox
+            }
+            # Check if parameter is array type
+            elseif ($param.type -eq "array") {
+                # Create a container for textbox and hint
+                $arrayPanel = New-Object System.Windows.Controls.StackPanel
+                $arrayPanel.Orientation = "Vertical"
+
+                $textbox = New-Object System.Windows.Controls.TextBox
+                $textbox.MinWidth = 360
+                $textbox.HorizontalAlignment = "Stretch"
+                $textbox.Height = 28
+                if ($param.required) {
+                    $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+                }
+                $textbox.ToolTip = $param.description
+
+                # Store array metadata for validation
+                $textbox | Add-Member -NotePropertyName "IsArrayType" -NotePropertyValue $true
+                $textbox | Add-Member -NotePropertyName "ArrayItems" -NotePropertyValue $param.items
+
+                # Add hint text
+                $hintText = New-Object System.Windows.Controls.TextBlock
+                $itemTypeStr = if ($param.items -and $param.items.type) { $param.items.type } else { "string" }
+                $hintText.Text = "Enter comma-separated values (type: $itemTypeStr)"
+                $hintText.FontSize = 10
+                $hintText.Foreground = [System.Windows.Media.Brushes]::Gray
+                $hintText.Margin = New-Object System.Windows.Thickness 0, 2, 0, 0
+
+                # Add validation indicator
+                $validationText = New-Object System.Windows.Controls.TextBlock
+                $validationText.FontSize = 10
+                $validationText.Margin = New-Object System.Windows.Thickness 0, 2, 0, 0
+                $validationText.Visibility = "Collapsed"
+
+                # Store reference to validation text for later updates
+                $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
+
+                # Add real-time validation for array parameters
+                $textbox.Add_TextChanged({
+                        param($sender, $e)
+                        $text = $sender.Text.Trim()
+                        $validationTextBlock = $sender.ValidationText
+
+                        if ([string]::IsNullOrWhiteSpace($text)) {
+                            $sender.BorderBrush = $null
+                            $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                            $validationTextBlock.Visibility = "Collapsed"
+                        }
+                        else {
+                            $testResult = Test-ArrayValue -Value $text -ItemType $sender.ArrayItems
+                            if ($testResult.IsValid) {
+                                $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
+                                $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                                $validationTextBlock.Visibility = "Collapsed"
+                            }
+                            else {
+                                $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
+                                $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                                $validationTextBlock.Text = "✗ " + $testResult.ErrorMessage
+                                $validationTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
+                                $validationTextBlock.Visibility = "Visible"
+                            }
+                        }
+                    })
+
+                $arrayPanel.Children.Add($textbox) | Out-Null
+                $arrayPanel.Children.Add($hintText) | Out-Null
+                $arrayPanel.Children.Add($validationText) | Out-Null
+
+                [System.Windows.Controls.Grid]::SetColumn($arrayPanel, 1)
+                $inputControl = $arrayPanel
+                # Store reference to the textbox itself for value retrieval
+                $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
+            }
+            # Default: use textbox
+            else {
+                $textbox = New-Object System.Windows.Controls.TextBox
+                $textbox.MinWidth = 360
+                $textbox.HorizontalAlignment = "Stretch"
+                $textbox.TextWrapping = "Wrap"
+                $textbox.AcceptsReturn = ($param.in -eq "body")
+                $textbox.Height = if ($param.in -eq "body") { 80 } else { 28 }
+                if ($param.required) {
+                    $textbox.Background = [System.Windows.Media.Brushes]::LightYellow
+                }
+
+                # Build enhanced tooltip with validation constraints
+                $enhancedTooltip = $param.description
+                if ($param.type -eq "integer" -or $param.type -eq "number") {
+                    if ($param.minimum -ne $null) {
+                        $enhancedTooltip += "`n`nMinimum: $($param.minimum)"
+                    }
+                    if ($param.maximum -ne $null) {
+                        $enhancedTooltip += "`n`nMaximum: $($param.maximum)"
+                    }
+                    if ($param.format) {
+                        $enhancedTooltip += "`n`nFormat: $($param.format)"
+                    }
+                }
+                if ($param.default -ne $null) {
+                    $enhancedTooltip += "`n`nDefault: $($param.default)"
+                }
+                $textbox.ToolTip = $enhancedTooltip
+
+                # Store parameter metadata for validation
+                if ($param.in -eq "body") {
+                    $textbox.Tag = "body"
+                }
+                else {
+                    # Store type and validation constraints
+                    $textbox.Tag = @{
+                        Type    = $param.type
+                        Format  = $param.format
+                        Minimum = $param.minimum
+                        Maximum = $param.maximum
+                    }
+                }
+
+                # Add real-time JSON validation for body parameters
+                if ($param.in -eq "body") {
+                    $textbox.Tag = "body"
+
+                    # Create container for body textbox with character count
+                    $bodyPanel = New-Object System.Windows.Controls.StackPanel
+                    $bodyPanel.Orientation = "Vertical"
+
+                    # Add line number and character count info
+                    $infoText = New-Object System.Windows.Controls.TextBlock
+                    $infoText.FontSize = 10
+                    $infoText.Foreground = [System.Windows.Media.Brushes]::Gray
+                    $infoText.Margin = New-Object System.Windows.Thickness 0, 2, 0, 0
+                    $infoText.Text = "Lines: 0 | Characters: 0"
+
+                    # Store reference for updates
+                    $textbox | Add-Member -NotePropertyName "InfoText" -NotePropertyValue $infoText
+
+                    $textbox.Add_TextChanged({
+                            param($sender, $e)
+                            $text = $sender.Text.Trim()
+                            $infoTextBlock = $sender.InfoText
+
+                            # Update character count and line count
+                            $charCount = $sender.Text.Length
+                            $lineCount = ($sender.Text -split "`n").Count
+                            $infoTextBlock.Text = "Lines: $lineCount | Characters: $charCount"
+
+                            if ([string]::IsNullOrWhiteSpace($text)) {
+                                # Empty is OK - will be checked as required field
+                                $sender.BorderBrush = $null
+                                $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                                $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Gray
+                            }
+                            elseif (Test-JsonString -JsonString $text) {
+                                # Valid JSON - green border and checkmark
+                                $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
+                                $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                                $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Green
+                            }
+                            else {
+                                # Invalid JSON - red border and X
+                                $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
+                                $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                                $infoTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
+                            }
+                        })
+
+                    # Replace the textbox with the panel containing textbox and info
+                    $bodyPanel.Children.Add($textbox) | Out-Null
+                    $bodyPanel.Children.Add($infoText) | Out-Null
+                    [System.Windows.Controls.Grid]::SetColumn($bodyPanel, 1)
+                    $inputControl = $bodyPanel
+                    # Store reference to the textbox for value retrieval
+                    $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
+                }
+                # Add real-time validation for numeric and format parameters
+                elseif ($param.type -in @("integer", "number") -or $param.format -or $param.pattern) {
+                    # Create container for textbox and validation message
+                    $validatedPanel = New-Object System.Windows.Controls.StackPanel
+                    $validatedPanel.Orientation = "Vertical"
+
+                    $validationText = New-Object System.Windows.Controls.TextBlock
+                    $validationText.FontSize = 10
+                    $validationText.Margin = New-Object System.Windows.Thickness 0, 2, 0, 0
+                    $validationText.Visibility = "Collapsed"
+
+                    # Store reference to validation text
+                    $textbox | Add-Member -NotePropertyName "ValidationText" -NotePropertyValue $validationText
+
+                    $textbox.Add_TextChanged({
+                            param($sender, $e)
+                            $text = $sender.Text.Trim()
+                            $validationTextBlock = $sender.ValidationText
+
+                            if ([string]::IsNullOrWhiteSpace($text)) {
+                                $sender.BorderBrush = $null
+                                $sender.BorderThickness = New-Object System.Windows.Thickness 1
+                                $validationTextBlock.Visibility = "Collapsed"
+                            }
+                            else {
+                                $isValid = $true
+                                $errorMsg = ""
+
+                                # Validate numeric types
+                                if ($sender.ParamType -in @("integer", "number")) {
+                                    $testResult = Test-NumericValue -Value $text -Type $sender.ParamType -Minimum $sender.ParamMinimum -Maximum $sender.ParamMaximum
+                                    $isValid = $testResult.IsValid
+                                    $errorMsg = $testResult.ErrorMessage
+                                }
+                                # Validate string formats
+                                elseif ($sender.ParamFormat -or $sender.ParamPattern) {
+                                    $testResult = Test-StringFormat -Value $text -Format $sender.ParamFormat -Pattern $sender.ParamPattern
+                                    $isValid = $testResult.IsValid
+                                    $errorMsg = $testResult.ErrorMessage
+                                }
+
+                                if ($isValid) {
+                                    $sender.BorderBrush = [System.Windows.Media.Brushes]::Green
+                                    $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                                    $validationTextBlock.Visibility = "Collapsed"
+                                }
+                                else {
+                                    $sender.BorderBrush = [System.Windows.Media.Brushes]::Red
+                                    $sender.BorderThickness = New-Object System.Windows.Thickness 2
+                                    $validationTextBlock.Text = "✗ " + $errorMsg
+                                    $validationTextBlock.Foreground = [System.Windows.Media.Brushes]::Red
+                                    $validationTextBlock.Visibility = "Visible"
+                                }
+                            }
+                        })
+
+                    $validatedPanel.Children.Add($textbox) | Out-Null
+                    $validatedPanel.Children.Add($validationText) | Out-Null
+                    [System.Windows.Controls.Grid]::SetColumn($validatedPanel, 1)
+                    $inputControl = $validatedPanel
+                    # Store reference to the textbox for value retrieval
+                    $inputControl | Add-Member -NotePropertyName "ValueControl" -NotePropertyValue $textbox
+                }
+                else {
+                    [System.Windows.Controls.Grid]::SetColumn($textbox, 1)
+                    $inputControl = $textbox
+                }
+            }
+
+            $row.Children.Add($label) | Out-Null
+            $row.Children.Add($inputControl) | Out-Null
+
+            $parameterPanel.Children.Add($row) | Out-Null
+            $paramInputs[$param.name] = $inputControl
+            if ($param.in -eq "body") {
+                $script:CurrentBodyControl = $inputControl
+                $script:CurrentBodySchema = $param.schema
+            }
+
+            # Add event handlers for conditional parameter visibility updates
+            # This infrastructure is ready for future use when API schema includes parameter dependencies
+            try {
+                $actualControl = $inputControl
+
+                # Get the actual input control (unwrap if in panel)
+                if ($inputControl.ValueControl) {
+                    $actualControl = $inputControl.ValueControl
+                }
+
+                # Add change handler to trigger visibility updates
+                if ($actualControl -is [System.Windows.Controls.ComboBox]) {
+                    $actualControl.Add_SelectionChanged({
+                            # Update-ParameterVisibility would be called here when dependencies exist
+                            # Currently a no-op as API schema doesn't define conditional parameters
+                        })
+                }
+                elseif ($actualControl -is [System.Windows.Controls.CheckBox]) {
+                    $actualControl.Add_Checked({
+                            # Update-ParameterVisibility would be called here when dependencies exist
+                        })
+                    $actualControl.Add_Unchecked({
+                            # Update-ParameterVisibility would be called here when dependencies exist
+                        })
+                }
+                elseif ($actualControl -is [System.Windows.Controls.TextBox]) {
+                    # TextChanged would be too frequent; use LostFocus instead
+                    $actualControl.Add_LostFocus({
+                            # Update-ParameterVisibility would be called here when dependencies exist
+                        })
+                }
+            }
+            catch {
+                # Silently continue if event handler setup fails
             }
         }
 
-        $favoriteRecord = [PSCustomObject]@{
-            Name       = $favoriteName
-            Path       = $selectedPath
-            Method     = $selectedMethod
-            Group      = Get-GroupForPath -Path $selectedPath
-            Parameters = $paramData
-            Timestamp  = (Get-Date).ToString("o")
-        }
+        $bodySchemaResolved = Resolve-SchemaReference -Schema $script:CurrentBodySchema -Definitions $script:Definitions
+        $builderActive = $bodySchemaResolved -and $bodySchemaResolved.properties `
+            -and ($bodySchemaResolved.properties.conversationFilters -or $bodySchemaResolved.properties.segmentFilters)
 
-        $filteredFavorites = [System.Collections.ArrayList]::new()
-        foreach ($fav in $Favorites) {
-            if ($fav.Name -ne $favoriteRecord.Name) {
-                $filteredFavorites.Add($fav) | Out-Null
+        if ($builderActive) {
+            Set-FilterBuilderVisibility -Visible $true
+            Update-FilterBuilderHint
+        }
+        else {
+            Set-FilterBuilderVisibility -Visible $false
+            if ($filterBuilderHintText) {
+                $filterBuilderHintText.Text = ""
             }
         }
 
-        $filteredFavorites.Add($favoriteRecord) | Out-Null
-        $Favorites = $filteredFavorites
-
-        Save-FavoritesToDisk -Path $FavoritesFile -Favorites $Favorites
-        Refresh-FavoritesList
-
-        if ($favoriteNameInput) {
-            $favoriteNameInput.Text = ""
+        $statusText.Text = "Provide values for the parameters and submit."
+        if ($pendingFavoriteParameters) {
+            Populate-ParameterValues -ParameterSet $pendingFavoriteParameters
+            $pendingFavoriteParameters = $null
         }
-
-        $statusText.Text = "Favorite '$favoriteName' saved."
-        Add-LogEntry "Saved favorite '$favoriteName'."
+        else {
+            # Try to populate body parameter with example template if available
+            $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
+            if ($exampleBody) {
+                # Find the body parameter input and populate it
+                foreach ($param in $params) {
+                    if ($param.in -eq "body") {
+                        $bodyInput = $paramInputs[$param.name]
+                        if ($bodyInput) {
+                            $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
+                            if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
+                                $bodyTextControl.Text = $exampleBody
+                            }
+                            $statusText.Text = "Example body template loaded. Modify as needed and submit."
+                        }
+                        break
+                    }
+                }
+            }
+        }
+        $responseSchema = Get-ResponseSchema -MethodObject $methodObject
+        Update-SchemaList -Schema $responseSchema
     })
+
+if ($favoritesList) {
+    $favoritesList.Add_SelectionChanged({
+            $favorite = $favoritesList.SelectedItem
+            if (-not $favorite) { return }
+
+            $favoritePath = $favorite.Path
+            $favoriteMethod = $favorite.Method
+            $favoriteGroup = if ($favorite.Group) { $favorite.Group } else { Get-GroupForPath -Path $favoritePath }
+
+            if ($favoriteGroup -and $GroupMap.ContainsKey($favoriteGroup)) {
+                $groupCombo.SelectedItem = $favoriteGroup
+            }
+
+            if ($favoritePath) {
+                $pathCombo.SelectedItem = $favoritePath
+            }
+
+            if ($favoriteMethod) {
+                $pendingFavoriteParameters = $favorite.Parameters
+                $methodCombo.SelectedItem = $favoriteMethod
+            }
+
+            $statusText.Text = "Favorite '$($favorite.Name)' loaded."
+            Add-LogEntry "Favorite applied: $($favorite.Name)"
+        })
+}
+
+if ($saveFavoriteButton) {
+    $saveFavoriteButton.Add_Click({
+            $favoriteName = if ($favoriteNameInput) { $favoriteNameInput.Text.Trim() } else { "" }
+
+            if (-not $favoriteName) {
+                $statusText.Text = "Enter a name before saving a favorite."
+                return
+            }
+
+            $selectedPath = $pathCombo.SelectedItem
+            $selectedMethod = $methodCombo.SelectedItem
+            if (-not $selectedPath -or -not $selectedMethod) {
+                $statusText.Text = "Pick an endpoint and method before saving."
+                return
+            }
+
+            $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+            $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+            if (-not $methodObject) {
+                $statusText.Text = "Unable to read the selected method metadata."
+                return
+            }
+
+            $params = $methodObject.parameters
+            $paramData = @()
+            foreach ($param in $params) {
+                $value = ""
+                $input = $paramInputs[$param.name]
+                if ($input) {
+                    $value = $input.Text
+                }
+
+                $paramData += [PSCustomObject]@{
+                    name  = $param.name
+                    in    = $param.in
+                    value = $value
+                }
+            }
+
+            $favoriteRecord = [PSCustomObject]@{
+                Name       = $favoriteName
+                Path       = $selectedPath
+                Method     = $selectedMethod
+                Group      = Get-GroupForPath -Path $selectedPath
+                Parameters = $paramData
+                Timestamp  = (Get-Date).ToString("o")
+            }
+
+            $filteredFavorites = [System.Collections.ArrayList]::new()
+            foreach ($fav in $Favorites) {
+                if ($fav.Name -ne $favoriteRecord.Name) {
+                    $filteredFavorites.Add($fav) | Out-Null
+                }
+            }
+
+            $filteredFavorites.Add($favoriteRecord) | Out-Null
+            $Favorites = $filteredFavorites
+
+            Save-FavoritesToDisk -Path $FavoritesFile -Favorites $Favorites
+            Refresh-FavoritesList
+
+            if ($favoriteNameInput) {
+                $favoriteNameInput.Text = ""
+            }
+
+            $statusText.Text = "Favorite '$favoriteName' saved."
+            Add-LogEntry "Saved favorite '$favoriteName'."
+        })
 }
 
 if ($toggleResponseViewButton) {
     $toggleResponseViewButton.Add_Click({
-        if ($script:ResponseViewMode -eq "Formatted") {
-            # Switch to raw
-            $script:ResponseViewMode = "Raw"
-            if ($script:LastResponseRaw) {
-                $statusCode = if ($responseBox.Text -match "Status\s+(\d+)") { $matches[1] } else { "" }
-                if ($statusCode) {
-                    $newLine = [System.Environment]::NewLine
-                    $responseBox.Text = "Status $statusCode (Raw):$newLine$($script:LastResponseRaw)"
-                } else {
-                    $responseBox.Text = $script:LastResponseRaw
+            if ($script:ResponseViewMode -eq "Formatted") {
+                # Switch to raw
+                $script:ResponseViewMode = "Raw"
+                if ($script:LastResponseRaw) {
+                    $statusCode = if ($responseBox.Text -match "Status\s+(\d+)") { $matches[1] } else { "" }
+                    if ($statusCode) {
+                        $newLine = [System.Environment]::NewLine
+                        $responseBox.Text = "Status $statusCode (Raw):$newLine$($script:LastResponseRaw)"
+                    }
+                    else {
+                        $responseBox.Text = $script:LastResponseRaw
+                    }
                 }
+                Add-LogEntry "Response view switched to Raw."
             }
-            Add-LogEntry "Response view switched to Raw."
-        } else {
-            # Switch to formatted
-            $script:ResponseViewMode = "Formatted"
-            if ($script:LastResponseText) {
-                $statusCode = if ($responseBox.Text -match "Status\s+(\d+)") { $matches[1] } else { "" }
-                if ($statusCode) {
-                    $newLine = [System.Environment]::NewLine
-                    $responseBox.Text = "Status ${statusCode}:$newLine$($script:LastResponseText)"
-                } else {
-                    $responseBox.Text = $script:LastResponseText
+            else {
+                # Switch to formatted
+                $script:ResponseViewMode = "Formatted"
+                if ($script:LastResponseText) {
+                    $statusCode = if ($responseBox.Text -match "Status\s+(\d+)") { $matches[1] } else { "" }
+                    if ($statusCode) {
+                        $newLine = [System.Environment]::NewLine
+                        $responseBox.Text = "Status ${statusCode}:$newLine$($script:LastResponseText)"
+                    }
+                    else {
+                        $responseBox.Text = $script:LastResponseText
+                    }
                 }
+                Add-LogEntry "Response view switched to Formatted."
             }
-            Add-LogEntry "Response view switched to Formatted."
-        }
-    })
+        })
 }
 
 if ($inspectResponseButton) {
     $inspectResponseButton.Add_Click({
-        Show-DataInspector -JsonText $script:LastResponseRaw
-    })
+            Show-DataInspector -JsonText $script:LastResponseRaw
+        })
 }
 
 if ($settingsMenuItem) {
     $settingsMenuItem.Add_Click({
-        $selectedFile = Show-SettingsDialog -CurrentJsonPath $script:CurrentJsonPath
-        if ($selectedFile) {
-            Invoke-ReloadEndpoints -JsonPath $selectedFile
-        }
-    })
+            $selectedFile = Show-SettingsDialog -CurrentJsonPath $script:CurrentJsonPath
+            if ($selectedFile) {
+                Invoke-ReloadEndpoints -JsonPath $selectedFile
+            }
+        })
 }
 
 if ($resetEndpointsMenuItem) {
     $resetEndpointsMenuItem.Add_Click({
-        $defaultPath = Join-Path -Path $ScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
-        if (Test-Path -Path $defaultPath) {
-            if (Invoke-ReloadEndpoints -JsonPath $defaultPath) {
-                [System.Windows.MessageBox]::Show("Endpoints reset to default configuration.", "Reset Complete", "OK", "Information")
+            $defaultPath = Join-Path -Path $ScriptRoot -ChildPath "GenesysCloudAPIEndpoints.json"
+            if (Test-Path -Path $defaultPath) {
+                if (Invoke-ReloadEndpoints -JsonPath $defaultPath) {
+                    [System.Windows.MessageBox]::Show("Endpoints reset to default configuration.", "Reset Complete", "OK", "Information")
+                }
             }
-        } else {
-            [System.Windows.MessageBox]::Show("Default endpoints file not found at: $defaultPath", "File Not Found", "OK", "Error")
-        }
-    })
+            else {
+                [System.Windows.MessageBox]::Show("Default endpoints file not found at: $defaultPath", "File Not Found", "OK", "Error")
+            }
+        })
+}
+
+if ($loginButton) {
+    $loginButton.Add_Click({
+            $newToken = Show-LoginWindow
+            if ($newToken) {
+                $tokenBox.Text = $newToken
+                $tokenStatusText.Text = "Token set"
+                $tokenStatusText.Foreground = "Green"
+                Add-LogEntry "Token updated via Login."
+            }
+        })
 }
 
 if ($testTokenButton) {
     $testTokenButton.Add_Click({
-        $token = $tokenBox.Text.Trim()
-        if (-not $token) {
-            $tokenStatusText.Text = "No token provided"
-            $tokenStatusText.Foreground = "Red"
-            Add-LogEntry "Token test failed: No token provided."
-            return
-        }
-
-        $testTokenButton.IsEnabled = $false
-        $tokenStatusText.Text = "Testing..."
-        $tokenStatusText.Foreground = "Gray"
-        Add-LogEntry "Testing OAuth token validity..."
-
-        try {
-            # Test token with a simple API call to /api/v2/users/me
-            $headers = @{
-                "Authorization" = "Bearer $token"
-                "Content-Type" = "application/json"
+            $token = $tokenBox.Text.Trim()
+            if (-not $token) {
+                $tokenStatusText.Text = "No token provided"
+                $tokenStatusText.Foreground = "Red"
+                Add-LogEntry "Token test failed: No token provided."
+                return
             }
-            $testUrl = "https://api.usw2.pure.cloud/api/v2/users/me"
 
-            $response = Invoke-WebRequest -Uri $testUrl -Method GET -Headers $headers -ErrorAction Stop
+            $testTokenButton.IsEnabled = $false
+            $tokenStatusText.Text = "Testing..."
+            $tokenStatusText.Foreground = "Gray"
+            Add-LogEntry "Testing OAuth token validity..."
 
-            if ($response.StatusCode -eq 200) {
-                $tokenStatusText.Text = "✓ Valid"
-                $tokenStatusText.Foreground = "Green"
-                Add-LogEntry "Token test successful: Token is valid."
-            } else {
-                $tokenStatusText.Text = "⚠ Unknown status"
-                $tokenStatusText.Foreground = "Orange"
-                Add-LogEntry "Token test returned unexpected status: $($response.StatusCode)"
+            try {
+                # Test token with a simple API call to /api/v2/users/me
+                $headers = @{
+                    "Authorization" = "Bearer $token"
+                    "Content-Type"  = "application/json"
+                }
+                $testUrl = "https://api.usw2.pure.cloud/api/v2/users/me"
+
+                $response = Invoke-WebRequest -Uri $testUrl -Method GET -Headers $headers -ErrorAction Stop
+
+                if ($response.StatusCode -eq 200) {
+                    $tokenStatusText.Text = "✓ Valid"
+                    $tokenStatusText.Foreground = "Green"
+                    Add-LogEntry "Token test successful: Token is valid."
+                }
+                else {
+                    $tokenStatusText.Text = "⚠ Unknown status"
+                    $tokenStatusText.Foreground = "Orange"
+                    Add-LogEntry "Token test returned unexpected status: $($response.StatusCode)"
+                }
             }
-        } catch {
-            $tokenStatusText.Text = "✗ Invalid"
-            $tokenStatusText.Foreground = "Red"
-            $errorMsg = $_.Exception.Message
-            Add-LogEntry "Token test failed: $errorMsg"
-        } finally {
-            $testTokenButton.IsEnabled = $true
-        }
-    })
+            catch {
+                $tokenStatusText.Text = "✗ Invalid"
+                $tokenStatusText.Foreground = "Red"
+                $errorMsg = $_.Exception.Message
+                Add-LogEntry "Token test failed: $errorMsg"
+            }
+            finally {
+                $testTokenButton.IsEnabled = $true
+            }
+        })
 }
 
 if ($helpMenuItem) {
     $helpMenuItem.Add_Click({
-        Show-HelpWindow
-    })
+            Show-HelpWindow
+        })
 }
 
 if ($helpDevLink) {
     $helpDevLink.Add_Click({
-        Launch-Url -Url $DeveloperDocsUrl
-    })
+            Launch-Url -Url $DeveloperDocsUrl
+        })
 }
 
 if ($helpSupportLink) {
     $helpSupportLink.Add_Click({
-        Launch-Url -Url $SupportDocsUrl
-    })
+            Launch-Url -Url $SupportDocsUrl
+        })
 }
 
 if ($fetchJobResultsButton) {
     $fetchJobResultsButton.Add_Click({
-        Fetch-JobResults -Force
-    })
+            Fetch-JobResults -Force
+        })
 }
 
 if ($exportJobResultsButton) {
     $exportJobResultsButton.Add_Click({
-        if (-not $JobTracker.ResultFile -or -not (Test-Path -Path $JobTracker.ResultFile)) {
-            $statusText.Text = "No job result file to export."
-            return
-        }
+            if (-not $JobTracker.ResultFile -or -not (Test-Path -Path $JobTracker.ResultFile)) {
+                $statusText.Text = "No job result file to export."
+                return
+            }
 
-        $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-        $dialog.Title = "Export Job Results"
-        $dialog.FileName = [System.IO.Path]::GetFileName($JobTracker.ResultFile)
-        if ($dialog.ShowDialog() -eq $true) {
-            Copy-Item -Path $JobTracker.ResultFile -Destination $dialog.FileName -Force
-            $statusText.Text = "Job results exported to $($dialog.FileName)"
-            Add-LogEntry "Job results exported to $($dialog.FileName)"
-        }
-    })
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+            $dialog.Title = "Export Job Results"
+            $dialog.FileName = [System.IO.Path]::GetFileName($JobTracker.ResultFile)
+            if ($dialog.ShowDialog() -eq $true) {
+                Copy-Item -Path $JobTracker.ResultFile -Destination $dialog.FileName -Force
+                $statusText.Text = "Job results exported to $($dialog.FileName)"
+                Add-LogEntry "Job results exported to $($dialog.FileName)"
+            }
+        })
 }
 
 if ($runConversationReportButton) {
     $runConversationReportButton.Add_Click({
-        $convId = if ($conversationReportIdInput) { $conversationReportIdInput.Text.Trim() } else { "" }
+            $convId = if ($conversationReportIdInput) { $conversationReportIdInput.Text.Trim() } else { "" }
 
-        if (-not $convId) {
-            if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "Please enter a conversation ID."
-            }
-            Add-LogEntry "Conversation report blocked: no conversation ID."
-            return
-        }
-
-        $token = $tokenBox.Text.Trim()
-        if (-not $token) {
-            if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "Please provide an OAuth token."
-            }
-            Add-LogEntry "Conversation report blocked: no OAuth token."
-            return
-        }
-
-        $headers = @{
-            "Content-Type"  = "application/json"
-            "Authorization" = "Bearer $token"
-        }
-
-        # Reset progress UI
-        if ($conversationReportProgressBar) {
-            $conversationReportProgressBar.Value = 0
-        }
-        if ($conversationReportProgressText) {
-            $conversationReportProgressText.Text = "Initializing..."
-        }
-        if ($conversationReportEndpointLog) {
-            $conversationReportEndpointLog.Text = ""
-        }
-        if ($conversationReportStatus) {
-            $conversationReportStatus.Text = "Fetching report..."
-        }
-        Add-LogEntry "Generating conversation report for: $convId"
-
-        try {
-            # Define progress callback to update UI
-            $progressCallback = {
-                param($PercentComplete, $Status, $EndpointName, $IsStarting, $IsSuccess, $IsOptional)
-                
-                if ($conversationReportProgressBar) {
-                    $conversationReportProgressBar.Value = $PercentComplete
+            if (-not $convId) {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Please enter a conversation ID."
                 }
-                if ($conversationReportProgressText) {
-                    $conversationReportProgressText.Text = $Status
+                Add-LogEntry "Conversation report blocked: no conversation ID."
+                return
+            }
+
+            $token = $tokenBox.Text.Trim()
+            if (-not $token) {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Please provide an OAuth token."
                 }
-                if ($conversationReportEndpointLog) {
-                    $timestamp = (Get-Date).ToString("HH:mm:ss")
-                    if ($IsStarting) {
-                        $logLine = "[$timestamp] Querying: $EndpointName..."
-                    }
-                    elseif ($IsSuccess) {
-                        $logLine = "[$timestamp] ✓ $EndpointName - Retrieved successfully"
-                    }
-                    elseif ($IsOptional) {
-                        $logLine = "[$timestamp] ⚠ $EndpointName - Optional, not available"
-                    }
-                    else {
-                        $logLine = "[$timestamp] ✗ $EndpointName - Failed"
-                    }
-                    $conversationReportEndpointLog.AppendText("$logLine`r`n")
-                    $conversationReportEndpointLog.ScrollToEnd()
-                }
-                # Force UI update
-                [System.Windows.Forms.Application]::DoEvents()
+                Add-LogEntry "Conversation report blocked: no OAuth token."
+                return
             }
 
-            $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl -ProgressCallback $progressCallback
-            $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
-
-            $reportText = Format-ConversationReportText -Report $script:LastConversationReport
-
-            if ($conversationReportText) {
-                $conversationReportText.Text = $reportText
+            $headers = @{
+                "Content-Type"  = "application/json"
+                "Authorization" = "Bearer $token"
             }
 
-            if ($inspectConversationReportButton) {
-                $inspectConversationReportButton.IsEnabled = $true
-            }
-            if ($exportConversationReportJsonButton) {
-                $exportConversationReportJsonButton.IsEnabled = $true
-            }
-            if ($exportConversationReportTextButton) {
-                $exportConversationReportTextButton.IsEnabled = $true
-            }
-
-            # Complete progress bar
+            # Reset progress UI
             if ($conversationReportProgressBar) {
-                $conversationReportProgressBar.Value = 100
+                $conversationReportProgressBar.Value = 0
             }
             if ($conversationReportProgressText) {
-                $conversationReportProgressText.Text = "Complete"
+                $conversationReportProgressText.Text = "Initializing..."
             }
-
-            $errorCount = if ($script:LastConversationReport.Errors) { $script:LastConversationReport.Errors.Count } else { 0 }
-            if ($errorCount -gt 0) {
-                if ($conversationReportStatus) {
-                    $conversationReportStatus.Text = "Report generated with $errorCount error(s)."
-                }
-                Add-LogEntry "Conversation report completed with $errorCount error(s)."
+            if ($conversationReportEndpointLog) {
+                $conversationReportEndpointLog.Text = ""
             }
-            else {
-                if ($conversationReportStatus) {
-                    $conversationReportStatus.Text = "Report generated successfully."
-                }
-                Add-LogEntry "Conversation report generated successfully."
-            }
-        }
-        catch {
             if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "Report failed: $($_.Exception.Message)"
+                $conversationReportStatus.Text = "Fetching report..."
             }
-            Add-LogEntry "Conversation report failed: $($_.Exception.Message)"
-        }
-    })
+            Add-LogEntry "Generating conversation report for: $convId"
+
+            try {
+                # Define progress callback to update UI
+                $progressCallback = {
+                    param($PercentComplete, $Status, $EndpointName, $IsStarting, $IsSuccess, $IsOptional)
+                
+                    if ($conversationReportProgressBar) {
+                        $conversationReportProgressBar.Value = $PercentComplete
+                    }
+                    if ($conversationReportProgressText) {
+                        $conversationReportProgressText.Text = $Status
+                    }
+                    if ($conversationReportEndpointLog) {
+                        $timestamp = (Get-Date).ToString("HH:mm:ss")
+                        if ($IsStarting) {
+                            $logLine = "[$timestamp] Querying: $EndpointName..."
+                        }
+                        elseif ($IsSuccess) {
+                            $logLine = "[$timestamp] ✓ $EndpointName - Retrieved successfully"
+                        }
+                        elseif ($IsOptional) {
+                            $logLine = "[$timestamp] ⚠ $EndpointName - Optional, not available"
+                        }
+                        else {
+                            $logLine = "[$timestamp] ✗ $EndpointName - Failed"
+                        }
+                        $conversationReportEndpointLog.AppendText("$logLine`r`n")
+                        $conversationReportEndpointLog.ScrollToEnd()
+                    }
+                    # Force UI update
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+
+                $script:LastConversationReport = Get-ConversationReport -ConversationId $convId -Headers $headers -BaseUrl $ApiBaseUrl -ProgressCallback $progressCallback
+                $script:LastConversationReportJson = $script:LastConversationReport | ConvertTo-Json -Depth 20
+
+                $reportText = Format-ConversationReportText -Report $script:LastConversationReport
+
+                if ($conversationReportText) {
+                    $conversationReportText.Text = $reportText
+                }
+
+                if ($inspectConversationReportButton) {
+                    $inspectConversationReportButton.IsEnabled = $true
+                }
+                if ($exportConversationReportJsonButton) {
+                    $exportConversationReportJsonButton.IsEnabled = $true
+                }
+                if ($exportConversationReportTextButton) {
+                    $exportConversationReportTextButton.IsEnabled = $true
+                }
+
+                # Complete progress bar
+                if ($conversationReportProgressBar) {
+                    $conversationReportProgressBar.Value = 100
+                }
+                if ($conversationReportProgressText) {
+                    $conversationReportProgressText.Text = "Complete"
+                }
+
+                $errorCount = if ($script:LastConversationReport.Errors) { $script:LastConversationReport.Errors.Count } else { 0 }
+                if ($errorCount -gt 0) {
+                    if ($conversationReportStatus) {
+                        $conversationReportStatus.Text = "Report generated with $errorCount error(s)."
+                    }
+                    Add-LogEntry "Conversation report completed with $errorCount error(s)."
+                }
+                else {
+                    if ($conversationReportStatus) {
+                        $conversationReportStatus.Text = "Report generated successfully."
+                    }
+                    Add-LogEntry "Conversation report generated successfully."
+                }
+            }
+            catch {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Report failed: $($_.Exception.Message)"
+                }
+                Add-LogEntry "Conversation report failed: $($_.Exception.Message)"
+            }
+        })
 }
 
 if ($inspectConversationReportButton) {
     $inspectConversationReportButton.Add_Click({
-        if ($script:LastConversationReport) {
-            Show-ConversationTimelineReport -Report $script:LastConversationReport
-        }
-        else {
-            Add-LogEntry "No conversation report data to inspect."
-        }
-    })
+            if ($script:LastConversationReport) {
+                Show-ConversationTimelineReport -Report $script:LastConversationReport
+            }
+            else {
+                Add-LogEntry "No conversation report data to inspect."
+            }
+        })
 }
 
 if ($exportConversationReportJsonButton) {
     $exportConversationReportJsonButton.Add_Click({
-        if (-not $script:LastConversationReportJson) {
-            if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "No report data to export."
+            if (-not $script:LastConversationReportJson) {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "No report data to export."
+                }
+                return
             }
-            return
-        }
 
-        $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-        $dialog.Title = "Export Conversation Report JSON"
-        $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).json"
-        if ($dialog.ShowDialog() -eq $true) {
-            $script:LastConversationReportJson | Out-File -FilePath $dialog.FileName -Encoding utf8
-            if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "JSON exported to $($dialog.FileName)"
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+            $dialog.Title = "Export Conversation Report JSON"
+            $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).json"
+            if ($dialog.ShowDialog() -eq $true) {
+                $script:LastConversationReportJson | Out-File -FilePath $dialog.FileName -Encoding utf8
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "JSON exported to $($dialog.FileName)"
+                }
+                Add-LogEntry "Conversation report JSON exported to $($dialog.FileName)"
             }
-            Add-LogEntry "Conversation report JSON exported to $($dialog.FileName)"
-        }
-    })
+        })
 }
 
 if ($exportConversationReportTextButton) {
     $exportConversationReportTextButton.Add_Click({
-        if (-not $script:LastConversationReport) {
-            if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "No report data to export."
+            if (-not $script:LastConversationReport) {
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "No report data to export."
+                }
+                return
             }
-            return
-        }
 
-        $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
-        $dialog.Title = "Export Conversation Report Text"
-        $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).txt"
-        if ($dialog.ShowDialog() -eq $true) {
-            $reportText = Format-ConversationReportText -Report $script:LastConversationReport
-            $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
-            if ($conversationReportStatus) {
-                $conversationReportStatus.Text = "Text exported to $($dialog.FileName)"
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+            $dialog.Title = "Export Conversation Report Text"
+            $dialog.FileName = "ConversationReport_$($script:LastConversationReport.ConversationId).txt"
+            if ($dialog.ShowDialog() -eq $true) {
+                $reportText = Format-ConversationReportText -Report $script:LastConversationReport
+                $reportText | Out-File -FilePath $dialog.FileName -Encoding utf8
+                if ($conversationReportStatus) {
+                    $conversationReportStatus.Text = "Text exported to $($dialog.FileName)"
+                }
+                Add-LogEntry "Conversation report text exported to $($dialog.FileName)"
             }
-            Add-LogEntry "Conversation report text exported to $($dialog.FileName)"
-        }
-    })
+        })
 }
 
 if ($requestHistoryList) {
     $requestHistoryList.ItemsSource = $script:RequestHistory
 
     $requestHistoryList.Add_SelectionChanged({
-        if ($requestHistoryList.SelectedItem) {
-            $replayRequestButton.IsEnabled = $true
-        } else {
-            $replayRequestButton.IsEnabled = $false
-        }
-    })
+            if ($requestHistoryList.SelectedItem) {
+                $replayRequestButton.IsEnabled = $true
+            }
+            else {
+                $replayRequestButton.IsEnabled = $false
+            }
+        })
 }
 
 if ($replayRequestButton) {
     $replayRequestButton.Add_Click({
-        $selectedHistory = $requestHistoryList.SelectedItem
-        if (-not $selectedHistory) {
-            Add-LogEntry "No request selected to replay."
-            return
-        }
+            $selectedHistory = $requestHistoryList.SelectedItem
+            if (-not $selectedHistory) {
+                Add-LogEntry "No request selected to replay."
+                return
+            }
 
-        # Set the group, path, and method
-        $groupCombo.SelectedItem = $selectedHistory.Group
-        $pathCombo.SelectedItem = $selectedHistory.Path
-        $methodCombo.SelectedItem = $selectedHistory.Method
+            # Set the group, path, and method
+            $groupCombo.SelectedItem = $selectedHistory.Group
+            $pathCombo.SelectedItem = $selectedHistory.Path
+            $methodCombo.SelectedItem = $selectedHistory.Method
 
-        # Restore parameters
-        if ($selectedHistory.Parameters) {
-            # Use Dispatcher.Invoke to ensure UI is updated before setting parameters
-            $Window.Dispatcher.Invoke([Action]{
-                foreach ($paramName in $selectedHistory.Parameters.Keys) {
-                    if ($paramInputs.ContainsKey($paramName)) {
-                        Set-ParameterControlValue -Control $paramInputs[$paramName] -Value $selectedHistory.Parameters[$paramName]
-                    }
-                }
-            }, [System.Windows.Threading.DispatcherPriority]::Background)
-        }
+            # Restore parameters
+            if ($selectedHistory.Parameters) {
+                # Use Dispatcher.Invoke to ensure UI is updated before setting parameters
+                $Window.Dispatcher.Invoke([Action] {
+                        foreach ($paramName in $selectedHistory.Parameters.Keys) {
+                            if ($paramInputs.ContainsKey($paramName)) {
+                                Set-ParameterControlValue -Control $paramInputs[$paramName] -Value $selectedHistory.Parameters[$paramName]
+                            }
+                        }
+                    }, [System.Windows.Threading.DispatcherPriority]::Background)
+            }
 
-        Add-LogEntry "Request loaded from history: $($selectedHistory.Method) $($selectedHistory.Path)"
-        $statusText.Text = "Request loaded from history."
-    })
+            Add-LogEntry "Request loaded from history: $($selectedHistory.Method) $($selectedHistory.Path)"
+            $statusText.Text = "Request loaded from history."
+        })
 }
 
 if ($clearHistoryButton) {
     $clearHistoryButton.Add_Click({
-        $result = [System.Windows.MessageBox]::Show(
-            "Are you sure you want to clear all request history?",
-            "Clear History",
-            [System.Windows.MessageBoxButton]::YesNo,
-            [System.Windows.MessageBoxImage]::Question
-        )
+            $result = [System.Windows.MessageBox]::Show(
+                "Are you sure you want to clear all request history?",
+                "Clear History",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Question
+            )
 
-        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-            $script:RequestHistory.Clear()
-            Add-LogEntry "Request history cleared."
-            $statusText.Text = "History cleared."
-        }
-    })
+            if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                $script:RequestHistory.Clear()
+                Add-LogEntry "Request history cleared."
+                $statusText.Text = "History cleared."
+            }
+        })
 }
 
 # Export PowerShell Script button
 if ($exportPowerShellButton) {
     $exportPowerShellButton.Add_Click({
-        $selectedPath = $pathCombo.SelectedItem
-        $selectedMethod = $methodCombo.SelectedItem
-        $token = $tokenBox.Text
+            $selectedPath = $pathCombo.SelectedItem
+            $selectedMethod = $methodCombo.SelectedItem
+            $token = $tokenBox.Text
 
-        if (-not $selectedPath -or -not $selectedMethod) {
-            $statusText.Text = "Select a path and method first."
-            return
-        }
+            if (-not $selectedPath -or -not $selectedMethod) {
+                $statusText.Text = "Select a path and method first."
+                return
+            }
 
-        # Collect current parameters
-        $requestParams = @{}
-        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
-        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
-        if ($methodObject -and $methodObject.parameters) {
-            foreach ($param in $methodObject.parameters) {
-                $input = $paramInputs[$param.name]
-                if ($input) {
-                    $value = Get-ParameterControlValue -Control $input
-                    if (-not [string]::IsNullOrWhiteSpace($value)) {
-                        $requestParams[$param.name] = $value
+            # Collect current parameters
+            $requestParams = @{}
+            $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+            $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+            if ($methodObject -and $methodObject.parameters) {
+                foreach ($param in $methodObject.parameters) {
+                    $input = $paramInputs[$param.name]
+                    if ($input) {
+                        $value = Get-ParameterControlValue -Control $input
+                        if (-not [string]::IsNullOrWhiteSpace($value)) {
+                            $requestParams[$param.name] = $value
+                        }
                     }
                 }
             }
-        }
 
-        # Generate PowerShell script
-        $script = Export-PowerShellScript -Method $selectedMethod -Path $selectedPath -Parameters $requestParams -Token $token
+            # Generate PowerShell script
+            $script = Export-PowerShellScript -Method $selectedMethod -Path $selectedPath -Parameters $requestParams -Token $token
 
-        # Show in dialog with copy/save options
-        $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "PowerShell Scripts (*.ps1)|*.ps1|All Files (*.*)|*.*"
-        $dialog.Title = "Save PowerShell Script"
-        $dialog.FileName = "GenesysAPI_$($selectedMethod)_Script.ps1"
+            # Show in dialog with copy/save options
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "PowerShell Scripts (*.ps1)|*.ps1|All Files (*.*)|*.*"
+            $dialog.Title = "Save PowerShell Script"
+            $dialog.FileName = "GenesysAPI_$($selectedMethod)_Script.ps1"
 
-        if ($dialog.ShowDialog() -eq $true) {
-            $script | Out-File -FilePath $dialog.FileName -Encoding utf8
-            $statusText.Text = "PowerShell script exported to $($dialog.FileName)"
-            Add-LogEntry "PowerShell script exported to $($dialog.FileName)"
+            if ($dialog.ShowDialog() -eq $true) {
+                $script | Out-File -FilePath $dialog.FileName -Encoding utf8
+                $statusText.Text = "PowerShell script exported to $($dialog.FileName)"
+                Add-LogEntry "PowerShell script exported to $($dialog.FileName)"
 
-            # Copy to clipboard as well
-            [System.Windows.Clipboard]::SetText($script)
-            [System.Windows.MessageBox]::Show(
-                "PowerShell script saved to $($dialog.FileName) and copied to clipboard.",
-                "Script Exported",
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Information
-            )
-        }
-    })
+                # Copy to clipboard as well
+                [System.Windows.Clipboard]::SetText($script)
+                [System.Windows.MessageBox]::Show(
+                    "PowerShell script saved to $($dialog.FileName) and copied to clipboard.",
+                    "Script Exported",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Information
+                )
+            }
+        })
 }
 
 # Export cURL Command button
 if ($exportCurlButton) {
     $exportCurlButton.Add_Click({
-        $selectedPath = $pathCombo.SelectedItem
-        $selectedMethod = $methodCombo.SelectedItem
-        $token = $tokenBox.Text
+            $selectedPath = $pathCombo.SelectedItem
+            $selectedMethod = $methodCombo.SelectedItem
+            $token = $tokenBox.Text
 
-        if (-not $selectedPath -or -not $selectedMethod) {
-            $statusText.Text = "Select a path and method first."
-            return
-        }
+            if (-not $selectedPath -or -not $selectedMethod) {
+                $statusText.Text = "Select a path and method first."
+                return
+            }
 
-        # Collect current parameters
-        $requestParams = @{}
-        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
-        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
-        if ($methodObject -and $methodObject.parameters) {
-            foreach ($param in $methodObject.parameters) {
-                $input = $paramInputs[$param.name]
-                if ($input) {
-                    $value = Get-ParameterControlValue -Control $input
-                    if (-not [string]::IsNullOrWhiteSpace($value)) {
-                        $requestParams[$param.name] = $value
+            # Collect current parameters
+            $requestParams = @{}
+            $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+            $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+            if ($methodObject -and $methodObject.parameters) {
+                foreach ($param in $methodObject.parameters) {
+                    $input = $paramInputs[$param.name]
+                    if ($input) {
+                        $value = Get-ParameterControlValue -Control $input
+                        if (-not [string]::IsNullOrWhiteSpace($value)) {
+                            $requestParams[$param.name] = $value
+                        }
                     }
                 }
             }
-        }
 
-        # Generate cURL command
-        $curlCommand = Export-CurlCommand -Method $selectedMethod -Path $selectedPath -Parameters $requestParams -Token $token
+            # Generate cURL command
+            $curlCommand = Export-CurlCommand -Method $selectedMethod -Path $selectedPath -Parameters $requestParams -Token $token
 
-        # Copy to clipboard and show confirmation
-        [System.Windows.Clipboard]::SetText($curlCommand)
-        [System.Windows.MessageBox]::Show(
-            "cURL command copied to clipboard:`r`n`r`n$curlCommand",
-            "cURL Exported",
-            [System.Windows.MessageBoxButton]::OK,
-            [System.Windows.MessageBoxImage]::Information
-        )
-        $statusText.Text = "cURL command copied to clipboard."
-        Add-LogEntry "cURL command generated and copied to clipboard"
-    })
+            # Copy to clipboard and show confirmation
+            [System.Windows.Clipboard]::SetText($curlCommand)
+            [System.Windows.MessageBox]::Show(
+                "cURL command copied to clipboard:`r`n`r`n$curlCommand",
+                "cURL Exported",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+            $statusText.Text = "cURL command copied to clipboard."
+            Add-LogEntry "cURL command generated and copied to clipboard"
+        })
 }
 
 # Templates list selection changed
@@ -5860,598 +6160,609 @@ if ($templatesList) {
     }
 
     $templatesList.Add_SelectionChanged({
-        if ($templatesList.SelectedItem) {
-            $loadTemplateButton.IsEnabled = $true
-            $deleteTemplateButton.IsEnabled = $true
-        } else {
-            $loadTemplateButton.IsEnabled = $false
-            $deleteTemplateButton.IsEnabled = $false
-        }
-    })
+            if ($templatesList.SelectedItem) {
+                $loadTemplateButton.IsEnabled = $true
+                $deleteTemplateButton.IsEnabled = $true
+            }
+            else {
+                $loadTemplateButton.IsEnabled = $false
+                $deleteTemplateButton.IsEnabled = $false
+            }
+        })
 }
 
 # Save Template button
 if ($saveTemplateButton) {
     $saveTemplateButton.Add_Click({
-        $selectedPath = $pathCombo.SelectedItem
-        $selectedMethod = $methodCombo.SelectedItem
+            $selectedPath = $pathCombo.SelectedItem
+            $selectedMethod = $methodCombo.SelectedItem
 
-        if (-not $selectedPath -or -not $selectedMethod) {
-            [System.Windows.MessageBox]::Show(
-                "Please select a path and method before saving a template.",
-                "Missing Information",
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Warning
+            if (-not $selectedPath -or -not $selectedMethod) {
+                [System.Windows.MessageBox]::Show(
+                    "Please select a path and method before saving a template.",
+                    "Missing Information",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Warning
+                )
+                return
+            }
+
+            # Prompt for template name
+            Add-Type -AssemblyName Microsoft.VisualBasic
+            $templateName = [Microsoft.VisualBasic.Interaction]::InputBox(
+                "Enter a name for this template:",
+                "Save Template",
+                "$selectedMethod $selectedPath"
             )
-            return
-        }
 
-        # Prompt for template name
-        Add-Type -AssemblyName Microsoft.VisualBasic
-        $templateName = [Microsoft.VisualBasic.Interaction]::InputBox(
-            "Enter a name for this template:",
-            "Save Template",
-            "$selectedMethod $selectedPath"
-        )
+            if ([string]::IsNullOrWhiteSpace($templateName)) {
+                return
+            }
 
-        if ([string]::IsNullOrWhiteSpace($templateName)) {
-            return
-        }
-
-        # Collect current parameters
-        $requestParams = @{}
-        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
-        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
-        if ($methodObject -and $methodObject.parameters) {
-            foreach ($param in $methodObject.parameters) {
-                $input = $paramInputs[$param.name]
-                if ($input) {
-                    $value = Get-ParameterControlValue -Control $input
-                    if (-not [string]::IsNullOrWhiteSpace($value)) {
-                        $requestParams[$param.name] = $value
+            # Collect current parameters
+            $requestParams = @{}
+            $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+            $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+            if ($methodObject -and $methodObject.parameters) {
+                foreach ($param in $methodObject.parameters) {
+                    $input = $paramInputs[$param.name]
+                    if ($input) {
+                        $value = Get-ParameterControlValue -Control $input
+                        if (-not [string]::IsNullOrWhiteSpace($value)) {
+                            $requestParams[$param.name] = $value
+                        }
                     }
                 }
             }
-        }
 
-        # Create template object
-        $template = [PSCustomObject]@{
-            Name = $templateName
-            Method = $selectedMethod
-            Path = $selectedPath
-            Group = $groupCombo.SelectedItem
-            Parameters = $requestParams
-            Created = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        }
+            # Create template object
+            $template = [PSCustomObject]@{
+                Name       = $templateName
+                Method     = $selectedMethod
+                Path       = $selectedPath
+                Group      = $groupCombo.SelectedItem
+                Parameters = $requestParams
+                Created    = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+            }
 
-        # Add to collection and save
-        $script:Templates.Add($template)
-        Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
+            # Add to collection and save
+            $script:Templates.Add($template)
+            Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
 
-        Add-LogEntry "Template saved: $templateName"
-        $statusText.Text = "Template '$templateName' saved successfully."
-    })
+            Add-LogEntry "Template saved: $templateName"
+            $statusText.Text = "Template '$templateName' saved successfully."
+        })
 }
 
 # Load Template button
 if ($loadTemplateButton) {
     $loadTemplateButton.Add_Click({
-        $selectedTemplate = $templatesList.SelectedItem
-        if (-not $selectedTemplate) {
-            return
-        }
+            $selectedTemplate = $templatesList.SelectedItem
+            if (-not $selectedTemplate) {
+                return
+            }
 
-        # Set the group, path, and method
-        Select-ComboBoxItemByText -ComboBox $groupCombo -Text $selectedTemplate.Group
-        Select-ComboBoxItemByText -ComboBox $pathCombo -Text $selectedTemplate.Path
-        Select-ComboBoxItemByText -ComboBox $methodCombo -Text $selectedTemplate.Method
+            # Set the group, path, and method
+            Select-ComboBoxItemByText -ComboBox $groupCombo -Text $selectedTemplate.Group
+            Select-ComboBoxItemByText -ComboBox $pathCombo -Text $selectedTemplate.Path
+            Select-ComboBoxItemByText -ComboBox $methodCombo -Text $selectedTemplate.Method
 
-        # Restore parameters using Dispatcher
-        if ($selectedTemplate.Parameters) {
-            $Window.Dispatcher.Invoke([Action]{
-                foreach ($paramName in $selectedTemplate.Parameters.PSObject.Properties.Name) {
-                    if ($paramInputs.ContainsKey($paramName)) {
-                        Set-ParameterControlValue -Control $paramInputs[$paramName] -Value $selectedTemplate.Parameters.$paramName
-                    }
-                }
-            }, [System.Windows.Threading.DispatcherPriority]::Background)
-        }
+            # Restore parameters using Dispatcher
+            if ($selectedTemplate.Parameters) {
+                $Window.Dispatcher.Invoke([Action] {
+                        foreach ($paramName in $selectedTemplate.Parameters.PSObject.Properties.Name) {
+                            if ($paramInputs.ContainsKey($paramName)) {
+                                Set-ParameterControlValue -Control $paramInputs[$paramName] -Value $selectedTemplate.Parameters.$paramName
+                            }
+                        }
+                    }, [System.Windows.Threading.DispatcherPriority]::Background)
+            }
 
-        Add-LogEntry "Template loaded: $($selectedTemplate.Name)"
-        $statusText.Text = "Template loaded: $($selectedTemplate.Name)"
-    })
+            Add-LogEntry "Template loaded: $($selectedTemplate.Name)"
+            $statusText.Text = "Template loaded: $($selectedTemplate.Name)"
+        })
 }
 
 # Delete Template button
 if ($deleteTemplateButton) {
     $deleteTemplateButton.Add_Click({
-        $selectedTemplate = $templatesList.SelectedItem
-        if (-not $selectedTemplate) {
-            return
-        }
+            $selectedTemplate = $templatesList.SelectedItem
+            if (-not $selectedTemplate) {
+                return
+            }
 
-        $result = [System.Windows.MessageBox]::Show(
-            "Are you sure you want to delete the template '$($selectedTemplate.Name)'?",
-            "Delete Template",
-            [System.Windows.MessageBoxButton]::YesNo,
-            [System.Windows.MessageBoxImage]::Question
-        )
+            $result = [System.Windows.MessageBox]::Show(
+                "Are you sure you want to delete the template '$($selectedTemplate.Name)'?",
+                "Delete Template",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Question
+            )
 
-        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-            $script:Templates.Remove($selectedTemplate)
-            Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
-            Add-LogEntry "Template deleted: $($selectedTemplate.Name)"
-            $statusText.Text = "Template deleted."
-        }
-    })
+            if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                $script:Templates.Remove($selectedTemplate)
+                Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
+                Add-LogEntry "Template deleted: $($selectedTemplate.Name)"
+                $statusText.Text = "Template deleted."
+            }
+        })
 }
 
 # Export Templates button
 if ($exportTemplatesButton) {
     $exportTemplatesButton.Add_Click({
-        if ($script:Templates.Count -eq 0) {
-            [System.Windows.MessageBox]::Show(
-                "No templates to export.",
-                "Export Templates",
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Information
-            )
-            return
-        }
+            if ($script:Templates.Count -eq 0) {
+                [System.Windows.MessageBox]::Show(
+                    "No templates to export.",
+                    "Export Templates",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Information
+                )
+                return
+            }
 
-        $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-        $dialog.Title = "Export Templates"
-        $dialog.FileName = "GenesysAPIExplorerTemplates.json"
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+            $dialog.Title = "Export Templates"
+            $dialog.FileName = "GenesysAPIExplorerTemplates.json"
 
-        if ($dialog.ShowDialog() -eq $true) {
-            Save-TemplatesToDisk -Path $dialog.FileName -Templates $script:Templates
-            $statusText.Text = "Templates exported to $($dialog.FileName)"
-            Add-LogEntry "Templates exported to $($dialog.FileName)"
-            [System.Windows.MessageBox]::Show(
-                "Templates exported successfully to $($dialog.FileName)",
-                "Export Complete",
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Information
-            )
-        }
-    })
+            if ($dialog.ShowDialog() -eq $true) {
+                Save-TemplatesToDisk -Path $dialog.FileName -Templates $script:Templates
+                $statusText.Text = "Templates exported to $($dialog.FileName)"
+                Add-LogEntry "Templates exported to $($dialog.FileName)"
+                [System.Windows.MessageBox]::Show(
+                    "Templates exported successfully to $($dialog.FileName)",
+                    "Export Complete",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Information
+                )
+            }
+        })
 }
 
 # Import Templates button
 if ($importTemplatesButton) {
     $importTemplatesButton.Add_Click({
-        $dialog = New-Object Microsoft.Win32.OpenFileDialog
-        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-        $dialog.Title = "Import Templates"
+            $dialog = New-Object Microsoft.Win32.OpenFileDialog
+            $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+            $dialog.Title = "Import Templates"
 
-        if ($dialog.ShowDialog() -eq $true) {
-            $importedTemplates = Load-TemplatesFromDisk -Path $dialog.FileName
-            if ($importedTemplates -and $importedTemplates.Count -gt 0) {
-                $importCount = 0
-                foreach ($template in $importedTemplates) {
-                    # Check if template already exists by name
-                    $exists = $false
-                    foreach ($existingTemplate in $script:Templates) {
-                        if ($existingTemplate.Name -eq $template.Name) {
-                            $exists = $true
-                            break
+            if ($dialog.ShowDialog() -eq $true) {
+                $importedTemplates = Load-TemplatesFromDisk -Path $dialog.FileName
+                if ($importedTemplates -and $importedTemplates.Count -gt 0) {
+                    $importCount = 0
+                    foreach ($template in $importedTemplates) {
+                        # Check if template already exists by name
+                        $exists = $false
+                        foreach ($existingTemplate in $script:Templates) {
+                            if ($existingTemplate.Name -eq $template.Name) {
+                                $exists = $true
+                                break
+                            }
+                        }
+
+                        if (-not $exists) {
+                            $script:Templates.Add($template)
+                            $importCount++
                         }
                     }
 
-                    if (-not $exists) {
-                        $script:Templates.Add($template)
-                        $importCount++
+                    if ($importCount -gt 0) {
+                        Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
+                        $statusText.Text = "Imported $importCount template(s)."
+                        Add-LogEntry "Imported $importCount template(s) from $($dialog.FileName)"
+                        [System.Windows.MessageBox]::Show(
+                            "Successfully imported $importCount template(s). Duplicates were skipped.",
+                            "Import Complete",
+                            [System.Windows.MessageBoxButton]::OK,
+                            [System.Windows.MessageBoxImage]::Information
+                        )
+                    }
+                    else {
+                        [System.Windows.MessageBox]::Show(
+                            "No new templates imported. All templates already exist.",
+                            "Import Complete",
+                            [System.Windows.MessageBoxButton]::OK,
+                            [System.Windows.MessageBoxImage]::Information
+                        )
                     }
                 }
-
-                if ($importCount -gt 0) {
-                    Save-TemplatesToDisk -Path $script:TemplatesFilePath -Templates $script:Templates
-                    $statusText.Text = "Imported $importCount template(s)."
-                    Add-LogEntry "Imported $importCount template(s) from $($dialog.FileName)"
+                else {
                     [System.Windows.MessageBox]::Show(
-                        "Successfully imported $importCount template(s). Duplicates were skipped.",
-                        "Import Complete",
+                        "No templates found in the selected file.",
+                        "Import Failed",
                         [System.Windows.MessageBoxButton]::OK,
-                        [System.Windows.MessageBoxImage]::Information
-                    )
-                } else {
-                    [System.Windows.MessageBox]::Show(
-                        "No new templates imported. All templates already exist.",
-                        "Import Complete",
-                        [System.Windows.MessageBoxButton]::OK,
-                        [System.Windows.MessageBoxImage]::Information
+                        [System.Windows.MessageBoxImage]::Warning
                     )
                 }
-            } else {
-                [System.Windows.MessageBox]::Show(
-                    "No templates found in the selected file.",
-                    "Import Failed",
-                    [System.Windows.MessageBoxButton]::OK,
-                    [System.Windows.MessageBoxImage]::Warning
-                )
             }
-        }
-    })
+        })
 }
 
 $btnSubmit.Add_Click({
-    $selectedPath = $pathCombo.SelectedItem
-    $selectedMethod = $methodCombo.SelectedItem
+        $selectedPath = $pathCombo.SelectedItem
+        $selectedMethod = $methodCombo.SelectedItem
 
-    if (-not $selectedPath -or -not $selectedMethod) {
-        $statusText.Text = "Select a path and method first."
-        Add-LogEntry "Submit blocked: method or path missing."
-        return
-    }
+        if (-not $selectedPath -or -not $selectedMethod) {
+            $statusText.Text = "Select a path and method first."
+            Add-LogEntry "Submit blocked: method or path missing."
+            return
+        }
 
-    $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
-    $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
-    if (-not $methodObject) {
-        Add-LogEntry "Submit blocked: method metadata missing."
-        $statusText.Text = "Method metadata missing."
-        return
-    }
+        $pathObject = Get-PathObject -ApiPaths $ApiPaths -Path $selectedPath
+        $methodObject = Get-MethodObject -PathObject $pathObject -MethodName $selectedMethod
+        if (-not $methodObject) {
+            Add-LogEntry "Submit blocked: method metadata missing."
+            $statusText.Text = "Method metadata missing."
+            return
+        }
 
-    $params = $methodObject.parameters
+        $params = $methodObject.parameters
 
-    # Validate required parameters and JSON body parameters
-    $validationErrors = @()
-    foreach ($param in $params) {
-        $input = $paramInputs[$param.name]
-        if ($input) {
+        # Validate required parameters and JSON body parameters
+        $validationErrors = @()
+        foreach ($param in $params) {
+            $input = $paramInputs[$param.name]
+            if ($input) {
+                $value = Get-ParameterControlValue -Control $input
+                if ($value -and $value.GetType().Name -eq "String") {
+                    $value = $value.Trim()
+                }
+
+                # Check required fields
+                if ($param.required -and -not $value) {
+                    $validationErrors += "$($param.name) is required"
+                }
+
+                # Validate JSON format for body parameters
+                if ($param.in -eq "body" -and $value) {
+                    if (-not (Test-JsonString -JsonString $value)) {
+                        $validationErrors += "$($param.name) contains invalid JSON"
+                    }
+                }
+
+                # Validate type and constraints for non-body parameters
+                if ($param.in -ne "body" -and $value -and $input.Tag -is [hashtable]) {
+                    $validationResult = Test-ParameterValue -Value $value -ValidationMetadata $input.Tag
+                    if (-not $validationResult.Valid) {
+                        foreach ($error in $validationResult.Errors) {
+                            $validationErrors += "$($param.name): $error"
+                        }
+                    }
+                }
+
+                # Validate array parameters
+                if ($param.type -eq "array" -and $value) {
+                    $testResult = Test-ArrayValue -Value $value -ItemType $param.items
+                    if (-not $testResult.IsValid) {
+                        $validationErrors += "$($param.name): " + $testResult.ErrorMessage
+                    }
+                }
+
+                # Validate numeric parameters
+                if ($param.type -in @("integer", "number") -and $value) {
+                    $testResult = Test-NumericValue -Value $value -Type $param.type -Minimum $param.minimum -Maximum $param.maximum
+                    if (-not $testResult.IsValid) {
+                        $validationErrors += "$($param.name): " + $testResult.ErrorMessage
+                    }
+                }
+
+                # Validate string format/pattern parameters
+                if ($param.type -eq "string" -and $value -and ($param.format -or $param.pattern)) {
+                    $testResult = Test-StringFormat -Value $value -Format $param.format -Pattern $param.pattern
+                    if (-not $testResult.IsValid) {
+                        $validationErrors += "$($param.name): " + $testResult.ErrorMessage
+                    }
+                }
+            }
+            elseif ($param.required) {
+                $validationErrors += "$($param.name) is required but control not found"
+            }
+        }
+
+        if ($validationErrors.Count -gt 0) {
+            $errorMessage = "Validation errors:`n" + ($validationErrors -join "`n")
+            $statusText.Text = "Validation failed: " + ($validationErrors -join ", ")
+            Add-LogEntry "Submit blocked: $errorMessage"
+            [System.Windows.MessageBox]::Show($errorMessage, "Validation Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
+            return
+        }
+
+        $queryParams = @{}
+        $pathParams = @{}
+        $bodyParams = @{}
+        $headers = @{
+            "Content-Type" = "application/json"
+        }
+
+        $token = $tokenBox.Text.Trim()
+        if ($token) {
+            $headers["Authorization"] = "Bearer $token"
+        }
+        else {
+            Add-LogEntry "Warning: Authorization token is empty."
+        }
+
+        foreach ($param in $params) {
+            $input = $paramInputs[$param.name]
+            if (-not $input) { continue }
+
             $value = Get-ParameterControlValue -Control $input
             if ($value -and $value.GetType().Name -eq "String") {
                 $value = $value.Trim()
             }
+            if (-not $value) { continue }
 
-            # Check required fields
-            if ($param.required -and -not $value) {
-                $validationErrors += "$($param.name) is required"
+            switch ($param.in) {
+                "query" { $queryParams[$param.name] = $value }
+                "path" { $pathParams[$param.name] = $value }
+                "body" { $bodyParams[$param.name] = $value }
+                "header" { $headers[$param.name] = $value }
             }
+        }
 
-            # Validate JSON format for body parameters
-            if ($param.in -eq "body" -and $value) {
-                if (-not (Test-JsonString -JsonString $value)) {
-                    $validationErrors += "$($param.name) contains invalid JSON"
+        $baseUrl = "https://api.usw2.pure.cloud"
+        $pathWithReplacements = $selectedPath
+        foreach ($key in $pathParams.Keys) {
+            $escaped = [uri]::EscapeDataString($pathParams[$key])
+            $pathWithReplacements = $pathWithReplacements -replace "\{$key\}", $escaped
+        }
+
+        $queryString = if ($queryParams.Count -gt 0) {
+            "?" + ($queryParams.GetEnumerator() | ForEach-Object {
+                    [uri]::EscapeDataString($_.Key) + "=" + [uri]::EscapeDataString($_.Value)
+                } -join "&")
+        }
+        else {
+            ""
+        }
+
+        $fullUrl = $baseUrl + $pathWithReplacements + $queryString
+        $body = if ($bodyParams.Count -gt 0) { $bodyParams | ConvertTo-Json -Depth 10 } else { $null }
+
+        Add-LogEntry "Request $($selectedMethod.ToUpper()) $fullUrl"
+        $statusText.Text = "Sending request..."
+        $btnSubmit.IsEnabled = $false
+        if ($progressIndicator) {
+            $progressIndicator.Visibility = "Visible"
+        }
+
+        # Track request start time
+        $requestStartTime = Get-Date
+
+        # Store parameters for history
+        $requestParams = @{}
+        foreach ($param in $params) {
+            $input = $paramInputs[$param.name]
+            if ($input) {
+                $value = Get-ParameterControlValue -Control $input
+                if ($value -and $value.GetType().Name -eq "String") {
+                    $value = $value.Trim()
+                }
+                if ($value) {
+                    $requestParams[$param.name] = $value
                 }
             }
+        }
 
-            # Validate type and constraints for non-body parameters
-            if ($param.in -ne "body" -and $value -and $input.Tag -is [hashtable]) {
-                $validationResult = Test-ParameterValue -Value $value -ValidationMetadata $input.Tag
-                if (-not $validationResult.Valid) {
-                    foreach ($error in $validationResult.Errors) {
-                        $validationErrors += "$($param.name): $error"
+        try {
+            $response = Invoke-WebRequest -Uri $fullUrl -Method $selectedMethod.ToUpper() -Headers $headers -Body $body -ErrorAction Stop
+            $rawContent = $response.Content
+            $formattedContent = $rawContent
+            try {
+                $json = $rawContent | ConvertFrom-Json -ErrorAction Stop
+                $formattedContent = $json | ConvertTo-Json -Depth 10
+            }
+            catch {
+                # Keep raw text if JSON parsing fails
+            }
+
+            $script:LastResponseText = $formattedContent
+            $script:LastResponseRaw = $rawContent
+            $script:LastResponseFile = ""
+            $script:ResponseViewMode = "Formatted"
+            $responseBox.Text = "Status $($response.StatusCode):`r`n$formattedContent"
+            $btnSave.IsEnabled = $true
+            $btnSubmit.IsEnabled = $true
+            if ($toggleResponseViewButton) {
+                $toggleResponseViewButton.IsEnabled = $true
+            }
+            if ($progressIndicator) {
+                $progressIndicator.Visibility = "Collapsed"
+            }
+
+            # Calculate duration and update status
+            $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
+        
+            # Detect pagination in response
+            $hasPagination = $false
+            $paginationInfo = ""
+            if ($json) {
+                if ($json.cursor) {
+                    $hasPagination = $true
+                    $paginationInfo = " (Cursor-based pagination detected)"
+                }
+                elseif ($json.nextUri) {
+                    $hasPagination = $true
+                    $paginationInfo = " (Next page available via nextUri)"
+                }
+                elseif ($json.pageCount -and $json.pageNumber) {
+                    $hasPagination = $true
+                    $paginationInfo = " (Page $($json.pageNumber) of $($json.pageCount))"
+                }
+            }
+        
+            $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms$paginationInfo" -f $requestDuration
+            Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms.$paginationInfo" -f $response.StatusCode, $formattedContent.Length, $requestDuration)
+        
+            # If pagination detected, log a note
+            if ($hasPagination) {
+                Add-LogEntry "Note: Response contains pagination. To fetch all pages, use Get-PaginatedResults function or the Jobs results fetcher for job endpoints."
+            }
+
+            # Add to request history
+            $historyEntry = [PSCustomObject]@{
+                Timestamp  = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
+                Method     = $selectedMethod.ToUpper()
+                Path       = $selectedPath
+                Group      = $groupCombo.SelectedItem
+                Status     = $response.StatusCode
+                Duration   = "{0:N0} ms" -f $requestDuration
+                Parameters = $requestParams
+            }
+            $script:RequestHistory.Insert(0, $historyEntry)
+            # Keep only last 50 requests
+            while ($script:RequestHistory.Count -gt 50) {
+                $script:RequestHistory.RemoveAt(50)
+            }
+
+            if ($selectedMethod -eq "post" -and $selectedPath -match "/jobs/?$" -and $json) {
+                $jobId = if ($json.id) { $json.id } elseif ($json.jobId) { $json.jobId } else { $null }
+                if ($jobId) {
+                    Start-JobPolling -Path $selectedPath -JobId $jobId -Headers $headers
+                }
+            }
+        }
+        catch {
+            $errorMessage = $_.Exception.Message
+            $statusCode = ""
+            $errorResponseBody = ""
+
+            # Try to extract detailed error information from the HTTP response
+            if ($_.Exception.Response) {
+                $response = $_.Exception.Response
+                if ($response -is [System.Net.HttpWebResponse]) {
+                    $statusCode = "Status $($response.StatusCode) ($([int]$response.StatusCode)) - "
+                    try {
+                        $responseStream = $response.GetResponseStream()
+                        $reader = New-Object System.IO.StreamReader($responseStream)
+                        $errorResponseBody = $reader.ReadToEnd()
+                        $reader.Close()
+                        $responseStream.Close()
+                    }
+                    catch {
+                        # Could not read response body
                     }
                 }
             }
 
-            # Validate array parameters
-            if ($param.type -eq "array" -and $value) {
-                $testResult = Test-ArrayValue -Value $value -ItemType $param.items
-                if (-not $testResult.IsValid) {
-                    $validationErrors += "$($param.name): " + $testResult.ErrorMessage
-                }
-            }
-
-            # Validate numeric parameters
-            if ($param.type -in @("integer", "number") -and $value) {
-                $testResult = Test-NumericValue -Value $value -Type $param.type -Minimum $param.minimum -Maximum $param.maximum
-                if (-not $testResult.IsValid) {
-                    $validationErrors += "$($param.name): " + $testResult.ErrorMessage
-                }
-            }
-
-            # Validate string format/pattern parameters
-            if ($param.type -eq "string" -and $value -and ($param.format -or $param.pattern)) {
-                $testResult = Test-StringFormat -Value $value -Format $param.format -Pattern $param.pattern
-                if (-not $testResult.IsValid) {
-                    $validationErrors += "$($param.name): " + $testResult.ErrorMessage
-                }
-            }
-        } elseif ($param.required) {
-            $validationErrors += "$($param.name) is required but control not found"
-        }
-    }
-
-    if ($validationErrors.Count -gt 0) {
-        $errorMessage = "Validation errors:`n" + ($validationErrors -join "`n")
-        $statusText.Text = "Validation failed: " + ($validationErrors -join ", ")
-        Add-LogEntry "Submit blocked: $errorMessage"
-        [System.Windows.MessageBox]::Show($errorMessage, "Validation Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
-        return
-    }
-
-    $queryParams = @{}
-    $pathParams = @{}
-    $bodyParams = @{}
-    $headers = @{
-        "Content-Type" = "application/json"
-    }
-
-    $token = $tokenBox.Text.Trim()
-    if ($token) {
-        $headers["Authorization"] = "Bearer $token"
-    }
-    else {
-        Add-LogEntry "Warning: Authorization token is empty."
-    }
-
-    foreach ($param in $params) {
-        $input = $paramInputs[$param.name]
-        if (-not $input) { continue }
-
-        $value = Get-ParameterControlValue -Control $input
-        if ($value -and $value.GetType().Name -eq "String") {
-            $value = $value.Trim()
-        }
-        if (-not $value) { continue }
-
-        switch ($param.in) {
-            "query"  { $queryParams[$param.name] = $value }
-            "path"   { $pathParams[$param.name] = $value }
-            "body"   { $bodyParams[$param.name] = $value }
-            "header" { $headers[$param.name] = $value }
-        }
-    }
-
-    $baseUrl = "https://api.usw2.pure.cloud"
-    $pathWithReplacements = $selectedPath
-    foreach ($key in $pathParams.Keys) {
-        $escaped = [uri]::EscapeDataString($pathParams[$key])
-        $pathWithReplacements = $pathWithReplacements -replace "\{$key\}", $escaped
-    }
-
-    $queryString = if ($queryParams.Count -gt 0) {
-        "?" + ($queryParams.GetEnumerator() | ForEach-Object {
-            [uri]::EscapeDataString($_.Key) + "=" + [uri]::EscapeDataString($_.Value)
-        } -join "&")
-    } else {
-        ""
-    }
-
-    $fullUrl = $baseUrl + $pathWithReplacements + $queryString
-    $body = if ($bodyParams.Count -gt 0) { $bodyParams | ConvertTo-Json -Depth 10 } else { $null }
-
-    Add-LogEntry "Request $($selectedMethod.ToUpper()) $fullUrl"
-    $statusText.Text = "Sending request..."
-    $btnSubmit.IsEnabled = $false
-    if ($progressIndicator) {
-        $progressIndicator.Visibility = "Visible"
-    }
-
-    # Track request start time
-    $requestStartTime = Get-Date
-
-    # Store parameters for history
-    $requestParams = @{}
-    foreach ($param in $params) {
-        $input = $paramInputs[$param.name]
-        if ($input) {
-            $value = Get-ParameterControlValue -Control $input
-            if ($value -and $value.GetType().Name -eq "String") {
-                $value = $value.Trim()
-            }
-            if ($value) {
-                $requestParams[$param.name] = $value
-            }
-        }
-    }
-
-    try {
-        $response = Invoke-WebRequest -Uri $fullUrl -Method $selectedMethod.ToUpper() -Headers $headers -Body $body -ErrorAction Stop
-        $rawContent = $response.Content
-        $formattedContent = $rawContent
-        try {
-            $json = $rawContent | ConvertFrom-Json -ErrorAction Stop
-            $formattedContent = $json | ConvertTo-Json -Depth 10
-        } catch {
-            # Keep raw text if JSON parsing fails
-        }
-
-        $script:LastResponseText = $formattedContent
-        $script:LastResponseRaw = $rawContent
-        $script:LastResponseFile = ""
-        $script:ResponseViewMode = "Formatted"
-        $responseBox.Text = "Status $($response.StatusCode):`r`n$formattedContent"
-        $btnSave.IsEnabled = $true
-        $btnSubmit.IsEnabled = $true
-        if ($toggleResponseViewButton) {
-            $toggleResponseViewButton.IsEnabled = $true
-        }
-        if ($progressIndicator) {
-            $progressIndicator.Visibility = "Collapsed"
-        }
-
-        # Calculate duration and update status
-        $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
-        
-        # Detect pagination in response
-        $hasPagination = $false
-        $paginationInfo = ""
-        if ($json) {
-            if ($json.cursor) {
-                $hasPagination = $true
-                $paginationInfo = " (Cursor-based pagination detected)"
-            }
-            elseif ($json.nextUri) {
-                $hasPagination = $true
-                $paginationInfo = " (Next page available via nextUri)"
-            }
-            elseif ($json.pageCount -and $json.pageNumber) {
-                $hasPagination = $true
-                $paginationInfo = " (Page $($json.pageNumber) of $($json.pageCount))"
-            }
-        }
-        
-        $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms$paginationInfo" -f $requestDuration
-        Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms.$paginationInfo" -f $response.StatusCode, $formattedContent.Length, $requestDuration)
-        
-        # If pagination detected, log a note
-        if ($hasPagination) {
-            Add-LogEntry "Note: Response contains pagination. To fetch all pages, use Get-PaginatedResults function or the Jobs results fetcher for job endpoints."
-        }
-
-        # Add to request history
-        $historyEntry = [PSCustomObject]@{
-            Timestamp = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
-            Method = $selectedMethod.ToUpper()
-            Path = $selectedPath
-            Group = $groupCombo.SelectedItem
-            Status = $response.StatusCode
-            Duration = "{0:N0} ms" -f $requestDuration
-            Parameters = $requestParams
-        }
-        $script:RequestHistory.Insert(0, $historyEntry)
-        # Keep only last 50 requests
-        while ($script:RequestHistory.Count -gt 50) {
-            $script:RequestHistory.RemoveAt(50)
-        }
-
-        if ($selectedMethod -eq "post" -and $selectedPath -match "/jobs/?$" -and $json) {
-            $jobId = if ($json.id) { $json.id } elseif ($json.jobId) { $json.jobId } else { $null }
-            if ($jobId) {
-                Start-JobPolling -Path $selectedPath -JobId $jobId -Headers $headers
-            }
-        }
-    } catch {
-        $errorMessage = $_.Exception.Message
-        $statusCode = ""
-        $errorResponseBody = ""
-
-        # Try to extract detailed error information from the HTTP response
-        if ($_.Exception.Response) {
-            $response = $_.Exception.Response
-            if ($response -is [System.Net.HttpWebResponse]) {
-                $statusCode = "Status $($response.StatusCode) ($([int]$response.StatusCode)) - "
+            # Build the display message
+            $displayMessage = "Error:`r`n$statusCode$errorMessage"
+            if ($errorResponseBody) {
+                # Try to format as JSON if possible
                 try {
-                    $responseStream = $response.GetResponseStream()
-                    $reader = New-Object System.IO.StreamReader($responseStream)
-                    $errorResponseBody = $reader.ReadToEnd()
-                    $reader.Close()
-                    $responseStream.Close()
-                } catch {
-                    # Could not read response body
+                    $errorJson = $errorResponseBody | ConvertFrom-Json -ErrorAction Stop
+                    $formattedError = $errorJson | ConvertTo-Json -Depth 5
+                    $displayMessage += "`r`n`r`nResponse Body:`r`n$formattedError"
+                }
+                catch {
+                    $displayMessage += "`r`n`r`nResponse Body:`r`n$errorResponseBody"
                 }
             }
-        }
 
-        # Build the display message
-        $displayMessage = "Error:`r`n$statusCode$errorMessage"
-        if ($errorResponseBody) {
-            # Try to format as JSON if possible
-            try {
-                $errorJson = $errorResponseBody | ConvertFrom-Json -ErrorAction Stop
-                $formattedError = $errorJson | ConvertTo-Json -Depth 5
-                $displayMessage += "`r`n`r`nResponse Body:`r`n$formattedError"
-            } catch {
-                $displayMessage += "`r`n`r`nResponse Body:`r`n$errorResponseBody"
+            $responseBox.Text = $displayMessage
+            $btnSave.IsEnabled = $false
+            $btnSubmit.IsEnabled = $true
+            if ($toggleResponseViewButton) {
+                $toggleResponseViewButton.IsEnabled = $false
+            }
+            if ($progressIndicator) {
+                $progressIndicator.Visibility = "Collapsed"
+            }
+            $statusText.Text = "Request failed - see log."
+            $script:LastResponseRaw = ""
+            $script:LastResponseFile = ""
+
+            # Add to request history
+            $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
+            $statusForHistory = if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                [int]$_.Exception.Response.StatusCode
+            }
+            else {
+                "Error"
+            }
+            $historyEntry = [PSCustomObject]@{
+                Timestamp  = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
+                Method     = $selectedMethod.ToUpper()
+                Path       = $selectedPath
+                Group      = $groupCombo.SelectedItem
+                Status     = $statusForHistory
+                Duration   = "{0:N0} ms" -f $requestDuration
+                Parameters = $requestParams
+            }
+            $script:RequestHistory.Insert(0, $historyEntry)
+            # Keep only last 50 requests
+            while ($script:RequestHistory.Count -gt 50) {
+                $script:RequestHistory.RemoveAt(50)
+            }
+
+            # Log detailed error information to the transparency log
+            Add-LogEntry "Response error: $statusCode$errorMessage"
+            if ($errorResponseBody) {
+                # Truncate very long error responses for the log
+                $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) {
+                    $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)"
+                }
+                else {
+                    $errorResponseBody
+                }
+                Add-LogEntry "Error response body: $logBody"
             }
         }
-
-        $responseBox.Text = $displayMessage
-        $btnSave.IsEnabled = $false
-        $btnSubmit.IsEnabled = $true
-        if ($toggleResponseViewButton) {
-            $toggleResponseViewButton.IsEnabled = $false
-        }
-        if ($progressIndicator) {
-            $progressIndicator.Visibility = "Collapsed"
-        }
-        $statusText.Text = "Request failed - see log."
-        $script:LastResponseRaw = ""
-        $script:LastResponseFile = ""
-
-        # Add to request history
-        $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
-        $statusForHistory = if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-            [int]$_.Exception.Response.StatusCode
-        } else {
-            "Error"
-        }
-        $historyEntry = [PSCustomObject]@{
-            Timestamp = $requestStartTime.ToString("yyyy-MM-dd HH:mm:ss")
-            Method = $selectedMethod.ToUpper()
-            Path = $selectedPath
-            Group = $groupCombo.SelectedItem
-            Status = $statusForHistory
-            Duration = "{0:N0} ms" -f $requestDuration
-            Parameters = $requestParams
-        }
-        $script:RequestHistory.Insert(0, $historyEntry)
-        # Keep only last 50 requests
-        while ($script:RequestHistory.Count -gt 50) {
-            $script:RequestHistory.RemoveAt(50)
-        }
-
-        # Log detailed error information to the transparency log
-        Add-LogEntry "Response error: $statusCode$errorMessage"
-        if ($errorResponseBody) {
-            # Truncate very long error responses for the log
-            $logBody = if ($errorResponseBody.Length -gt $script:LogMaxMessageLength) {
-                $errorResponseBody.Substring(0, $script:LogMaxMessageLength) + "... (truncated)"
-            } else {
-                $errorResponseBody
-            }
-            Add-LogEntry "Error response body: $logBody"
-        }
-    }
-})
+    })
 
 $btnSave.Add_Click({
-    if (-not $script:LastResponseText) {
-        return
-    }
-
-    $dialog = New-Object Microsoft.Win32.SaveFileDialog
-    $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
-    $dialog.Title = "Save API Response"
-    $dialog.FileName = "GenesysResponse.json"
-
-    if ($dialog.ShowDialog() -eq $true) {
-        $script:LastResponseText | Out-File -FilePath $dialog.FileName -Encoding utf8
-        $statusText.Text = "Saved response to $($dialog.FileName)"
-        Add-LogEntry "Saved response to $($dialog.FileName)"
-    }
-})
-
-if ($exportLogButton) {
-    $exportLogButton.Add_Click({
-        if ([string]::IsNullOrWhiteSpace($logBox.Text)) {
-            $statusText.Text = "No log entries to export."
+        if (-not $script:LastResponseText) {
             return
         }
 
-        $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
         $dialog = New-Object Microsoft.Win32.SaveFileDialog
-        $dialog.Filter = "Text Files (*.txt)|*.txt|Log Files (*.log)|*.log|All Files (*.*)|*.*"
-        $dialog.Title = "Export Transparency Log"
-        $dialog.FileName = "GenesysAPIExplorer_Log_$timestamp.txt"
+        $dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*"
+        $dialog.Title = "Save API Response"
+        $dialog.FileName = "GenesysResponse.json"
 
         if ($dialog.ShowDialog() -eq $true) {
-            $logBox.Text | Out-File -FilePath $dialog.FileName -Encoding utf8
-            $statusText.Text = "Log exported to $($dialog.FileName)"
-            Add-LogEntry "Transparency log exported to $($dialog.FileName)"
+            $script:LastResponseText | Out-File -FilePath $dialog.FileName -Encoding utf8
+            $statusText.Text = "Saved response to $($dialog.FileName)"
+            Add-LogEntry "Saved response to $($dialog.FileName)"
         }
     })
+
+if ($exportLogButton) {
+    $exportLogButton.Add_Click({
+            if ([string]::IsNullOrWhiteSpace($logBox.Text)) {
+                $statusText.Text = "No log entries to export."
+                return
+            }
+
+            $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+            $dialog = New-Object Microsoft.Win32.SaveFileDialog
+            $dialog.Filter = "Text Files (*.txt)|*.txt|Log Files (*.log)|*.log|All Files (*.*)|*.*"
+            $dialog.Title = "Export Transparency Log"
+            $dialog.FileName = "GenesysAPIExplorer_Log_$timestamp.txt"
+
+            if ($dialog.ShowDialog() -eq $true) {
+                $logBox.Text | Out-File -FilePath $dialog.FileName -Encoding utf8
+                $statusText.Text = "Log exported to $($dialog.FileName)"
+                Add-LogEntry "Transparency log exported to $($dialog.FileName)"
+            }
+        })
 }
 
 if ($clearLogButton) {
     $clearLogButton.Add_Click({
-        $result = [System.Windows.MessageBox]::Show(
-            "Are you sure you want to clear all log entries? This action cannot be undone.",
-            "Clear Log",
-            [System.Windows.MessageBoxButton]::YesNo,
-            [System.Windows.MessageBoxImage]::Question
-        )
+            $result = [System.Windows.MessageBox]::Show(
+                "Are you sure you want to clear all log entries? This action cannot be undone.",
+                "Clear Log",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Question
+            )
 
-        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-            $logBox.Clear()
-            $statusText.Text = "Log cleared."
-            Add-LogEntry "Log was cleared by user."
-        }
-    })
+            if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                $logBox.Clear()
+                $statusText.Text = "Log cleared."
+                Add-LogEntry "Log was cleared by user."
+            }
+        })
 }
 
 Add-LogEntry "Loaded $($GroupMap.Keys.Count) groups from the API catalog."
