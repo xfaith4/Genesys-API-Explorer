@@ -1403,7 +1403,7 @@ function Format-FilterSummary {
     if ($predicate.range) {
         $valueText = "(range)"
     }
-    elseif ($predicate.value -ne $null) {
+    elseif ($null -ne $predicate.value) {
         $valueText = $predicate.value
     }
 
@@ -2908,7 +2908,7 @@ function Format-GCConversationSummaryText {
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("Segments:          $($Summary.TotalSegments)")
     [void]$sb.AppendLine("Segments with MOS: $($Summary.SegmentsWithMos)")
-    [void]$sb.AppendLine("Degraded segments (MOS < 3.5): $($Summary.DegradedSegmentCount)")
+    [void]$sb.AppendLine("Degraded segments (MOS less than 3.5): $($Summary.DegradedSegmentCount)")
     [void]$sb.AppendLine("")
 
     # List degraded segments

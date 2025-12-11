@@ -48,6 +48,42 @@
     "Created": "2025-12-07 12:00:00"
   },
   {
+    "Name": "Division Analysis - Conversation Quality Report (Oct 15 - Dec 8)",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/details/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ],\n  \"segmentDetailFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"segmentType\",\n          \"value\": \"interact\"\n        },\n        {\n          \"dimension\": \"segmentType\",\n          \"value\": \"system\"\n        }\n      ]\n    }\n  ]\n}"
+    },
+    "Created": "2025-12-11 07:35:00",
+    "Description": "Comprehensive query for division-based conversation analysis. Returns detailed conversation data including: 1) minMos scores from mediaStatsDetail, 2) WebRTC disconnect events from disconnectType, 3) NotResponding routing status duration from segments. Group results by agent divisionId in post-processing to calculate: avg minMos per division, count of WebRTC disconnects per division, avg time in NotResponding status per division."
+  },
+  {
+    "Name": "Division Analysis - Get Users with Division Info",
+    "Method": "GET",
+    "Path": "/api/v2/users",
+    "Group": "Users",
+    "Parameters": {
+      "pageSize": "500",
+      "pageNumber": "1",
+      "sortOrder": "ASC",
+      "expand": "division"
+    },
+    "Created": "2025-12-11 07:35:00",
+    "Description": "Supporting query for division-based analysis. Retrieves all users with their division assignments. Use this to map agent IDs from conversation details to division names/IDs for grouping and reporting."
+  },
+  {
+    "Name": "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\"divisionId\"],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+    },
+    "Created": "2025-12-11 07:35:00",
+    "Description": "Aggregated metrics grouped by division for Oct 15 - Dec 8. Provides high-level statistics per division including call counts, handle times, and error counts. Combine with conversation details query for comprehensive division-based reporting."
+  },
+  {
     "Name": "Query Conversation Details - Today",
     "Method": "POST",
     "Path": "/api/v2/analytics/conversations/details/query",
@@ -292,13 +328,385 @@
     "Created": "2025-12-08 08:00:00"
   },
   {
-    "Name": "Get User Details Job Status",
+    "Name": "Get All Users with Presence and Status",
     "Method": "GET",
-    "Path": "/api/v2/analytics/users/details/jobs/{jobId}",
+    "Path": "/api/v2/users",
+    "Group": "Users",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1",
+      "sortOrder": "ASC",
+      "expand": "presence,routingStatus,conversationSummary"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Search Users by Name or Email",
+    "Method": "GET",
+    "Path": "/api/v2/users/search",
+    "Group": "Users",
+    "Parameters": {
+      "pageSize": "25",
+      "pageNumber": "1",
+      "query": "john",
+      "expand": "presence,routingStatus"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get User Details with Full Expansion",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here",
+      "expand": "routingStatus,presence,conversationSummary,outOfOffice,geolocation,station,authorization"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get User's Active Conversations",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/conversations",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get User's Queue Memberships",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/queues",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here",
+      "pageSize": "100",
+      "joined": "true",
+      "divisionId": ""
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get User's Routing Skills",
+    "Method": "GET",
+    "Path": "/api/v2/users/{userId}/routingskills",
+    "Group": "Users",
+    "Parameters": {
+      "userId": "user-id-goes-here",
+      "pageSize": "100"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Bulk User Presences",
+    "Method": "GET",
+    "Path": "/api/v2/users/presences/purecloud/bulk",
+    "Group": "Users",
+    "Parameters": {
+      "id": "user-id-1,user-id-2,user-id-3"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query User Details - Activity Report",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/users/details/query",
     "Group": "Analytics",
     "Parameters": {
-      "jobId": "job-id-goes-here"
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"userId\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"presenceFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\"dimension\": \"systemPresence\", \"value\": \"AVAILABLE\"},\n        {\"dimension\": \"systemPresence\", \"value\": \"BUSY\"}\n      ]\n    }\n  ]\n}"
     },
-    "Created": "2025-12-08 08:00:00"
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query User Aggregates - Performance Metrics",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/users/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\"userId\"],\n  \"metrics\": [\"nConnected\", \"tHandle\", \"tTalk\", \"tAcw\", \"nOffered\", \"tAnswered\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\"dimension\": \"queueId\", \"value\": \"queue-id-goes-here\"},\n      {\"dimension\": \"mediaType\", \"value\": \"voice\"}\n    ]\n  }\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query User Observations - Real-Time Status",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/users/observations/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\"dimension\": \"userId\", \"value\": \"user-id-goes-here\"}\n    ]\n  },\n  \"metrics\": [\"oUserPresence\", \"oUserRoutingStatus\"]\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get All Queues with Details",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues",
+    "Group": "Routing",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1",
+      "sortBy": "name",
+      "active": "true",
+      "divisionId": ""
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Queue Details",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Queue Members with Status",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}/members",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here",
+      "pageSize": "100",
+      "pageNumber": "1",
+      "expand": "routingStatus,presence,conversationSummary"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Queue Wrapup Codes",
+    "Method": "GET",
+    "Path": "/api/v2/routing/queues/{queueId}/wrapupcodes",
+    "Group": "Routing",
+    "Parameters": {
+      "queueId": "queue-id-goes-here",
+      "pageSize": "100"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query Queue Observations - Real-Time Stats",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/queues/observations/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\"dimension\": \"queueId\", \"value\": \"queue-id-goes-here\"}\n    ]\n  },\n  \"metrics\": [\"oInteracting\", \"oWaiting\", \"oOnQueueUsers\", \"oOffQueueUsers\", \"oActiveUsers\"]\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query Conversation Aggregates - Queue Performance",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/conversations/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nConnected\", \"tHandle\", \"tTalk\", \"tAcw\", \"tAnswered\", \"tHeld\", \"nOffered\", \"nOutbound\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\"dimension\": \"queueId\", \"value\": \"queue-id-goes-here\"}\n    ]\n  }\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get All Divisions",
+    "Method": "GET",
+    "Path": "/api/v2/authorization/divisions",
+    "Group": "Authorization",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1",
+      "sortBy": "name",
+      "expand": ""
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Division Details",
+    "Method": "GET",
+    "Path": "/api/v2/authorization/divisions/{divisionId}",
+    "Group": "Authorization",
+    "Parameters": {
+      "divisionId": "division-id-goes-here"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Search Division Objects",
+    "Method": "GET",
+    "Path": "/api/v2/authorization/divisions/{divisionId}/objects",
+    "Group": "Authorization",
+    "Parameters": {
+      "divisionId": "division-id-goes-here",
+      "objectType": "QUEUE",
+      "pageSize": "100"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get API Usage - Organization Summary",
+    "Method": "GET",
+    "Path": "/api/v2/usage/query/organization",
+    "Group": "Usage",
+    "Parameters": {
+      "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get API Usage - By Client",
+    "Method": "GET",
+    "Path": "/api/v2/usage/query/clients",
+    "Group": "Usage",
+    "Parameters": {
+      "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get API Usage - By User",
+    "Method": "GET",
+    "Path": "/api/v2/usage/query/users",
+    "Group": "Usage",
+    "Parameters": {
+      "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+      "pageSize": "100"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query Rate Limit Aggregates",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/ratelimits/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"userId\"],\n  \"metrics\": [\"nError\", \"nOverLimit\"]\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Audit Query Results",
+    "Method": "GET",
+    "Path": "/api/v2/audits/query",
+    "Group": "Audits",
+    "Parameters": {
+      "pageSize": "25",
+      "pageNumber": "1",
+      "sortBy": "timestamp",
+      "sortOrder": "descending",
+      "facetName": "",
+      "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query Audit Logs - User Actions",
+    "Method": "POST",
+    "Path": "/api/v2/audits/query",
+    "Group": "Audits",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"filters\": [\n    {\n      \"property\": \"userId\",\n      \"value\": \"user-id-goes-here\"\n    }\n  ],\n  \"sort\": [\n    {\n      \"name\": \"timestamp\",\n      \"sortOrder\": \"DESC\"\n    }\n  ]\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get System Presence Definitions",
+    "Method": "GET",
+    "Path": "/api/v2/systempresences",
+    "Group": "Presence",
+    "Parameters": {},
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Organization Presence Definitions",
+    "Method": "GET",
+    "Path": "/api/v2/presencedefinitions",
+    "Group": "Presence",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get All Routing Skills",
+    "Method": "GET",
+    "Path": "/api/v2/routing/skills",
+    "Group": "Routing",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1",
+      "name": ""
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get All Languages",
+    "Method": "GET",
+    "Path": "/api/v2/routing/languages",
+    "Group": "Routing",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1",
+      "name": ""
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get All Wrapup Codes",
+    "Method": "GET",
+    "Path": "/api/v2/routing/wrapupcodes",
+    "Group": "Routing",
+    "Parameters": {
+      "pageSize": "100",
+      "pageNumber": "1",
+      "name": ""
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Organization Details",
+    "Method": "GET",
+    "Path": "/api/v2/organizations/me",
+    "Group": "Organization",
+    "Parameters": {},
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Organization Limits",
+    "Method": "GET",
+    "Path": "/api/v2/organizations/limits/namespaces",
+    "Group": "Organization",
+    "Parameters": {
+      "pageSize": "100"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Query Flow Aggregates - Execution Metrics",
+    "Method": "POST",
+    "Path": "/api/v2/analytics/flows/aggregates/query",
+    "Group": "Analytics",
+    "Parameters": {
+      "body": "{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\"flowId\", \"flowType\"],\n  \"metrics\": [\"nFlow\", \"nFlowOutcome\", \"nFlowOutcomeFailed\", \"nFlowMilestone\"],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\"dimension\": \"flowType\", \"value\": \"inboundcall\"}\n    ]\n  }\n}"
+    },
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Notification Subscriptions",
+    "Method": "GET",
+    "Path": "/api/v2/notifications/channels",
+    "Group": "Notifications",
+    "Parameters": {},
+    "Created": "2025-12-11 07:00:00"
+  },
+  {
+    "Name": "Get Available Notification Topics",
+    "Method": "GET",
+    "Path": "/api/v2/notifications/availabletopics",
+    "Group": "Notifications",
+    "Parameters": {
+      "expand": "schema",
+      "includePreview": "true"
+    },
+    "Created": "2025-12-11 07:00:00"
   }
 ]
