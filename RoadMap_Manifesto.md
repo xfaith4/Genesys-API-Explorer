@@ -169,3 +169,75 @@ It’s that you can take a director from “We feel like we’re having issues�
 - Here’s the ROI story
 
 If you want, next message I’ll lay out a concrete repo structure (folders, module layout, exported function list, Insight Pack schema) that matches this vision and is still very PowerShell-native.
+
+## PR roadmap
+
+### PR 2 — Single source of truth: move transport + toolkit into Core
+
+Right now you have overlapping logic spread across:
+
+- `Scripts/GenesysCloud.ConversationToolkit/*.psm1`
+- `Scripts/*.ps1` (timeline, smoke drill, reports)
+- the big GUI script `GenesysCloudAPIExplorer.ps1`
+
+**Done right rule:** The UI never calls `Invoke-RestMethod` directly. Everything funnels through one request executor: `Invoke-GCRequest`.
+
+PR2 is:
+
+- Move the 8 toolkit functions into `src/GenesysCloud.OpsInsights/Public`
+- Make the module export explicit functions only
+- Make rate-limit safety a hard default (429/5xx backoff, paging guards, request tracing with redaction)
+
+**Result:** every future feature rides the same safe transport.
+
+### PR 3 — Fix the biggest “product smell”: GUI auto-runs
+
+`GenesysCloudAPIExplorer.ps1` currently ends with:
+
+```
+$Window.ShowDialog() (auto-launch)
+```
+
+That’s fine for a script but it’s poison for a module.
+
+PR3 is:
+
+- Move GUI into `apps/OpsConsole/`
+- Wrap startup into one entrypoint (`Start-GCAPIExplorer` or rename to `Start-GCOpsConsole`)
+- Move XAML/resources into `apps/OpsConsole/Resources/`
+- Keep state in `$script:` scope inside the UI module, not global
+
+**Result:** `Import-Module` becomes safe, predictable, testable.
+
+### PR 4 — The first real “answers-first” experience: Insight Packs
+
+Swagger browsing stays (engineers love it), but it stops being the star.
+
+The app’s home becomes:
+
+- Health summary (R/Y/G)
+- “Top Anomalies” (queues, flows, actions, API pressure)
+- Click → evidence packet (conversations/flow steps/errors)
+
+We ship 3 packs first (high value, low complexity):
+
+- Queue Smoke Detector (triage)
+- Data Action Failure Hotspots (blast radius + trends)
+- Flow Health Regression (before/after change windows)
+
+Each pack produces:
+
+- Metrics + thresholds
+- Drilldown object lists
+- Export bundle (Excel + HTML + JSON snapshot)
+
+### PR 5 — Director-grade correlation and “briefing exports”
+
+This is the VP-justification layer:
+
+- “What changed?” correlation (audit/config change → spikes)
+- Release window correlation
+- Downstream dependency correlation (flow → data action → integration)
+- One-click briefing pack export (clean narrative + evidence appendix)
+
+This is where the tool becomes legendary.
