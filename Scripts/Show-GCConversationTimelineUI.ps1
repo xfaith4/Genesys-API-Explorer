@@ -126,7 +126,7 @@ $loadButton.Add_Click($loadHandler)
 
 # Allow hitting Enter in the ConversationId box to trigger load
 $conversationIdBox.Add_KeyDown({
-    param($sender,$e)
+    param($s,$e)
     if ($e.Key -eq [System.Windows.Input.Key]::Enter) {
         & $loadHandler
     }

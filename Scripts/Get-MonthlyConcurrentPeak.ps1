@@ -225,7 +225,7 @@ function Invoke-GCRequest {
         Headers = $headers
     }
 
-    if ($Body -ne $null) {
+    if ($null -ne $Body) {
         $invokeParams.Body = ($Body | ConvertTo-Json -Depth 10)
     }
 

@@ -1,0 +1,50 @@
+{
+  "id": "gc.dataActions.failures.v1",
+  "name": "Data Action Failure Hotspots",
+  "version": "1.0.0",
+  "description": "Finds the highest-impact Data Actions failures by time window and summarizes likely blast radius.",
+  "tags": [
+    "data-actions",
+    "integrations",
+    "reliability"
+  ],
+  "parameters": {
+    "interval": "PT1H",
+    "startDate": "2025-12-01T00:00:00Z",
+    "endDate": "2025-12-08T00:00:00Z",
+    "topN": 10
+  },
+  "pipeline": [
+    {
+      "id": "actionsAgg",
+      "type": "gcRequest",
+      "method": "POST",
+      "uri": "/api/v2/analytics/actions/aggregates/query",
+      "bodyTemplate": {
+        "interval": "{{interval}}",
+        "filter": {
+          "type": "or",
+          "clauses": []
+        },
+        "metrics": [
+          "oTotalCount",
+          "oErrorCount"
+        ],
+        "groupBy": [
+          "actionId"
+        ],
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "id": "topFailures",
+      "type": "compute",
+      "script": "param($ctx)\n$rows = @($ctx.Data.actionsAgg.results)\n$rows | Sort-Object -Property { $_.data.oErrorCount } -Descending | Select-Object -First ($ctx.Parameters.topN)\n"
+    },
+    {
+      "id": "metricFailures",
+      "type": "metric",
+      "script": "param($ctx)\n$items = @($ctx.Data.topFailures)\n[pscustomobject]@{\n  title='Top Data Actions by Error Count'\n  value=$items.Count\n  items=$items\n}\n"
+    }
+  ]
+}
