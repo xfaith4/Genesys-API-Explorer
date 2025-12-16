@@ -13,7 +13,7 @@ function New-GCInsightEvidencePacket {
         $metricSummary = ($metrics | ForEach-Object {
             $title = if ($_.PSObject.Properties.Name -contains 'title') { $_.title } else { '' }
             $value = if ($_.PSObject.Properties.Name -contains 'value') { $_.value } else { '' }
-            "$title: $value"
+            "$($title): $($value)"
         }) -join '; '
     }
     else {

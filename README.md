@@ -9,6 +9,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 ### GenesysCloud.ConversationToolkit
 
 **A central feature of the Genesys-API-Explorer**, the ConversationToolkit is a comprehensive PowerShell module for Genesys Cloud engineers to:
+
 - **Analyze conversation details** from multiple API sources (Core, Analytics, Speech, Recording, SIP, Sentiment)
 - **Extract MediaEndpointStats** for quality analysis (MOS scores, packet loss, jitter)
 - **Identify WebRTC errors** and telephony issues
@@ -17,6 +18,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - **Correlate all data via ConversationId** in chronological timelines
 
 **Key Functions:**
+
 - `Get-GCConversationTimeline` - Aggregate data from 6 API endpoints into unified timeline
 - `Export-GCConversationToExcel` - Professional Excel reports with elegant formatting
 - `Get-GCQueueSmokeReport` - Queue performance and error rate analysis
@@ -25,6 +27,7 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - `Invoke-GCSmokeDrill` - End-to-end investigation workflow
 
 **Quick Start:**
+
 ```powershell
 # Import the toolkit
 Import-Module ./Scripts/GenesysCloud.ConversationToolkit/GenesysCloud.ConversationToolkit.psd1
@@ -47,6 +50,7 @@ Export-GCConversationToExcel `
 ---
 
 ### Core Capabilities
+
 - WPF shell with OAuth token field, Help menu, splash screen, grouped path/method selection, jobs watcher tab, schema viewer, inspector, and favorites panel
 - Dynamically generated parameter editors (query/path/body/header) with required-field hints and schema preview powered by the Genesys OpenAPI definitions
 - Dispatches requests via the core module's `Invoke-GCRequest` helper, logs every request/response, and formats big JSON results in the inspector/export dialogs
@@ -63,9 +67,11 @@ Export-GCConversationToExcel `
 ### Insight Packs & Evidence Briefings
 
 - The `insightpacks/` folder now defines curated workflows such as `gc.queues.smoke.v1` and `gc.dataActions.failures.v1`. Run any pack with:
+
   ```powershell
   $result = Invoke-GCInsightPack -PackPath .\insightpacks\gc.queues.smoke.v1.json -Parameters @{ startDate = '2025-12-01T00:00:00Z'; endDate = '2025-12-08T00:00:00Z' }
   ```
+
   Each result includes computed metrics, drilldowns, and an `Evidence` property containing narrative context.
 
 - Use `Export-GCInsightBriefing -Result $result -Directory ./reports` to bundle the evidence packet into:
@@ -74,6 +80,7 @@ Export-GCConversationToExcel `
   - Excel/CSV table (`.xlsx`/`.csv`) via `Export-GCInsightPackExcel`
 
 ### Phase 1 Enhancements
+
 - **Enhanced Token Management**: Test Token button to instantly verify OAuth token validity with clear status indicators (✓ Valid, ✗ Invalid, ⚠ Unknown)
 - **Request History**: Automatically tracks the last 50 API requests with timestamp, method, path, status, and duration. Easily replay previous requests with one click
 - **Progress Indicators**: Visual progress indicator (⏳) during API calls with elapsed time tracking and responsive UI
@@ -82,6 +89,7 @@ Export-GCConversationToExcel `
 - **Transparency Log Management**: Export transparency log to text file for auditing, clear log entries with confirmation dialog
 
 ### Phase 2 Enhancements
+
 - **Type-Aware Parameter Controls**: Intelligent input controls that adapt based on parameter type
   - Dropdown (ComboBox) for enum parameters with predefined values
   - Checkbox for boolean parameters with visual default value indication
@@ -96,7 +104,7 @@ Export-GCConversationToExcel `
   - **Pattern matching** for parameters with regex constraints
   - Inline validation error messages with ✗ indicator
   - Comprehensive validation summary dialog for all errors
-- **Enhanced User Experience**: 
+- **Enhanced User Experience**:
   - Parameter descriptions shown as tooltips on all input types with range and format information
   - Required fields highlighted with light yellow background
   - Default values automatically populated for enum and boolean parameters
@@ -104,12 +112,13 @@ Export-GCConversationToExcel `
   - **Inline validation hints** for array, numeric, and format-validated parameters
 
 ### Phase 3 Enhancements
+
 - **PowerShell Script Generation**: Export ready-to-run PowerShell scripts
   - Generate complete PowerShell script with all parameters and authentication
   - Automatic handling of query, path, and body parameters
   - Save to file and copy to clipboard in one action
   - Includes error handling and response formatting
-  
+
 - **cURL Command Export**: Cross-platform command generation
   - Generate cURL commands compatible with Linux, macOS, and Windows
   - Properly escaped parameters and JSON bodies
@@ -127,11 +136,12 @@ Export-GCConversationToExcel `
   - Share templates with team members via JSON export
 
 ### Phase 4 Enhancements (New!)
+
 - **Read-Only Mode**: Application now focuses exclusively on data retrieval and analysis
   - PUT, PATCH, and DELETE methods are filtered out and not available
   - Ensures the application cannot modify your Genesys Cloud organization
   - Only GET and POST methods are available for safe data querying
-  
+
 - **Expanded Template Library**: 31 pre-configured templates focused on conversation data analysis and system monitoring
   - **22 GET templates** for retrieving conversation data, speech analytics, routing info, and user status
   - **9 POST templates** for advanced analytics queries and aggregates
@@ -147,6 +157,7 @@ Export-GCConversationToExcel `
 - API catalog JSON exported from [Genesys Cloud API Explorer](https://developer.genesys.cloud/developer-tools/#/api-explorer).
 - Internet access to reach `https://api.mypurecloud.com` and the documentation hubs (`https://developer.genesys.cloud`, `https://help.mypurecloud.com`).
 - **ImportExcel PowerShell module** (required for ConversationToolkit Excel export):
+
   ```powershell
   Install-Module ImportExcel -Scope CurrentUser -Force
   ```
@@ -194,14 +205,18 @@ Genesys-API-Explorer/
 ## Usage
 
 1. Run the script using Windows PowerShell (the stub now loads `apps/OpsConsole/OpsConsole.psd1` and calls `Start-GCOpsConsole`):
+
    ```powershell
    .\GenesysCloudAPIExplorer.ps1
    ```
+
 2. (Optional) Import the OpsConsole module directly and call `Start-GCOpsConsole` if you want to embed the UI within another workflow:
+
    ```powershell
    Import-Module .\apps\OpsConsole\OpsConsole.psd1
    Start-GCOpsConsole
    ```
+
 3. When prompted, paste your Genesys Cloud OAuth token into the token field
 4. Click "Test Token" to verify your token is valid
 5. Select an API group, endpoint path, and HTTP method from the dropdowns
@@ -237,7 +252,7 @@ Phase 2 introduces intelligent parameter controls that adapt to the type of data
   - Example: `dashboardType` offers "All", "Public", "Favorites"
   - Empty option available for optional parameters
   - Default values automatically selected
-  
+
 - **Boolean Parameters (Checkboxes)**: True/false parameters use checkboxes
   - Example: `objectCount`, `force`
   - Default value displayed next to checkbox
@@ -249,7 +264,7 @@ Phase 2 introduces intelligent parameter controls that adapt to the type of data
   - Real-time validation ensures array items match expected type
   - Green border = Valid array format
   - Red border = Invalid array format with error message below
-  
+
 - **Body Parameters (JSON Editor)**: JSON body inputs include comprehensive real-time validation
   - Multi-line text editor with syntax checking
   - **Character count and line number display** for tracking large JSON bodies
@@ -268,7 +283,7 @@ Phase 2 introduces intelligent parameter controls that adapt to the type of data
   - Tooltip shows range constraints (e.g., "Range: 1 - 604800")
   - Green border = Valid number within range
   - Red border = Invalid or out of range with error message below
-  
+
 - **Formatted String Parameters (Pattern/Format Validation)**: String inputs with format constraints
   - Validates email addresses (format: email)
   - Validates URLs (format: uri or url)
@@ -277,8 +292,8 @@ Phase 2 introduces intelligent parameter controls that adapt to the type of data
   - Tooltip shows format requirements
   - Green border = Valid format
   - Red border = Invalid format with error message below
-  
-- **Validation Messages**: 
+
+- **Validation Messages**:
   - Required fields are highlighted with light yellow background
   - Missing required fields trigger a validation error dialog
   - Invalid values show inline error messages with ✗ indicator
@@ -294,7 +309,7 @@ Phase 3 adds the ability to export requests as reusable scripts:
   - Saves to file and copies to clipboard automatically
   - Generated scripts are standalone and fully functional
   - Perfect for automation, documentation, or sharing with team
-  
+
 - **Export cURL**: Click the "Export cURL" button to generate a cURL command
   - Cross-platform compatible format
   - Copies to clipboard immediately
@@ -310,19 +325,19 @@ The **Templates** tab provides powerful request template functionality:
    - Click "Save Template" button in the Templates tab
    - Enter a descriptive name for the template
    - Template is saved with method, path, and all parameter values
-   
+
 2. **Loading Templates**:
    - Navigate to the "Templates" tab
    - Select a template from the list
    - Click "Load Template" to restore the request configuration
    - All parameters will be automatically filled in
-   
+
 3. **Managing Templates**:
    - **Delete**: Select a template and click "Delete Template" to remove it
    - **Export**: Click "Export Templates" to save all templates to a JSON file
    - **Import**: Click "Import Templates" to load templates from a JSON file
    - Templates persist across sessions in `%USERPROFILE%\GenesysApiExplorerTemplates.json`
-   
+
 4. **Sharing Templates**:
    - Export your template collection as JSON
    - Share the JSON file with team members
@@ -334,6 +349,7 @@ The **Templates** tab provides powerful request template functionality:
 On first launch, the application automatically includes 31 ready-to-use templates organized into 6 categories:
 
 **Conversations (8 GET Templates):**
+
 - **Get Active Conversations**: Retrieve all active conversations for the logged-in user
 - **Get Specific Conversation Details**: Fetch details for a single conversation by ID
 - **Get Conversation Recording Metadata**: Get recording metadata for a conversation
@@ -344,6 +360,7 @@ On first launch, the application automatically includes 31 ready-to-use template
 - **Get Active Emails**: List all currently active email conversations
 
 **Analytics (14 Templates - 5 GET, 9 POST):**
+
 - **Get Multiple Conversations by IDs**: Retrieve multiple conversations in one request
 - **Get Single Conversation Analytics**: Get analytics data for a specific conversation
 - **Get Conversation Details Job Status**: Check the status of an async conversation details job
@@ -360,23 +377,28 @@ On first launch, the application automatically includes 31 ready-to-use template
 - **Query Conversation Activity**: Get real-time conversation activity metrics
 
 **Speech and Text Analytics (2 GET Templates):**
+
 - **Get Speech and Text Analytics for Conversation**: Get comprehensive speech analytics for a conversation
 - **Get Sentiment Data for Conversation**: Retrieve sentiment analysis data for a conversation
 
 **Telephony (1 GET Template):**
+
 - **Get SIP Message for Conversation**: Get the raw SIP message for a conversation
 
 **Routing (2 GET Templates):**
+
 - **Get Queue Details**: Get detailed information about a specific queue
 - **Get Queue Members**: List all members assigned to a queue
 
 **Users (4 GET Templates):**
+
 - **Get User Routing Skills**: List routing skills assigned to a user
 - **Get User Presence (Genesys Cloud)**: Get a user's Genesys Cloud presence status
 - **Get Bulk User Presences (Genesys Cloud)**: Get presence status for multiple users at once
 - **Get User Routing Status**: Fetch the routing status of a user
 
 These templates are designed for:
+
 - **Data Analysis**: Extract conversation data for reporting and analytics
 - **Speech Analytics**: Analyze conversation quality, sentiment, and transcripts
 - **Monitoring**: Track active conversations, user status, and system activity
