@@ -27,6 +27,15 @@ function Set-GCContext {
     if (-not $ApiBaseUri) {
         $ApiBaseUri = "https://api.$($RegionDomain)"
     }
+    $traceEnabled = $false
+    $tracePath    = $null
+    $connected    = $false
+
+    if ($script:GCContext) {
+        $traceEnabled = [bool]$script:GCContext.TraceEnabled
+        $tracePath    = [string]$script:GCContext.TracePath
+        $connected    = [bool]$script:GCContext.Connected
+    }
 
     $script:GCContext = [pscustomobject]@{
         RegionDomain  = $RegionDomain
@@ -34,6 +43,9 @@ function Set-GCContext {
         AccessToken   = $AccessToken
         TokenProvider = $TokenProvider
         SetUtc        = (Get-Date).ToUniversalTime()
+        TraceEnabled  = $traceEnabled
+        TracePath     = $tracePath
+        Connected     = $connected
     }
 
     return $script:GCContext

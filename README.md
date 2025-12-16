@@ -49,7 +49,7 @@ Export-GCConversationToExcel `
 ### Core Capabilities
 - WPF shell with OAuth token field, Help menu, splash screen, grouped path/method selection, jobs watcher tab, schema viewer, inspector, and favorites panel
 - Dynamically generated parameter editors (query/path/body/header) with required-field hints and schema preview powered by the Genesys OpenAPI definitions
-- Dispatches requests with `Invoke-WebRequest`, logs every request/response, and formats big JSON results in the inspector/export dialogs
+- Dispatches requests via the core module's `Invoke-GCRequest` helper, logs every request/response, and formats big JSON results in the inspector/export dialogs
 - Job Watch tab polls `/jobs` endpoints until they complete, downloads results to temp files, and exposes export/copy hooks so the UI never freezes on large payloads
 - **Conversation Report tab** queries 6 API endpoints with real-time progress tracking, automatic pagination support, and comprehensive visibility into conversation data. Features include:
   - Progress bar and timestamped endpoint query log
@@ -59,6 +59,19 @@ Export-GCConversationToExcel `
   - 📖 **[Complete Conversation Report Documentation](docs/CONVERSATION_REPORT_ENHANCEMENTS.md)**
 - Favorites persist under `%USERPROFILE%\GenesysApiExplorerFavorites.json` and capture endpoint + payload details for reuse
 - Inspector lets you explore large responses via tree view, raw text, clipboard/export, and warns before parsing huge files
+
+### Insight Packs & Evidence Briefings
+
+- The `insightpacks/` folder now defines curated workflows such as `gc.queues.smoke.v1` and `gc.dataActions.failures.v1`. Run any pack with:
+  ```powershell
+  $result = Invoke-GCInsightPack -PackPath .\insightpacks\gc.queues.smoke.v1.json -Parameters @{ startDate = '2025-12-01T00:00:00Z'; endDate = '2025-12-08T00:00:00Z' }
+  ```
+  Each result includes computed metrics, drilldowns, and an `Evidence` property containing narrative context.
+
+- Use `Export-GCInsightBriefing -Result $result -Directory ./reports` to bundle the evidence packet into:
+  - JSON snapshot (`.snapshot.json`)
+  - HTML briefing (`.html`) via `Export-GCInsightPackHtml`
+  - Excel/CSV table (`.xlsx`/`.csv`) via `Export-GCInsightPackExcel`
 
 ### Phase 1 Enhancements
 - **Enhanced Token Management**: Test Token button to instantly verify OAuth token validity with clear status indicators (✓ Valid, ✗ Invalid, ⚠ Unknown)
@@ -144,45 +157,56 @@ Export-GCConversationToExcel `
 
 ```plaintext
 Genesys-API-Explorer/
-├── GenesysCloudAPIExplorer.ps1           # Main GUI script
-├── GenesysCloudAPIEndpoints.json         # API endpoint catalog exported from Genesys Cloud
-├── DefaultTemplates.json                 # Pre-configured POST conversation templates
-├── ExamplePostBodies.json                # Example request bodies for common endpoints
-├── README.md                             # This documentation
-├── Scripts/                              # PowerShell scripts and modules
-│   └── GenesysCloud.ConversationToolkit/ # Conversation analytics module (CENTRAL FEATURE)
+├── GenesysCloudAPIExplorer.ps1                 # Entry stub that loads the OpsConsole module
+├── apps/
+│   └── OpsConsole/
+│       ├── OpsConsole.psd1                      # Module manifest defining Start-GCOpsConsole
+│       ├── OpsConsole.psm1                      # Module implementation
+│       └── Resources/
+│           ├── GenesysCloudAPIExplorer.ps1      # WPF GUI implementation executed by the module
+│           ├── GenesysCloudAPIEndpoints.json     # API endpoint catalog
+│           ├── DefaultTemplates.json             # Pre-configured POST conversation templates
+│           └── ExamplePostBodies.json            # Example request bodies for common endpoints
+├── README.md                                   # This documentation
+├── Scripts/                                    # PowerShell scripts and modules
+│   └── GenesysCloud.ConversationToolkit/       # Conversation analytics module (CENTRAL FEATURE)
 │       ├── GenesysCloud.ConversationToolkit.psd1  # Module manifest
 │       └── GenesysCloud.ConversationToolkit.psm1  # Module implementation
-├── docs/                                 # Documentation directory
-│   ├── CONVERSATION_TOOLKIT.md           # Complete Conversation Toolkit reference
-│   ├── DEVELOPMENT_HISTORY.md            # Complete development timeline and feature history
-│   ├── PROJECT_PLAN.md                   # 8-phase enhancement plan
-│   ├── TEMPLATE_CATALOG.md               # Complete reference of all 31 templates
-│   ├── PHASE1_SUMMARY.md                 # Phase 1 implementation details
-│   ├── PHASE2_SUMMARY.md                 # Phase 2 implementation details
-│   ├── PHASE2_DEFERRED_SUMMARY.md        # Phase 2 extended features
-│   ├── PHASE3_SUMMARY.md                 # Phase 3 implementation details
-│   ├── PHASE4_SUMMARY.md                 # Phase 4 implementation details
-│   ├── POST_CONVERSATIONS_TEMPLATES.md   # Template documentation
-│   └── AI_RECREATION_PROMPT.md           # Project context for AI assistants
+├── docs/                                       # Documentation directory
+│   ├── CONVERSATION_TOOLKIT.md                 # Complete Conversation Toolkit reference
+│   ├── DEVELOPMENT_HISTORY.md                  # Complete development timeline and feature history
+│   ├── PROJECT_PLAN.md                         # 8-phase enhancement plan
+│   ├── TEMPLATE_CATALOG.md                     # Complete reference of all 31 templates
+│   ├── PHASE1_SUMMARY.md                       # Phase 1 implementation details
+│   ├── PHASE2_SUMMARY.md                       # Phase 2 implementation details
+│   ├── PHASE2_DEFERRED_SUMMARY.md              # Phase 2 extended features
+│   ├── PHASE3_SUMMARY.md                       # Phase 3 implementation details
+│   ├── PHASE4_SUMMARY.md                       # Phase 4 implementation details
+│   ├── POST_CONVERSATIONS_TEMPLATES.md         # Template documentation
+│   └── AI_RECREATION_PROMPT.md                 # Project context for AI assistants
 └── .github/
     └── workflows/
-        └── test.yml                      # GitHub Actions workflow for testing
+        └── test.yml                            # GitHub Actions workflow for testing
 ```
 
 ---
 
 ## Usage
 
-1. Run the script using Windows PowerShell:
+1. Run the script using Windows PowerShell (the stub now loads `apps/OpsConsole/OpsConsole.psd1` and calls `Start-GCOpsConsole`):
    ```powershell
    .\GenesysCloudAPIExplorer.ps1
    ```
-2. When prompted, paste your Genesys Cloud OAuth token into the token field
-3. Click "Test Token" to verify your token is valid
-4. Select an API group, endpoint path, and HTTP method from the dropdowns
-5. Fill in any required parameters and click "Submit API Call"
-6. View responses in the Response tab and use the Inspector for large results
+2. (Optional) Import the OpsConsole module directly and call `Start-GCOpsConsole` if you want to embed the UI within another workflow:
+   ```powershell
+   Import-Module .\apps\OpsConsole\OpsConsole.psd1
+   Start-GCOpsConsole
+   ```
+3. When prompted, paste your Genesys Cloud OAuth token into the token field
+4. Click "Test Token" to verify your token is valid
+5. Select an API group, endpoint path, and HTTP method from the dropdowns
+6. Fill in any required parameters and click "Submit API Call"
+7. View responses in the Response tab and use the Inspector for large results
 
 ### Token Management
 

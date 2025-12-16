@@ -85,6 +85,33 @@ function Invoke-GCRequest {
         else { $payload = ($Body | ConvertTo-Json -Depth 50) }
     }
 
+    function Get-GCTraceHeaders {
+        param([hashtable]$Headers)
+
+        if (-not $Headers) { return '<none>' }
+
+        $pairs = foreach ($key in ($Headers.Keys | Sort-Object)) {
+            $value = $Headers[$key]
+            if ($key -match '^(Authorization|X-Auth-Token)$') {
+                $value = 'REDACTED'
+            }
+            "$key=$value"
+        }
+
+        return ($pairs -join '; ')
+    }
+
+    function Get-GCTraceBody {
+        param([string]$Body)
+
+        if (-not $Body) { return '<empty>' }
+        if ($Body.Length -gt 512) {
+            return ($Body.Substring(0, 512) + '...')
+        }
+
+        return $Body
+    }
+
     function Get-GCErrorInfo {
         param([Parameter(Mandatory)][System.Exception]$Exception)
 
@@ -146,6 +173,12 @@ function Invoke-GCRequest {
     while ($attempt -lt $MaxAttempts) {
         $attempt++
 
+        if ($script:GCContext.TraceEnabled) {
+            $traceHeaders = Get-GCTraceHeaders -Headers $Headers
+            $traceBody    = Get-GCTraceBody -Body $payload
+            Write-GCTraceLine -Message ("[Attempt {0}] Requesting {1} {2} Headers: {3} Body: {4}" -f $attempt, $Method, $Uri, $traceHeaders, $traceBody)
+        }
+
         try {
             $req = @{
                 Method     = $Method
@@ -155,12 +188,23 @@ function Invoke-GCRequest {
                 TimeoutSec = $TimeoutSec
             }
 
-            return (& $script:GCInvoker $req)
+            $response = (& $script:GCInvoker $req)
+
+            if ($script:GCContext.TraceEnabled) {
+                Write-GCTraceLine -Message ("[Attempt {0}] Request succeeded for {1} {2}" -f $attempt, $Method, $Uri)
+            }
+
+            return $response
         }
         catch {
             $errInfo = Get-GCErrorInfo -Exception $_.Exception
             $lastErr = $errInfo
             $code = $errInfo.StatusCode
+
+            if ($script:GCContext.TraceEnabled) {
+                $statusText = if ($code) { $code } else { 'unknown' }
+                Write-GCTraceLine -Message ("[Attempt {0}] Request failed for {1} {2} Status={3} Message={4}" -f $attempt, $Method, $Uri, $statusText, $errInfo.Message)
+            }
 
             # 429: honor Retry-After when present
             if ($code -eq 429 -and $errInfo.Headers -and $errInfo.Headers['Retry-After']) {
@@ -172,7 +216,7 @@ function Invoke-GCRequest {
             }
 
             # Retry 5xx or unknown (network)
-            if (($code -ge 500 -and $code -le 599) -or ($code -eq $null)) {
+            if (($code -ge 500 -and $code -le 599) -or ($null -eq $code)) {
                 Start-Sleep -Seconds ([Math]::Min(30, (2 * $attempt)))
                 continue
             }
