@@ -1,0 +1,35 @@
+@{
+    RootModule        = 'GenesysCloud.OpsInsights.psm1'
+    ModuleVersion     = '0.2.0'
+    GUID              = '7f80f653-8bdf-4a63-8b7e-0cc31f25d3b8'
+    Author            = 'Ben + Team'
+    CompanyName       = 'Internal'
+    Copyright         = '(c) 2025'
+    Description       = 'Ops-grade Genesys Cloud Insights engine (answers -> evidence -> drilldown -> action).'
+
+    PowerShellVersion = '5.1'
+
+    FunctionsToExport = @(
+        # Transport + context
+        'Invoke-GCRequest',
+        'Set-GCContext',
+        'Set-GCInvoker',
+
+        # Analytics helpers
+        'Get-GCConversationDetails',
+
+        # Export helpers
+        'Export-GCConversationToExcel'
+    )
+
+    CmdletsToExport   = @()
+    VariablesToExport = @()
+    AliasesToExport   = @()
+    PrivateData       = @{
+        PSData = @{
+            Tags       = @('GenesysCloud','Ops','Analytics')
+            ProjectUri = ''
+            ReleaseNotes = 'PR2 fix: manifest + export helper parsing hardened.'
+        }
+    }
+}

@@ -1,50 +1,29 @@
 {
   "id": "gc.queues.smoke.v1",
   "name": "Queue Smoke Detector",
-  "version": "1.0.0",
-  "description": "Ranks queues by failure indicators for a time window (timeouts, errors, short calls, etc.).",
-  "tags": [
-    "queues",
-    "operations",
-    "triage"
-  ],
+  "version": "1.0.1",
+  "description": "Ranks queues and agents by failure indicators for a time window using the existing smoke report function.",
+  "tags": ["queues", "operations", "triage"],
   "parameters": {
-    "interval": "PT15M",
     "startDate": "2025-12-01T00:00:00Z",
     "endDate": "2025-12-08T00:00:00Z",
     "topN": 10
   },
   "pipeline": [
     {
-      "id": "convoAgg",
-      "type": "gcRequest",
-      "method": "POST",
-      "uri": "/api/v2/analytics/conversations/aggregates/query",
-      "bodyTemplate": {
-        "interval": "{{interval}}",
-        "metrics": [
-          "nOffered",
-          "nAbandon",
-          "tHandle"
-        ],
-        "groupBy": [
-          "queueId"
-        ],
-        "filter": {
-          "type": "or",
-          "clauses": []
-        }
-      }
-    },
-    {
-      "id": "topQueues",
+      "id": "smoke",
       "type": "compute",
-      "script": "param($ctx)\n$rows = @($ctx.Data.convoAgg.results)\n$rows | Sort-Object -Property { $_.data.nAbandon } -Descending | Select-Object -First ($ctx.Parameters.topN)\n"
+      "script": "param($ctx)\n# Build Genesys 'interval' range\n$interval = \"$($ctx.Parameters.startDate)/$($ctx.Parameters.endDate)\"\nGet-GCQueueSmokeReport -Interval $interval -TopN ([int]$ctx.Parameters.topN)\n"
     },
     {
       "id": "metricQueues",
       "type": "metric",
-      "script": "param($ctx)\n$items = @($ctx.Data.topQueues)\n[pscustomobject]@{\n  title='Top Queues by Abandons'\n  value=$items.Count\n  items=$items\n}\n"
+      "script": "param($ctx)\n$top = @($ctx.Data.smoke.QueueTop)\n[pscustomobject]@{ title='Top Queues (Abandon/Error)'; value=$top.Count; items=$top }\n"
+    },
+    {
+      "id": "metricAgents",
+      "type": "metric",
+      "script": "param($ctx)\n$top = @($ctx.Data.smoke.AgentTop)\n[pscustomobject]@{ title='Top Agents (Abandon/Error)'; value=$top.Count; items=$top }\n"
     }
   ]
 }

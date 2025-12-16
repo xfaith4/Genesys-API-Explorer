@@ -1,48 +1,28 @@
 ### BEGIN FILE: Scripts\GenesysCloud.ConversationToolkit\GenesysCloud.ConversationToolkit.psm1
-# Compatibility shim:
-# The canonical implementation moved to GenesysCloud.OpsInsights.
-# This module remains so existing scripts/imports don't break.
+# Compatibility shim: keep existing imports working, but actual implementation lives in GenesysCloud.OpsInsights.
 
-Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
-$imported = $false
-
-# 1) Prefer a normal module install name
-try {
-    Import-Module -Name 'GenesysCloud.OpsInsights' -ErrorAction Stop
-    $imported = $true
-}
-catch {
-    $imported = $false
-}
-
-# 2) Dev repo-relative import (works when running from this repo)
-if (-not $imported) {
-    try {
-        $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-        $manifest = Join-Path $repoRoot 'src\GenesysCloud.OpsInsights\GenesysCloud.OpsInsights.psd1'
-        if (Test-Path $manifest) {
-            Import-Module $manifest -Force -ErrorAction Stop
-            $imported = $true
-        }
+function Import-OpsInsights {
+    # Prefer repo-relative import when running from source
+    $repoPsd1 = Join-Path $PSScriptRoot '..\..\src\GenesysCloud.OpsInsights\GenesysCloud.OpsInsights.psd1'
+    if (Test-Path -LiteralPath $repoPsd1) {
+        Import-Module -Name $repoPsd1 -Force
+        return
     }
-    catch {
-        $imported = $false
-    }
+
+    # Otherwise fall back to module name (installed scenario)
+    Import-Module -Name 'GenesysCloud.OpsInsights' -Force
 }
 
-if (-not $imported) {
-    throw "GenesysCloud.OpsInsights module not found. Install/import it first, or run from the repo root with src\GenesysCloud.OpsInsights present."
-}
+Import-OpsInsights
 
-# Re-export the toolkit functions for backwards compatibility
+# Re-export the public surface area expected by existing scripts
 Export-ModuleMember -Function @(
-    'Invoke-GCRequest',
     'Get-GCConversationTimeline',
-    'Export-GCConversationToExcel',
     'Get-GCQueueSmokeReport',
-    'Get-GCQueueHotConversations',
-    'Show-GCConversationTimelineUI',
-    'Invoke-GCSmokeDrill'
+    'Invoke-GCSmokeDrill',
+    'Get-GCConversationDetails',
+    'Export-GCConversationToExcel'
 )
-### END FILE: Scripts\GenesysCloud.ConversationToolkit\GenesysCloud.ConversationToolkit.psm1
+### END FILE
