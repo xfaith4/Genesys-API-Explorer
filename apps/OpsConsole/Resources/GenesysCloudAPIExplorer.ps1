@@ -4361,6 +4361,26 @@ if (-not $ScriptRoot) {
 $insightPackRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptRoot))) -ChildPath 'insightpacks'
 $insightBriefingRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptRoot))) -ChildPath 'InsightBriefings'
 
+$script:OpsInsightsManifest = Join-Path -Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptRoot))) -ChildPath 'src/GenesysCloud.OpsInsights/GenesysCloud.OpsInsights.psd1'
+
+function Ensure-OpsInsightsModuleLoaded {
+    param(
+        [switch]$Force
+    )
+
+    if (-not $script:OpsInsightsManifest) {
+        throw "OpsInsights module manifest path is unavailable."
+    }
+
+    if (-not (Test-Path -LiteralPath $script:OpsInsightsManifest)) {
+        throw "OpsInsights module manifest not found at '$script:OpsInsightsManifest'."
+    }
+
+    if ($Force -or (-not (Get-Module -Name 'GenesysCloud.OpsInsights'))) {
+        Import-Module -Name $script:OpsInsightsManifest -Force -ErrorAction Stop
+    }
+}
+
 $UserProfileBase = if ($env:USERPROFILE) { $env:USERPROFILE } else { $ScriptRoot }
 $FavoritesFile = Join-Path -Path $UserProfileBase -ChildPath "GenesysApiExplorerFavorites.json"
 
@@ -5195,6 +5215,7 @@ function Run-InsightPackWorkflow {
     $statusText.Text = "Running insight pack: $Label..."
 
     try {
+        Ensure-OpsInsightsModuleLoaded
         $result = Invoke-GCInsightPack -PackPath $packPath
         $script:LastInsightResult = $result
         Update-InsightPackUi -Result $result
