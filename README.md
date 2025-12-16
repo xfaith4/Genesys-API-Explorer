@@ -74,6 +74,8 @@ Export-GCConversationToExcel `
 
   Each result includes computed metrics, drilldowns, and an `Evidence` property containing narrative context.
 
+  Legacy scripts that still call the older `Invoke-GCInsightsPack` name continue to work via a compatibility wrapper.
+
 - Use `Export-GCInsightBriefing -Result $result -Directory ./reports` to bundle the evidence packet into:
   - JSON snapshot (`.snapshot.json`)
   - HTML briefing (`.html`) via `Export-GCInsightPackHtml`

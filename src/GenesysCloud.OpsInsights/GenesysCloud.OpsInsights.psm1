@@ -57,6 +57,7 @@ $publicFunctions = @(
     'Get-GCQueueSmokeReport',
     'Import-GCSnapshot',
     'Invoke-GCInsightPack',
+    'Invoke-GCInsightsPack',
     'Export-GCInsightPackSnapshot',
     'Export-GCInsightPackExcel',
     'Export-GCInsightBriefing',
