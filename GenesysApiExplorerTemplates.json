@@ -132,16 +132,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteAnalyticsConversationsDetailsJob",
-    "Method": "DELETE",
-    "Path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
-    "Group": "Analytics",
-    "Parameters": {
-      "jobId": "jobId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getAnalyticsConversationsDetailsJob",
     "Method": "GET",
     "Path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
@@ -180,14 +170,6 @@
   {
     "Name": "getAnalyticsDataretentionSettings",
     "Method": "GET",
-    "Path": "/api/v2/analytics/dataretention/settings",
-    "Group": "Analytics",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putAnalyticsDataretentionSettings",
-    "Method": "PUT",
     "Path": "/api/v2/analytics/dataretention/settings",
     "Group": "Analytics",
     "Parameters": {},
@@ -324,14 +306,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchAnalyticsReportingSettings",
-    "Method": "PATCH",
-    "Path": "/api/v2/analytics/reporting/settings",
-    "Group": "Analytics",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postAnalyticsReportingSettingsDashboardsBulkRemove",
     "Method": "POST",
     "Path": "/api/v2/analytics/reporting/settings/dashboards/bulk/remove",
@@ -446,16 +420,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteAnalyticsUsersDetailsJob",
-    "Method": "DELETE",
-    "Path": "/api/v2/analytics/users/details/jobs/{jobId}",
-    "Group": "Analytics",
-    "Parameters": {
-      "jobId": "jobId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getAnalyticsUsersDetailsJob",
     "Method": "GET",
     "Path": "/api/v2/analytics/users/details/jobs/{jobId}",
@@ -558,28 +522,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationParticipantCallbacks",
     "Method": "POST",
     "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/callbacks",
@@ -591,43 +533,9 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationParticipantCode",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/codes/{addCommunicationCode}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "addCommunicationCode": "addCommunicationCode-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationParticipantDigits",
     "Method": "POST",
     "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/digits",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "deleteConversationParticipantFlaggedreason",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/flaggedreason",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationParticipantFlaggedreason",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/{conversationId}/participants/{participantId}/flaggedreason",
     "Group": "Conversations",
     "Parameters": {
       "conversationId": "conversationId-goes-here",
@@ -746,26 +654,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationSecureattributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/{conversationId}/secureattributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationSecureattributes",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/{conversationId}/secureattributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationSuggestions",
     "Method": "GET",
     "Path": "/api/v2/conversations/{conversationId}/suggestions",
@@ -818,28 +706,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationSummaryEngagements",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/{conversationId}/summaries/{summaryId}/engagements",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "summaryId": "summaryId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationSummaryFeedback",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/{conversationId}/summaries/{summaryId}/feedback",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "summaryId": "summaryId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationSummaryFeedback",
     "Method": "POST",
     "Path": "/api/v2/conversations/{conversationId}/summaries/{summaryId}/feedback",
@@ -851,48 +717,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationTags",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/{conversationId}/tags",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationUtilizationlabel",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/{conversationId}/utilizationlabel",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsAftercallworkConversationIdParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/aftercallwork/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsCallbacks",
     "Method": "GET",
-    "Path": "/api/v2/conversations/callbacks",
-    "Group": "Conversations",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallbacks",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/callbacks",
     "Group": "Conversations",
     "Parameters": {},
@@ -913,50 +739,6 @@
     "Group": "Conversations",
     "Parameters": {
       "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallback",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/callbacks/{conversationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallbackParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/callbacks/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallbackParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/callbacks/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallbackParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/callbacks/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1018,16 +800,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsCallbackRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/callbacks/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationsCallbacksBulkDisconnect",
     "Method": "POST",
     "Path": "/api/v2/conversations/callbacks/bulk/disconnect",
@@ -1070,16 +842,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationsCall",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/calls/{conversationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationsCall",
     "Method": "POST",
     "Path": "/api/v2/conversations/calls/{conversationId}",
@@ -1096,28 +858,6 @@
     "Group": "Conversations",
     "Parameters": {
       "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1144,30 +884,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationsCallParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsCallParticipantCommunicationUuidata",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}/communications/{communicationId}/uuidata",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsCallParticipantCommunicationWrapup",
     "Method": "GET",
     "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}/communications/{communicationId}/wrapup",
@@ -1188,28 +904,6 @@
       "conversationId": "conversationId-goes-here",
       "participantId": "participantId-goes-here",
       "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "deleteConversationsCallParticipantConsult",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}/consult",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCallParticipantConsult",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/calls/{conversationId}/participants/{participantId}/consult",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1302,16 +996,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsCallRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/calls/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsCallsHistory",
     "Method": "GET",
     "Path": "/api/v2/conversations/calls/history",
@@ -1346,16 +1030,6 @@
   {
     "Name": "getConversationsChat",
     "Method": "GET",
-    "Path": "/api/v2/conversations/chats/{conversationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsChat",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/chats/{conversationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -1403,40 +1077,6 @@
     "Parameters": {
       "conversationId": "conversationId-goes-here",
       "messageId": "messageId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsChatParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/chats/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsChatParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/chats/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsChatParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/chats/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1498,16 +1138,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsChatRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/chats/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsCobrowsesessions",
     "Method": "GET",
     "Path": "/api/v2/conversations/cobrowsesessions",
@@ -1522,50 +1152,6 @@
     "Group": "Conversations",
     "Parameters": {
       "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCobrowsesession",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/cobrowsesessions/{conversationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCobrowsesessionParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/cobrowsesessions/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCobrowsesessionParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/cobrowsesessions/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsCobrowsesessionParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/cobrowsesessions/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1627,16 +1213,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsCobrowsesessionRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/cobrowsesessions/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsEmails",
     "Method": "GET",
     "Path": "/api/v2/conversations/emails",
@@ -1655,16 +1231,6 @@
   {
     "Name": "getConversationsEmail",
     "Method": "GET",
-    "Path": "/api/v2/conversations/emails/{conversationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsEmail",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/emails/{conversationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -1724,77 +1290,12 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationsEmailMessagesDraft",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/emails/{conversationId}/messages/draft",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsEmailMessagesDraft",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/emails/{conversationId}/messages/draft",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "deleteConversationsEmailMessagesDraftAttachment",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/emails/{conversationId}/messages/draft/attachments/{attachmentId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "attachmentId": "attachmentId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationsEmailMessagesDraftAttachmentsCopy",
     "Method": "POST",
     "Path": "/api/v2/conversations/emails/{conversationId}/messages/draft/attachments/copy",
     "Group": "Conversations",
     "Parameters": {
       "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsEmailParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/emails/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsEmailParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/emails/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsEmailParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/emails/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1819,17 +1320,6 @@
       "conversationId": "conversationId-goes-here",
       "participantId": "participantId-goes-here",
       "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsEmailParticipantParkingstate",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/emails/{conversationId}/participants/{participantId}/parkingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -1870,16 +1360,6 @@
     "Name": "postConversationsEmailReconnect",
     "Method": "POST",
     "Path": "/api/v2/conversations/emails/{conversationId}/reconnect",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsEmailRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/emails/{conversationId}/recordingstate",
     "Group": "Conversations",
     "Parameters": {
       "conversationId": "conversationId-goes-here"
@@ -1939,16 +1419,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsKeyconfiguration",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/keyconfigurations/{keyconfigurationsId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "keyconfigurationsId": "keyconfigurationsId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postConversationsKeyconfigurationsValidate",
     "Method": "POST",
     "Path": "/api/v2/conversations/keyconfigurations/validate",
@@ -1975,16 +1445,6 @@
   {
     "Name": "getConversationsMessage",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messages/{conversationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessage",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messages/{conversationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2081,40 +1541,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationsMessageParticipant",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/messages/{conversationId}/participants/{participantId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessageParticipantAttributes",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/messages/{conversationId}/participants/{participantId}/attributes",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessageParticipantCommunication",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/messages/{conversationId}/participants/{participantId}/communications/{communicationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "participantId": "participantId-goes-here",
-      "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessageParticipantCommunicationWrapup",
     "Method": "GET",
     "Path": "/api/v2/conversations/messages/{conversationId}/participants/{participantId}/communications/{communicationId}/wrapup",
@@ -2179,16 +1605,6 @@
     "Parameters": {
       "conversationId": "conversationId-goes-here",
       "participantId": "participantId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsMessageRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/messages/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -2259,16 +1675,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagesCachedmediaCachedMediaItemId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messages/cachedmedia/{cachedMediaItemId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "cachedMediaItemId": "cachedMediaItemId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagesCachedmediaCachedMediaItemId",
     "Method": "GET",
     "Path": "/api/v2/conversations/messages/cachedmedia/{cachedMediaItemId}",
@@ -2313,28 +1719,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsMessagingIdentityresolutionIntegrationsFacebookIntegrationId",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/messaging/identityresolution/integrations/facebook/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIdentityresolutionIntegrationsInstagramIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/identityresolution/integrations/instagram/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsMessagingIdentityresolutionIntegrationsInstagramIntegrationId",
-    "Method": "PUT",
     "Path": "/api/v2/conversations/messaging/identityresolution/integrations/instagram/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2353,16 +1739,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsMessagingIdentityresolutionIntegrationsOpenIntegrationId",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/messaging/identityresolution/integrations/open/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIdentityresolutionIntegrationsTwitterIntegrationId",
     "Method": "GET",
     "Path": "/api/v2/conversations/messaging/identityresolution/integrations/twitter/{integrationId}",
@@ -2373,28 +1749,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsMessagingIdentityresolutionIntegrationsTwitterIntegrationId",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/messaging/identityresolution/integrations/twitter/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIdentityresolutionIntegrationsWhatsappIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/identityresolution/integrations/whatsapp/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsMessagingIdentityresolutionIntegrationsWhatsappIntegrationId",
-    "Method": "PUT",
     "Path": "/api/v2/conversations/messaging/identityresolution/integrations/whatsapp/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2437,28 +1793,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingIntegrationsFacebookIntegrationId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/integrations/facebook/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIntegrationsFacebookIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/integrations/facebook/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingIntegrationsFacebookIntegrationId",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messaging/integrations/facebook/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2483,28 +1819,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingIntegrationsInstagramIntegrationId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/integrations/instagram/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIntegrationsInstagramIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/integrations/instagram/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingIntegrationsInstagramIntegrationId",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messaging/integrations/instagram/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2529,28 +1845,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingIntegrationsOpenIntegrationId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIntegrationsOpenIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingIntegrationsOpenIntegrationId",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2575,28 +1871,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingIntegrationsTwitterIntegrationId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/integrations/twitter/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIntegrationsTwitterIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/integrations/twitter/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingIntegrationsTwitterIntegrationId",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messaging/integrations/twitter/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2629,28 +1905,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingIntegrationsWhatsappIntegrationId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/integrations/whatsapp/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingIntegrationsWhatsappIntegrationId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/integrations/whatsapp/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingIntegrationsWhatsappIntegrationId",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messaging/integrations/whatsapp/{integrationId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2664,16 +1920,6 @@
     "Path": "/api/v2/conversations/messaging/integrations/whatsapp/embeddedsignup",
     "Group": "Conversations",
     "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingIntegrationsWhatsappEmbeddedsignupIntegrationId",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/messaging/integrations/whatsapp/embeddedsignup/{integrationId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "integrationId": "integrationId-goes-here"
-    },
     "Created": "2025-12-08 02:49:16"
   },
   {
@@ -2693,16 +1939,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingSetting",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/settings/{messageSettingId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "messageSettingId": "messageSettingId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingSetting",
     "Method": "GET",
     "Path": "/api/v2/conversations/messaging/settings/{messageSettingId}",
@@ -2713,34 +1949,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "patchConversationsMessagingSetting",
-    "Method": "PATCH",
-    "Path": "/api/v2/conversations/messaging/settings/{messageSettingId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "messageSettingId": "messageSettingId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "deleteConversationsMessagingSettingsDefault",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/settings/default",
-    "Group": "Conversations",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingSettingsDefault",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/settings/default",
-    "Group": "Conversations",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsMessagingSettingsDefault",
-    "Method": "PUT",
     "Path": "/api/v2/conversations/messaging/settings/default",
     "Group": "Conversations",
     "Parameters": {},
@@ -2763,28 +1973,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationsMessagingSupportedcontentSupportedContentId",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/messaging/supportedcontent/{supportedContentId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "supportedContentId": "supportedContentId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingSupportedcontentSupportedContentId",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/supportedcontent/{supportedContentId}",
-    "Group": "Conversations",
-    "Parameters": {
-      "supportedContentId": "supportedContentId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsMessagingSupportedcontentSupportedContentId",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/messaging/supportedcontent/{supportedContentId}",
     "Group": "Conversations",
     "Parameters": {
@@ -2801,24 +1991,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsMessagingSupportedcontentDefault",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/messaging/supportedcontent/default",
-    "Group": "Conversations",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsMessagingThreadingtimeline",
     "Method": "GET",
-    "Path": "/api/v2/conversations/messaging/threadingtimeline",
-    "Group": "Conversations",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsMessagingThreadingtimeline",
-    "Method": "PUT",
     "Path": "/api/v2/conversations/messaging/threadingtimeline",
     "Group": "Conversations",
     "Parameters": {},
@@ -2857,26 +2031,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsScreenshareRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/screenshares/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsSettings",
     "Method": "GET",
-    "Path": "/api/v2/conversations/settings",
-    "Group": "Conversations",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchConversationsSettings",
-    "Method": "PATCH",
     "Path": "/api/v2/conversations/settings",
     "Group": "Conversations",
     "Parameters": {},
@@ -2907,16 +2063,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationsSocialRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/socials/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationsVideoParticipantCommunicationWrapup",
     "Method": "GET",
     "Path": "/api/v2/conversations/videos/{conversationId}/participants/{participantId}/communications/{communicationId}/wrapup",
@@ -2937,16 +2083,6 @@
       "conversationId": "conversationId-goes-here",
       "participantId": "participantId-goes-here",
       "communicationId": "communicationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationsVideoRecordingstate",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/videos/{conversationId}/recordingstate",
-    "Group": "Conversations",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here"
     },
     "Created": "2025-12-08 02:49:16"
   },
@@ -2975,28 +2111,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteQualityCalibration",
-    "Method": "DELETE",
-    "Path": "/api/v2/quality/calibrations/{calibrationId}",
-    "Group": "Quality",
-    "Parameters": {
-      "calibrationId": "calibrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getQualityCalibration",
     "Method": "GET",
-    "Path": "/api/v2/quality/calibrations/{calibrationId}",
-    "Group": "Quality",
-    "Parameters": {
-      "calibrationId": "calibrationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putQualityCalibration",
-    "Method": "PUT",
     "Path": "/api/v2/quality/calibrations/{calibrationId}",
     "Group": "Quality",
     "Parameters": {
@@ -3015,30 +2131,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteQualityConversationEvaluation",
-    "Method": "DELETE",
-    "Path": "/api/v2/quality/conversations/{conversationId}/evaluations/{evaluationId}",
-    "Group": "Quality",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "evaluationId": "evaluationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getQualityConversationEvaluation",
     "Method": "GET",
-    "Path": "/api/v2/quality/conversations/{conversationId}/evaluations/{evaluationId}",
-    "Group": "Quality",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "evaluationId": "evaluationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putQualityConversationEvaluation",
-    "Method": "PUT",
     "Path": "/api/v2/quality/conversations/{conversationId}/evaluations/{evaluationId}",
     "Group": "Quality",
     "Parameters": {
@@ -3134,28 +2228,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteQualityForm",
-    "Method": "DELETE",
-    "Path": "/api/v2/quality/forms/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getQualityForm",
     "Method": "GET",
-    "Path": "/api/v2/quality/forms/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putQualityForm",
-    "Method": "PUT",
     "Path": "/api/v2/quality/forms/{formId}",
     "Group": "Quality",
     "Parameters": {
@@ -3190,39 +2264,9 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteQualityFormsEvaluation",
-    "Method": "DELETE",
-    "Path": "/api/v2/quality/forms/evaluations/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getQualityFormsEvaluation",
     "Method": "GET",
     "Path": "/api/v2/quality/forms/evaluations/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putQualityFormsEvaluation",
-    "Method": "PUT",
-    "Path": "/api/v2/quality/forms/evaluations/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putQualityFormsEvaluationAiscoringSettings",
-    "Method": "PUT",
-    "Path": "/api/v2/quality/forms/evaluations/{formId}/aiscoring/settings",
     "Group": "Quality",
     "Parameters": {
       "formId": "formId-goes-here"
@@ -3264,38 +2308,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteQualityFormsSurvey",
-    "Method": "DELETE",
-    "Path": "/api/v2/quality/forms/surveys/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getQualityFormsSurvey",
     "Method": "GET",
-    "Path": "/api/v2/quality/forms/surveys/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "patchQualityFormsSurvey",
-    "Method": "PATCH",
-    "Path": "/api/v2/quality/forms/surveys/{formId}",
-    "Group": "Quality",
-    "Parameters": {
-      "formId": "formId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putQualityFormsSurvey",
-    "Method": "PUT",
     "Path": "/api/v2/quality/forms/surveys/{formId}",
     "Group": "Quality",
     "Parameters": {
@@ -3426,14 +2440,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putQualitySurveysScorable",
-    "Method": "PUT",
-    "Path": "/api/v2/quality/surveys/scorable",
-    "Group": "Quality",
-    "Parameters": {},
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "postQualitySurveysScoring",
     "Method": "POST",
     "Path": "/api/v2/quality/surveys/scoring",
@@ -3484,17 +2490,6 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "putConversationRecording",
-    "Method": "PUT",
-    "Path": "/api/v2/conversations/{conversationId}/recordings/{recordingId}",
-    "Group": "Recording",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "recordingId": "recordingId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationRecordingAnnotations",
     "Method": "GET",
     "Path": "/api/v2/conversations/{conversationId}/recordings/{recordingId}/annotations",
@@ -3517,32 +2512,8 @@
     "Created": "2025-12-08 02:49:16"
   },
   {
-    "Name": "deleteConversationRecordingAnnotation",
-    "Method": "DELETE",
-    "Path": "/api/v2/conversations/{conversationId}/recordings/{recordingId}/annotations/{annotationId}",
-    "Group": "Recording",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "recordingId": "recordingId-goes-here",
-      "annotationId": "annotationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
     "Name": "getConversationRecordingAnnotation",
     "Method": "GET",
-    "Path": "/api/v2/conversations/{conversationId}/recordings/{recordingId}/annotations/{annotationId}",
-    "Group": "Recording",
-    "Parameters": {
-      "conversationId": "conversationId-goes-here",
-      "recordingId": "recordingId-goes-here",
-      "annotationId": "annotationId-goes-here"
-    },
-    "Created": "2025-12-08 02:49:16"
-  },
-  {
-    "Name": "putConversationRecordingAnnotation",
-    "Method": "PUT",
     "Path": "/api/v2/conversations/{conversationId}/recordings/{recordingId}/annotations/{annotationId}",
     "Group": "Recording",
     "Parameters": {

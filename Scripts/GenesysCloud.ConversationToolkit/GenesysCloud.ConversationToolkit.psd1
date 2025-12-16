@@ -1,28 +1,16 @@
-### BEGIN FILE: GenesysCloud.ConversationToolkit.psd1
-<#
-Import-Module GenesysCloud.ConversationToolkit
-
-# Smoke detector view → hot conversations → timeline UI
-Invoke-GCSmokeDrill `
-    -BaseUri 'https://api.usw2.pure.cloud' `
-    -AccessToken $token `
-    -Interval '2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z'
-
-#>
 @{
     RootModule        = 'GenesysCloud.ConversationToolkit.psm1'
-    ModuleVersion     = '0.1.0'
-    GUID              = 'dd558d02-a6dc-4418-8590-d7b918087c4f'
-    Author            = 'Ben + Genesys Cloud Conversation Toolkit'
-    CompanyName       = 'Humana (internal use)'
-    Copyright         = '(c) Ben. All rights reserved.'
+    ModuleVersion     = '0.2.0'
+    GUID              = '9a3a6c7d-2b56-4c69-b4f8-4a6bb7a7e0f5'
+    Author            = 'Internal'
+    CompanyName       = 'Internal'
+    Copyright         = '(c) 2025'
+    Description       = 'Compatibility shim for GenesysCloud.OpsInsights (toolkit moved).'
     PowerShellVersion = '5.1'
     CompatiblePSEditions = @('Desktop','Core')
 
-    Description = 'Genesys Cloud conversation analytics toolbox: smoke reports, hot-conversation finder, and timeline viewer.'
-
-    # Export only the main entrypoints; everything else stays private.
     FunctionsToExport = @(
+        'Invoke-GCRequest',
         'Get-GCConversationTimeline',
         'Export-GCConversationToExcel',
         'Get-GCQueueSmokeReport',
@@ -31,17 +19,10 @@ Invoke-GCSmokeDrill `
         'Invoke-GCSmokeDrill'
     )
 
-    CmdletsToExport   = @()
-    VariablesToExport = @()
-    AliasesToExport   = @()
-
     PrivateData = @{
         PSData = @{
-            Tags        = @('GenesysCloud','Analytics','Conversations','Humana','Troubleshooting')
-            ProjectUri  = ''
-            LicenseUri  = ''
-            ReleaseNotes = 'Initial internal module combining conversation analytics and WPF timeline viewer.'
+            Tags         = @('GenesysCloud','Compatibility')
+            ReleaseNotes = 'Shim module; functionality moved to GenesysCloud.OpsInsights.'
         }
     }
 }
-### END FILE: GenesysCloud.ConversationToolkit.psd1

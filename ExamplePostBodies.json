@@ -4,22 +4,198 @@
       "example": {
         "name": "Jane Doe",
         "email": "jane.doe@example.com",
-        "password": "secret123"
+        "password": "TempPassword123!",
+        "department": "Customer Service",
+        "title": "Senior Agent",
+        "addresses": [
+          {
+            "type": "WORK",
+            "address": "+13175551234"
+          }
+        ],
+        "divisionId": "division-id-goes-here"
+      }
+    }
+  },
+  "/api/v2/users/bulk": {
+    "post": {
+      "example": [
+        {
+          "name": "John Smith",
+          "email": "john.smith@example.com",
+          "password": "TempPassword123!",
+          "department": "Sales",
+          "title": "Sales Agent"
+        },
+        {
+          "name": "Sarah Johnson",
+          "email": "sarah.johnson@example.com",
+          "password": "TempPassword123!",
+          "department": "Support",
+          "title": "Support Specialist"
+        }
+      ]
+    }
+  },
+  "/api/v2/users/{userId}/routingskills": {
+    "post": {
+      "example": {
+        "id": "skill-id-goes-here",
+        "proficiency": 4.5
+      }
+    },
+    "patch": {
+      "example": [
+        {
+          "id": "skill-id-1",
+          "proficiency": 5.0
+        },
+        {
+          "id": "skill-id-2",
+          "proficiency": 3.5
+        }
+      ]
+    }
+  },
+  "/api/v2/users/{userId}/routingstatus": {
+    "put": {
+      "example": {
+        "routingStatus": "IDLE",
+        "userId": "user-id-goes-here"
+      }
+    }
+  },
+  "/api/v2/users/{userId}/presences/purecloud": {
+    "patch": {
+      "example": {
+        "presenceDefinition": {
+          "id": "available-presence-id"
+        },
+        "message": "Available for calls"
+      }
+    }
+  },
+  "/api/v2/routing/queues": {
+    "post": {
+      "example": {
+        "name": "Customer Support Queue",
+        "description": "Main customer support queue for general inquiries",
+        "divisionId": "division-id-goes-here",
+        "mediaSettings": {
+          "call": {
+            "alertingTimeoutSeconds": 30,
+            "serviceLevel": {
+              "percentage": 0.8,
+              "durationMs": 20000
+            }
+          },
+          "chat": {
+            "alertingTimeoutSeconds": 30,
+            "serviceLevel": {
+              "percentage": 0.8,
+              "durationMs": 20000
+            }
+          },
+          "email": {
+            "alertingTimeoutSeconds": 300,
+            "serviceLevel": {
+              "percentage": 0.8,
+              "durationMs": 86400000
+            }
+          }
+        },
+        "routingRules": [
+          {
+            "operator": "MEETS_THRESHOLD",
+            "threshold": 2,
+            "waitSeconds": 300
+          }
+        ],
+        "acwSettings": {
+          "wrapupPrompt": "MANDATORY_TIMEOUT",
+          "timeoutMs": 30000
+        }
+      }
+    }
+  },
+  "/api/v2/routing/queues/{queueId}/members": {
+    "post": {
+      "example": [
+        {
+          "id": "user-id-1",
+          "ringNumber": 1
+        },
+        {
+          "id": "user-id-2",
+          "ringNumber": 1
+        },
+        {
+          "id": "user-id-3",
+          "ringNumber": 2
+        }
+      ]
+    },
+    "patch": {
+      "example": [
+        {
+          "id": "user-id-1",
+          "ringNumber": 1,
+          "joined": true
+        }
+      ]
+    }
+  },
+  "/api/v2/routing/queues/{queueId}/wrapupcodes": {
+    "post": {
+      "example": [
+        {
+          "id": "wrapup-code-id-1"
+        },
+        {
+          "id": "wrapup-code-id-2"
+        }
+      ]
+    }
+  },
+  "/api/v2/routing/wrapupcodes": {
+    "post": {
+      "example": {
+        "name": "Issue Resolved",
+        "divisionId": "division-id-goes-here"
+      }
+    }
+  },
+  "/api/v2/routing/skills": {
+    "post": {
+      "example": {
+        "name": "Spanish Language",
+        "divisionId": "division-id-goes-here"
       }
     }
   },
   "/api/v2/conversations/callbacks": {
     "post": {
       "example": {
-        "callbackNumbers": ["+13175551234"],
+        "callbackNumbers": [
+          "+13175551234"
+        ],
         "queueId": "queue-id-goes-here",
         "routingData": {
           "queueId": "queue-id-goes-here",
-          "priority": 2
+          "priority": 2,
+          "languageId": "language-id-goes-here",
+          "skillIds": [
+            "skill-id-1",
+            "skill-id-2"
+          ]
         },
-        "callbackUserName": "Customer Name",
+        "callbackUserName": "John Customer",
         "callbackScheduledTime": "2025-12-15T14:00:00.000Z",
-        "countryCode": "US"
+        "countryCode": "US",
+        "data": {
+          "customerAccountNumber": "ACC-12345",
+          "issueType": "Billing Inquiry"
+        }
       }
     }
   },
@@ -32,9 +208,12 @@
         "callUserId": "user-id-goes-here",
         "priority": 2,
         "languageId": "language-id-goes-here",
-        "routingSkillsIds": [],
+        "routingSkillsIds": [
+          "skill-id-1"
+        ],
         "conversationIds": [],
-        "participants": []
+        "participants": [],
+        "uuiData": "Custom UUI data for call"
       }
     }
   },
@@ -45,7 +224,16 @@
         "provider": "PureCloud Webchat v2",
         "routingData": {
           "queueId": "queue-id-goes-here",
-          "priority": 2
+          "priority": 2,
+          "languageId": "language-id-goes-here",
+          "skillIds": [
+            "skill-id-1"
+          ]
+        },
+        "memberInfo": {
+          "displayName": "Customer",
+          "firstName": "John",
+          "lastName": "Doe"
         }
       }
     }
@@ -57,8 +245,10 @@
         "provider": "PureCloud Email",
         "toAddress": "customer@example.com",
         "fromAddress": "support@company.com",
-        "subject": "Your inquiry",
+        "subject": "Re: Your Support Inquiry #12345",
         "direction": "outbound",
+        "htmlBody": "<p>Thank you for contacting us. We are reviewing your inquiry.</p>",
+        "textBody": "Thank you for contacting us. We are reviewing your inquiry.",
         "routingData": {
           "queueId": "queue-id-goes-here",
           "priority": 2
@@ -74,9 +264,11 @@
         "toAddressMessengerType": "sms",
         "useExistingConversation": false,
         "externalContactId": "external-contact-id-goes-here",
+        "textBody": "Hello! Thank you for contacting us. How can we help you today?",
         "routingData": {
           "queueId": "queue-id-goes-here",
-          "priority": 2
+          "priority": 2,
+          "languageId": "language-id-goes-here"
         }
       }
     }
@@ -85,23 +277,187 @@
     "post": {
       "example": {
         "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
-        "order": "asc",
+        "order": "desc",
         "orderBy": "conversationStart",
         "paging": {
           "pageSize": 100,
           "pageNumber": 1
         },
-        "segmentFilters": [],
-        "conversationFilters": []
+        "segmentFilters": [
+          {
+            "type": "and",
+            "predicates": [
+              {
+                "dimension": "purpose",
+                "value": "agent"
+              }
+            ]
+          }
+        ],
+        "conversationFilters": [
+          {
+            "type": "and",
+            "predicates": [
+              {
+                "dimension": "mediaType",
+                "value": "voice"
+              },
+              {
+                "dimension": "queueId",
+                "value": "queue-id-goes-here"
+              }
+            ]
+          }
+        ]
       }
     }
   },
   "/api/v2/analytics/conversations/details/jobs": {
     "post": {
       "example": {
+        "interval": "2025-11-01T00:00:00.000Z/2025-11-30T23:59:59.999Z",
+        "order": "asc",
+        "orderBy": "conversationStart",
+        "conversationFilters": [
+          {
+            "type": "and",
+            "predicates": [
+              {
+                "dimension": "queueId",
+                "value": "queue-id-goes-here"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "/api/v2/analytics/conversations/aggregates/query": {
+    "post": {
+      "example": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+        "granularity": "PT30M",
+        "groupBy": [
+          "queueId",
+          "mediaType"
+        ],
+        "metrics": [
+          "nConnected",
+          "tHandle",
+          "tTalk",
+          "tAcw",
+          "tAnswered",
+          "tHeld"
+        ],
+        "filter": {
+          "type": "and",
+          "predicates": [
+            {
+              "dimension": "queueId",
+              "value": "queue-id-goes-here"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "/api/v2/analytics/users/aggregates/query": {
+    "post": {
+      "example": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+        "groupBy": [
+          "userId"
+        ],
+        "metrics": [
+          "nConnected",
+          "tHandle",
+          "tTalk",
+          "tAcw",
+          "nOffered",
+          "tAnswered"
+        ],
+        "filter": {
+          "type": "and",
+          "predicates": [
+            {
+              "dimension": "queueId",
+              "value": "queue-id-goes-here"
+            },
+            {
+              "dimension": "mediaType",
+              "value": "voice"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "/api/v2/analytics/queues/observations/query": {
+    "post": {
+      "example": {
+        "filter": {
+          "type": "and",
+          "predicates": [
+            {
+              "dimension": "queueId",
+              "value": "queue-id-goes-here"
+            }
+          ]
+        },
+        "metrics": [
+          "oInteracting",
+          "oWaiting",
+          "oOnQueueUsers",
+          "oOffQueueUsers"
+        ]
+      }
+    }
+  },
+  "/api/v2/analytics/flows/aggregates/query": {
+    "post": {
+      "example": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+        "groupBy": [
+          "flowId"
+        ],
+        "metrics": [
+          "nFlow",
+          "nFlowOutcome",
+          "nFlowOutcomeFailed"
+        ],
+        "filter": {
+          "type": "and",
+          "predicates": [
+            {
+              "dimension": "flowType",
+              "value": "inboundcall"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "/api/v2/analytics/users/details/query": {
+    "post": {
+      "example": {
         "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
         "order": "asc",
-        "orderBy": "conversationStart"
+        "orderBy": "userId",
+        "paging": {
+          "pageSize": 100,
+          "pageNumber": 1
+        },
+        "presenceFilters": [
+          {
+            "type": "or",
+            "predicates": [
+              {
+                "dimension": "systemPresence",
+                "value": "AVAILABLE"
+              }
+            ]
+          }
+        ]
       }
     }
   },
@@ -110,7 +466,7 @@
       "example": {
         "userId": "user-id-to-transfer-to",
         "address": "+13175551234",
-        "userName": "Agent Name",
+        "userName": "Senior Agent",
         "queueId": "queue-id-goes-here",
         "voicemail": false
       }
@@ -124,6 +480,9 @@
         },
         {
           "conversationId": "conversation-id-2"
+        },
+        {
+          "conversationId": "conversation-id-3"
         }
       ]
     }
@@ -134,8 +493,187 @@
         {
           "conversationId": "conversation-id-1",
           "callbackScheduledTime": "2025-12-15T15:00:00.000Z"
+        },
+        {
+          "conversationId": "conversation-id-2",
+          "callbackScheduledTime": "2025-12-15T16:00:00.000Z"
         }
       ]
+    }
+  },
+  "/api/v2/quality/evaluations": {
+    "post": {
+      "example": {
+        "evaluationForm": {
+          "id": "evaluation-form-id-goes-here"
+        },
+        "evaluator": {
+          "id": "evaluator-user-id"
+        },
+        "agent": {
+          "id": "agent-user-id"
+        },
+        "conversation": {
+          "id": "conversation-id-goes-here"
+        },
+        "evaluationContextId": "context-id-goes-here",
+        "queue": {
+          "id": "queue-id-goes-here"
+        },
+        "answers": {
+          "questionGroupId": {
+            "questionId": {
+              "answer": "Yes",
+              "score": 100
+            }
+          }
+        },
+        "agentHasRead": false,
+        "releaseDate": "2025-12-15T00:00:00.000Z"
+      }
+    }
+  },
+  "/api/v2/quality/forms/evaluations": {
+    "post": {
+      "example": {
+        "name": "Customer Service Evaluation Form",
+        "published": false,
+        "questionGroups": [
+          {
+            "name": "Greeting",
+            "weight": 20,
+            "questions": [
+              {
+                "text": "Did the agent greet the customer professionally?",
+                "answerOptions": [
+                  {
+                    "text": "Yes",
+                    "value": 100
+                  },
+                  {
+                    "text": "No",
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Problem Resolution",
+            "weight": 80,
+            "questions": [
+              {
+                "text": "Was the customer's issue resolved?",
+                "answerOptions": [
+                  {
+                    "text": "Fully Resolved",
+                    "value": 100
+                  },
+                  {
+                    "text": "Partially Resolved",
+                    "value": 50
+                  },
+                  {
+                    "text": "Not Resolved",
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "/api/v2/outbound/campaigns": {
+    "post": {
+      "example": {
+        "name": "Holiday Promotion Campaign",
+        "divisionId": "division-id-goes-here",
+        "contactList": {
+          "id": "contact-list-id-goes-here"
+        },
+        "queue": {
+          "id": "queue-id-goes-here"
+        },
+        "phoneColumns": [
+          {
+            "columnName": "Cell"
+          }
+        ],
+        "script": {
+          "id": "script-id-goes-here"
+        },
+        "callableTimeSet": {
+          "id": "callable-time-set-id"
+        },
+        "callingPartyName": "Company Name",
+        "callingPartyNumber": "+18005551234",
+        "outboundLineCount": 5,
+        "campaignStatus": "off",
+        "dialingMode": "agentless"
+      }
+    }
+  },
+  "/api/v2/outbound/contactlists": {
+    "post": {
+      "example": {
+        "name": "Holiday Promotion Contacts",
+        "divisionId": "division-id-goes-here",
+        "columnNames": [
+          "FirstName",
+          "LastName",
+          "Cell",
+          "Email"
+        ],
+        "phoneColumns": [
+          {
+            "columnName": "Cell",
+            "type": "cell"
+          }
+        ],
+        "previewModeColumnName": "FirstName",
+        "previewModeAcceptedValues": []
+      }
+    }
+  },
+  "/api/v2/outbound/callabletimesets": {
+    "post": {
+      "example": {
+        "name": "Business Hours - Eastern Time",
+        "callableTimes": [
+          {
+            "timeSlots": [
+              {
+                "startTime": "09:00:00",
+                "stopTime": "17:00:00",
+                "day": 1
+              },
+              {
+                "startTime": "09:00:00",
+                "stopTime": "17:00:00",
+                "day": 2
+              },
+              {
+                "startTime": "09:00:00",
+                "stopTime": "17:00:00",
+                "day": 3
+              },
+              {
+                "startTime": "09:00:00",
+                "stopTime": "17:00:00",
+                "day": 4
+              },
+              {
+                "startTime": "09:00:00",
+                "stopTime": "17:00:00",
+                "day": 5
+              }
+            ],
+            "timeZoneId": "America/New_York"
+          }
+        ]
+      }
     }
   }
 }

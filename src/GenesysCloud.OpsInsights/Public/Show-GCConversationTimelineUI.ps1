@@ -1,23 +1,31 @@
+### BEGIN FILE: Public\Show-GCConversationTimelineUI.ps1
+function Show-GCConversationTimelineUI {
 ### BEGIN FILE: Show-GCConversationTimelineUI.ps1
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$BaseUri,
+    [Parameter()]
+        [string]$BaseUri,
 
-    [Parameter(Mandatory = $true)]
-    [string]$AccessToken,
+    [Parameter()]
+        [string]$AccessToken,
 
     # Optional: preload and auto-load this conversation on open
     [Parameter(Mandatory = $false)]
     [string]$ConversationId
 )
 
+    # Resolve connection details from either explicit parameters or Connect-GCCloud context
+    $auth = Resolve-GCAuth -BaseUri $BaseUri -AccessToken $AccessToken
+    $BaseUri = $auth.BaseUri
+    $AccessToken = $auth.AccessToken
+
+
 # Ensure the timeline function is available
 if (-not (Get-Command -Name Get-GCConversationTimeline -ErrorAction SilentlyContinue)) {
     throw "Get-GCConversationTimeline is not available. Import your Genesys toolbox module before running this UI."
 }
 
-# WPF assemblies (works in Windows PowerShell; in PS 7 use Windows with full .NET Desktop)
+# WPF assemblies
 Add-Type -AssemblyName PresentationCore,PresentationFramework,WindowsBase
 
 # Simple WPF layout: input row + grid + status bar
@@ -98,7 +106,6 @@ $loadHandler = {
         $statusText.Text = "Loading conversation $convId ..."
         $window.Cursor   = [System.Windows.Input.Cursors]::Wait
 
-        # Call toolbox function to get the bundle
         $bundle = Get-GCConversationTimeline -BaseUri $base -AccessToken $AccessToken -ConversationId $convId -Verbose:$false
 
         if (-not $bundle) {
@@ -107,7 +114,6 @@ $loadHandler = {
             return
         }
 
-        # Bind TimelineEvents directly to the grid
         $timelineGrid.ItemsSource = $bundle.TimelineEvents
 
         $count = if ($bundle.TimelineEvents) { $bundle.TimelineEvents.Count } else { 0 }
@@ -126,7 +132,7 @@ $loadButton.Add_Click($loadHandler)
 
 # Allow hitting Enter in the ConversationId box to trigger load
 $conversationIdBox.Add_KeyDown({
-    param($s,$e)
+    param($sender,$e)
     if ($e.Key -eq [System.Windows.Input.Key]::Enter) {
         & $loadHandler
     }
@@ -142,3 +148,5 @@ if ($ConversationId) {
 # Show the WPF window modally
 $window.ShowDialog() | Out-Null
 ### END FILE: Show-GCConversationTimelineUI.ps1
+}
+### END FILE: Public\Show-GCConversationTimelineUI.ps1

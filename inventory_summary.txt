@@ -1,0 +1,10 @@
+
+Classic_Count    : 833
+StoreApps_Count  : 165
+Drivers_Count    : 308
+UpdatesPreferred : 0
+HeuristicFlagged : 226
+Generated_At     : 2025-12-15 02:11:36
+Output_Directory : G:\Development\20_Staging\Genesys-API-Explorer
+
+
