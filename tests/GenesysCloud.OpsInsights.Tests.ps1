@@ -47,15 +47,15 @@ Describe 'GenesysCloud.OpsInsights' {
         It 'Get-GCDivisionReport Interval parameter is mandatory' {
             $command = Get-Command Get-GCDivisionReport
             $intervalParam = $command.Parameters['Interval']
-            $intervalParam.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } | 
-                ForEach-Object { $_.Mandatory } | Should -Contain $true
+            ($intervalParam.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory | 
+                Should -Contain $true
         }
 
         It 'Get-GCRoutingStatusReport Interval parameter is mandatory' {
             $command = Get-Command Get-GCRoutingStatusReport
             $intervalParam = $command.Parameters['Interval']
-            $intervalParam.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } | 
-                ForEach-Object { $_.Mandatory } | Should -Contain $true
+            ($intervalParam.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory | 
+                Should -Contain $true
         }
     }
 
