@@ -86,5 +86,46 @@ Describe 'GenesysCloud.OpsInsights' {
             $command.Parameters.Keys | Should -Contain 'Interval'
         }
     }
+
+    Context 'Export-GCConversationToExcel' {
+        It 'Exports timeline data to a file path' {
+            $conversation = [pscustomobject]@{
+                ConversationId   = 'conv-123'
+                TimelineEvents   = @(
+                    [pscustomobject]@{
+                        ConversationId = 'conv-123'
+                        StartTime      = [datetime]'2025-01-01T00:00:00Z'
+                        EndTime        = [datetime]'2025-01-01T00:05:00Z'
+                        Source         = 'Core'
+                        EventType      = 'start'
+                        Participant    = 'caller'
+                        Queue          = 'queue-1'
+                        User           = 'user-1'
+                        Direction      = 'inbound'
+                        DisconnectType = 'client'
+                        Extra          = @{ Note = 'hello' }
+                    }
+                )
+                Core             = @{ foo = 'bar' }
+                AnalyticsDetails = @{ data = @{ stat = 1 } }
+            }
+
+            $outPath = Join-Path $TestDrive 'conversation.xlsx'
+            $result = Export-GCConversationToExcel -ConversationData $conversation -OutputPath $outPath -IncludeRawData -Force
+
+            $result | Should -Not -BeNullOrEmpty
+            $result.Format | Should -BeIn @('Csv','Xlsx')
+
+            if ($result.Format -eq 'Csv') {
+                Test-Path $result.TimelinePath | Should -BeTrue
+                (Import-Csv -LiteralPath $result.TimelinePath).Count | Should -Be 1
+                $result.RawPaths.Keys | Should -Contain 'Core'
+                Test-Path $result.RawPaths['Core'] | Should -BeTrue
+            }
+            else {
+                Test-Path $result.Path | Should -BeTrue
+            }
+        }
+    }
 }
 ### END FILE

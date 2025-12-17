@@ -25,26 +25,16 @@ if (-not $script:GCContext) {
     }
 }
 
-function Import-ScriptFolder {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Directory
-    )
-
-    if (-not (Test-Path -LiteralPath $Directory)) {
-        return
-    }
-
-    Get-ChildItem -Path $Directory -Filter '*.ps1' -File | Sort-Object Name | ForEach-Object {
-        . $_.FullName
-    }
-}
-
 $privateDir = Join-Path $moduleRoot 'Private'
 $publicDir  = Join-Path $moduleRoot 'Public'
 
-Import-ScriptFolder -Directory $privateDir
-Import-ScriptFolder -Directory $publicDir
+$script:LoadedScripts = @()
+
+$privateScripts = Get-ChildItem -Path $privateDir -Filter '*.ps1' -File | Sort-Object Name
+foreach ($script in $privateScripts) { . $script.FullName; $script:LoadedScripts += $script.Name }
+
+$publicScripts = Get-ChildItem -Path $publicDir -Filter '*.ps1' -File | Sort-Object Name
+foreach ($script in $publicScripts) { . $script.FullName; $script:LoadedScripts += $script.Name }
 
 $publicFunctions = @(
     'Connect-GCCloud',
@@ -53,8 +43,10 @@ $publicFunctions = @(
     'Get-GCContext',
     'Get-GCConversationDetails',
     'Get-GCConversationTimeline',
+    'Get-GCDivisionReport',
     'Get-GCQueueHotConversations',
     'Get-GCQueueSmokeReport',
+    'Get-GCRoutingStatusReport',
     'Import-GCSnapshot',
     'Invoke-GCInsightPack',
     'Invoke-GCInsightsPack',
