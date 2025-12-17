@@ -4968,7 +4968,7 @@ function Get-LastSuccessfulRequestParameters {
         [string]$Method
     )
 
-    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Method)) {
+    if (-not $Path -or -not $Method) {
         return $null
     }
 
@@ -4977,12 +4977,13 @@ function Get-LastSuccessfulRequestParameters {
     }
 
     $methodUpper = $Method.ToUpper()
+    # Newest entries are inserted at index 0, so foreach enumerates most recent first.
     foreach ($entry in $script:RequestHistory) {
         if ($entry.Path -ne $Path) { continue }
         if ($entry.Method -ne $methodUpper) { continue }
 
         $status = $entry.Status
-        if ($status -is [int] -and $status -ge 200 -and $status -lt 300 -and $entry.Parameters) {
+        if ($status -is [int] -and $status -ge [int][System.Net.HttpStatusCode]::OK -and $status -lt [int][System.Net.HttpStatusCode]::MultipleChoices -and $entry.Parameters) {
             return $entry.Parameters
         }
     }
@@ -5580,9 +5581,8 @@ $methodCombo.Add_SelectionChanged({
             $pendingFavoriteParameters = $null
         }
         else {
-            $populatedFromHistory = $false
-            $isPostMethod = ($selectedMethod -and $selectedMethod.Equals("post", [System.StringComparison]::InvariantCultureIgnoreCase))
-            if ($isPostMethod) {
+            if ($selectedMethod -and $selectedMethod.ToUpper() -eq "POST") {
+                $populatedFromHistory = $false
                 $lastParams = Get-LastSuccessfulRequestParameters -Path $selectedPath -Method $selectedMethod
                 if ($lastParams) {
                     foreach ($param in $params) {
@@ -5593,24 +5593,24 @@ $methodCombo.Add_SelectionChanged({
                     $populatedFromHistory = $true
                     $statusText.Text = "Restored values from last successful request."
                 }
-            }
 
-            if (-not $populatedFromHistory) {
-                # Try to populate body parameter with example template if available
-                $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
-                if ($exampleBody -and $isPostMethod) {
-                    # Find the body parameter input and populate it
-                    foreach ($param in $params) {
-                        if ($param.in -eq "body") {
-                            $bodyInput = $paramInputs[$param.name]
-                            if ($bodyInput) {
-                                $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
-                                if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
-                                    $bodyTextControl.Text = $exampleBody
+                if (-not $populatedFromHistory) {
+                    # Try to populate body parameter with example template if available
+                    $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
+                    if ($exampleBody) {
+                        # Find the body parameter input and populate it
+                        foreach ($param in $params) {
+                            if ($param.in -eq "body") {
+                                $bodyInput = $paramInputs[$param.name]
+                                if ($bodyInput) {
+                                    $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
+                                    if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
+                                        $bodyTextControl.Text = $exampleBody
+                                    }
+                                    $statusText.Text = "Example body template loaded. Modify as needed and submit."
                                 }
-                                $statusText.Text = "Example body template loaded. Modify as needed and submit."
+                                break
                             }
-                            break
                         }
                     }
                 }
@@ -6597,6 +6597,7 @@ $btnSubmit.Add_Click({
 
         $fullUrl = $baseUrl + $pathWithReplacements + $queryString
         $body = $null
+        # Body input was already validated for JSON correctness earlier in the submission workflow.
         if ($bodyText) {
             $body = $bodyText
         }
