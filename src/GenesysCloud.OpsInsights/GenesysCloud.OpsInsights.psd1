@@ -24,6 +24,8 @@
         'Connect-GCCloud',
         'Disconnect-GCCloud',
         'Get-GCContext',
+        'Set-GCContext',
+        'Set-GCInvoker',
         'Invoke-GCRequest',
         'Start-GCTrace',
         'Stop-GCTrace',
@@ -33,10 +35,15 @@
         'Save-GCSnapshot',
         'Import-GCSnapshot',
         'Invoke-GCInsightPack',
+        'Invoke-GCInsightsPack',
+        'Export-GCInsightPackSnapshot',
+        'Export-GCInsightPackExcel',
+        'Export-GCInsightBriefing',
 
         # Toolkit (consolidated)
         'Get-GCConversationTimeline',
         'Export-GCConversationToExcel',
+        'Get-GCConversationDetails',
         'Get-GCQueueSmokeReport',
         'Get-GCQueueHotConversations',
         'Show-GCConversationTimelineUI',
@@ -60,4 +67,3 @@
         }
     }
 }
-
