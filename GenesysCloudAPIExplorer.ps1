@@ -595,15 +595,10 @@ function Get-ParameterControlValue {
         }
     }
 
-    # Handle CheckBox (wrapped in StackPanel)
-    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
-        $checkBox = $Control.ValueControl
-        if ($checkBox.IsChecked -eq $true) {
-            return "true"
-        }
-        elseif ($checkBox.IsChecked -eq $false) {
-            return "false"
-        }
+    # Handle CheckBox when passed directly (non-wrapped)
+    if (-not $Control.ValueControl -and $Control -is [System.Windows.Controls.CheckBox]) {
+        if ($Control.IsChecked -eq $true) { return "true" }
+        if ($Control.IsChecked -eq $false) { return "false" }
     }
 
     # Handle ComboBox
@@ -668,17 +663,16 @@ function Set-ParameterControlValue {
         }
     }
 
-    # Handle CheckBox (wrapped in StackPanel)
-    if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
-        $checkBox = $Control.ValueControl
+    # Handle CheckBox when passed directly (non-wrapped)
+    if (-not $Control.ValueControl -and $Control -is [System.Windows.Controls.CheckBox]) {
         if ($Value -eq "true" -or $Value -eq $true) {
-            $checkBox.IsChecked = $true
+            $Control.IsChecked = $true
         }
         elseif ($Value -eq "false" -or $Value -eq $false) {
-            $checkBox.IsChecked = $false
+            $Control.IsChecked = $false
         }
         else {
-            $checkBox.IsChecked = $null
+            $Control.IsChecked = $null
         }
     }
 
@@ -4972,6 +4966,10 @@ function Get-LastSuccessfulRequestParameters {
         [string]$Path,
         [string]$Method
     )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Method)) {
+        return $null
+    }
 
     if (-not $script:RequestHistory -or $script:RequestHistory.Count -eq 0) {
         return $null
