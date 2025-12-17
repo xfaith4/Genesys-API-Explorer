@@ -4961,6 +4961,7 @@ $script:TemplatesFilePath = Join-Path -Path $env:USERPROFILE -ChildPath "Genesys
 $script:CurrentBodyControl = $null
 $script:CurrentBodySchema = $null
 
+# Retrieve the parameters from the most recent successful request matching the given path and method.
 function Get-LastSuccessfulRequestParameters {
     param (
         [string]$Path,
@@ -5580,7 +5581,8 @@ $methodCombo.Add_SelectionChanged({
         }
         else {
             $populatedFromHistory = $false
-            if ($selectedMethod -and $selectedMethod.ToLower() -eq "post") {
+            $isPostMethod = ($selectedMethod -and $selectedMethod.Equals("post", [System.StringComparison]::InvariantCultureIgnoreCase))
+            if ($isPostMethod) {
                 $lastParams = Get-LastSuccessfulRequestParameters -Path $selectedPath -Method $selectedMethod
                 if ($lastParams) {
                     foreach ($param in $params) {
@@ -5596,7 +5598,7 @@ $methodCombo.Add_SelectionChanged({
             if (-not $populatedFromHistory) {
                 # Try to populate body parameter with example template if available
                 $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
-                if ($exampleBody -and $selectedMethod -and $selectedMethod.ToLower() -eq "post") {
+                if ($exampleBody -and $isPostMethod) {
                     # Find the body parameter input and populate it
                     foreach ($param in $params) {
                         if ($param.in -eq "body") {
