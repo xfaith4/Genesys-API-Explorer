@@ -73,6 +73,23 @@ Describe 'GenesysCloud.OpsInsights' {
             ($intervalParam.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory | 
                 Should -Contain $true
         }
+
+        It 'Exports Get-GCPeakConcurrentVoice function' {
+            $command = Get-Command Get-GCPeakConcurrentVoice -ErrorAction SilentlyContinue
+            $command | Should -Not -BeNullOrEmpty
+            $command.CommandType | Should -Be 'Function'
+        }
+
+        It 'Get-GCPeakConcurrentVoice computes peak from fixture data' {
+            $here = Split-Path -Parent $PSCommandPath
+            $fixturePath = Join-Path $here 'fixtures/ConversationDetails.sample.json'
+            $payload = Get-Content $fixturePath | ConvertFrom-Json
+
+            $result = Get-GCPeakConcurrentVoice -Interval '2024-02-01T00:00:00Z/2024-03-01T00:00:00Z' -Conversations $payload.conversations
+
+            $result.PeakConcurrentCalls | Should -Be 10
+            $result.FirstPeakMinuteUtc | Should -Be ([datetime]'2024-02-16T18:23:00Z')
+        }
     }
 
     Context 'Get-GCQueueSmokeReport' {

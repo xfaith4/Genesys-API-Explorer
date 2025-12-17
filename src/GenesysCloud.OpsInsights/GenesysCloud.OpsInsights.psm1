@@ -47,6 +47,7 @@ $publicFunctions = @(
     'Get-GCQueueHotConversations',
     'Get-GCQueueSmokeReport',
     'Get-GCRoutingStatusReport',
+    'Get-GCPeakConcurrentVoice',
     'Import-GCSnapshot',
     'Invoke-GCInsightPack',
     'Invoke-GCInsightsPack',
