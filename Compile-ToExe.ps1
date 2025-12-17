@@ -56,10 +56,13 @@ try {
         Write-Host "  Executable: $OutputPath" -ForegroundColor Green
         Write-Host "  Size: $([math]::Round($exeInfo.Length / 1MB, 2)) MB" -ForegroundColor Green
         Write-Host "`nIMPORTANT NOTES:" -ForegroundColor Yellow
-        Write-Host "1. The EXE requires the following files in the same directory:" -ForegroundColor White
-        Write-Host "   - DefaultTemplates.json" -ForegroundColor Gray
-        Write-Host "   - ExamplePostBodies.json" -ForegroundColor Gray
-        Write-Host "   - GenesysCloudAPIEndpoints.json" -ForegroundColor Gray
+        Write-Host "1. Copy the OpsConsole module and resource files into the executable directory:" -ForegroundColor White
+        Write-Host "   - apps/OpsConsole/OpsConsole.psd1" -ForegroundColor Gray
+        Write-Host "   - apps/OpsConsole/OpsConsole.psm1" -ForegroundColor Gray
+        Write-Host "   - apps/OpsConsole/Resources/GenesysCloudAPIExplorer.ps1" -ForegroundColor Gray
+        Write-Host "   - apps/OpsConsole/Resources/DefaultTemplates.json" -ForegroundColor Gray
+        Write-Host "   - apps/OpsConsole/Resources/ExamplePostBodies.json" -ForegroundColor Gray
+        Write-Host "   - apps/OpsConsole/Resources/GenesysCloudAPIEndpoints.json" -ForegroundColor Gray
         Write-Host "2. User templates will be stored in: Documents\GenesysCloudAPIExplorer\" -ForegroundColor White
         Write-Host "3. The executable is NOT code-signed. Windows may show a warning on first run." -ForegroundColor White
     }
