@@ -1,335 +1,232 @@
-### BEGIN FILE: Public\Invoke-GCRequest.ps1
+### BEGIN FILE: src\GenesysCloud.OpsInsights\Public\Invoke-GCRequest.ps1
 function Invoke-GCRequest {
     <#
-    .SYNOPSIS
-    Safe, rate-limit-aware HTTP wrapper for Genesys Cloud API requests.
-
-    .DESCRIPTION
-    Centralizes:
-      - Base URI + Bearer token handling (from Connect-GCCloud context OR explicit parameters)
-      - Querystring building
-      - JSON body serialization
-      - Retry/backoff for 429 + transient 5xx
-      - Optional token refresh via TokenProvider (future-proofing)
-      - Optional tracing to a log file (Start-GCTrace)
-
-    .PARAMETER Method
-    HTTP method.
-
-    .PARAMETER Path
-    API path like '/api/v2/conversations/{id}'. If you provide -Uri (absolute), -Path is ignored.
-
-    .PARAMETER Uri
-    Full absolute URI. Prefer -Path for standard Genesys calls.
-
-    .PARAMETER BaseUri
-    Optional override base URI (e.g., https://api.usw2.pure.cloud). If not set, uses Connect-GCCloud context.
-
-    .PARAMETER AccessToken
-    Optional override bearer token. If not set, uses Connect-GCCloud context.
-
-    .PARAMETER Query
-    Hashtable of querystring values. Values are URL-encoded.
-
-    .PARAMETER Body
-    Request body object. Serialized as JSON unless -RawBody is used.
-
-    .PARAMETER RawBody
-    Raw string body (sent as-is). Use when you already built JSON text.
-
-    .PARAMETER MaxAttempts
-    Retry attempts for 429 / transient 5xx failures.
-
-    .PARAMETER MaxBackoffSeconds
-    Caps exponential backoff.
-
-    .PARAMETER ReturnMeta
-    Returns a wrapper object containing StatusCode/Headers/Url/DurationMs in addition to Response.
-
-    .EXAMPLE
-    Connect-GCCloud -RegionDomain 'usw2.pure.cloud' -AccessToken $token
-    Invoke-GCRequest -Method GET -Path '/api/v2/users/me'
+      .SYNOPSIS
+        Canonical Genesys Cloud REST transport (mockable; PS 5.1 + 7+).
+      .DESCRIPTION
+        - Supports offline dev via Set-GCInvoker (fixtures/mocks)
+        - Defaults to api.usw2.pure.cloud when no context/baseuri supplied
+        - Uses $global:AccessToken automatically if present
+        - Retries transient failures and honors Retry-After for 429s
+        - Defensive error parsing (does not assume .Response exists)
     #>
-    [CmdletBinding(DefaultParameterSetName = 'Path')]
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [ValidateSet('GET','POST','PUT','PATCH','DELETE')]
         [string]$Method,
 
-        [Parameter(Mandatory, ParameterSetName = 'Path')]
-        [ValidateNotNullOrEmpty()]
-        [string]$Path,
-
-        [Parameter(Mandatory, ParameterSetName = 'Uri')]
-        [ValidateNotNullOrEmpty()]
+        [Parameter()]
         [string]$Uri,
 
         [Parameter()]
-        [ValidateNotNullOrEmpty()]
+        [string]$Path,
+
+        [Parameter()]
         [string]$BaseUri,
 
         [Parameter()]
-        [ValidateNotNullOrEmpty()]
         [string]$AccessToken,
-
-        [Parameter()]
-        [hashtable]$Query,
 
         [Parameter()]
         [object]$Body,
 
         [Parameter()]
-        [string]$RawBody,
+        [hashtable]$Headers,
 
         [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [string]$ContentType = 'application/json',
+        [int]$TimeoutSec = 100,
 
         [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [string]$Accept = 'application/json',
-
-        [Parameter()]
-        [ValidateRange(1, 25)]
-        [int]$MaxAttempts = 6,
-
-        [Parameter()]
-        [ValidateRange(1, 300)]
-        [int]$MaxBackoffSeconds = 60,
-
-        [Parameter()]
-        [switch]$ReturnMeta,
-
-        [Parameter()]
-        [switch]$DisableRetry
+        [int]$MaxAttempts = 6
     )
 
-    # Resolve auth from explicit args or module context
-    $auth = Resolve-GCAuth -BaseUri $BaseUri -AccessToken $AccessToken
+    # -------- Context / Defaults --------
+    $ctx = $script:GCContext
 
-    # Build URL
-    $url = $null
-    if ($PSCmdlet.ParameterSetName -eq 'Uri') {
-        $url = $Uri
+    if (-not $BaseUri) {
+        if ($ctx -and $ctx.PSObject.Properties.Name -contains 'ApiBaseUri' -and $ctx.ApiBaseUri) {
+            $BaseUri = $ctx.ApiBaseUri
+        } elseif ($ctx -and $ctx.PSObject.Properties.Name -contains 'BaseUri' -and $ctx.BaseUri) {
+            $BaseUri = $ctx.BaseUri
+        } else {
+            # Default to primary region for Ben's org
+            $BaseUri = 'https://api.usw2.pure.cloud'
+        }
     }
-    else {
-        $url = $auth.BaseUri.TrimEnd('/') + $Path
-    }
-    # Build querystring (avoid external deps; keep PS 5.1 + 7+ compatible)
-    if ($Query -and $Query.Count -gt 0) {
-        $ub = [System.UriBuilder]$url
 
-        # Parse existing query into a hashtable
-        $existing = @{}
-        if (-not [string]::IsNullOrWhiteSpace($ub.Query)) {
-            $q = $ub.Query.TrimStart('?')
-            foreach ($pair in ($q -split '&')) {
-                if ([string]::IsNullOrWhiteSpace($pair)) { continue }
-                $kv = $pair -split '=', 2
-                $k  = [System.Uri]::UnescapeDataString($kv[0])
-                $v  = if ($kv.Count -gt 1) { [System.Uri]::UnescapeDataString($kv[1]) } else { '' }
-                $existing[$k] = $v
+    # Prefer explicit token, then global token, then context, then token provider
+    if (-not $AccessToken -and $global:AccessToken) {
+        $AccessToken = $global:AccessToken
+    }
+    if (-not $AccessToken -and $ctx -and $ctx.PSObject.Properties.Name -contains 'AccessToken' -and $ctx.AccessToken) {
+        $AccessToken = $ctx.AccessToken
+    }
+    if (-not $AccessToken -and $ctx -and $ctx.PSObject.Properties.Name -contains 'TokenProvider' -and $ctx.TokenProvider) {
+        try { $AccessToken = & $ctx.TokenProvider } catch { }
+    }
+
+    if (-not $Uri) {
+        if (-not $Path) { throw "Invoke-GCRequest requires -Uri or -Path." }
+        $Uri = ($BaseUri.TrimEnd('/') + '/' + $Path.TrimStart('/'))
+    }
+
+    if (-not $Headers) { $Headers = @{} }
+
+    if ($AccessToken -and -not $Headers.ContainsKey('Authorization')) {
+        $Headers['Authorization'] = "Bearer $($AccessToken)"
+    }
+    if (-not $Headers.ContainsKey('Accept')) { $Headers['Accept'] = 'application/json' }
+    if ($Body -and -not $Headers.ContainsKey('Content-Type')) { $Headers['Content-Type'] = 'application/json' }
+
+    $payload = $null
+    if ($Body) {
+        if ($Body -is [string]) { $payload = $Body }
+        else { $payload = ($Body | ConvertTo-Json -Depth 50) }
+    }
+
+    function Get-GCTraceHeaders {
+        param([hashtable]$Headers)
+
+        if (-not $Headers) { return '<none>' }
+
+        $pairs = foreach ($key in ($Headers.Keys | Sort-Object)) {
+            $value = $Headers[$key]
+            if ($key -match '^(Authorization|X-Auth-Token)$') {
+                $value = 'REDACTED'
             }
+            "$key=$value"
         }
 
-        # Merge in new parameters (overwrite existing keys)
-        foreach ($k in $Query.Keys) {
-            if ($null -eq $Query[$k]) { continue }
-            $existing[[string]$k] = [string]$Query[$k]
+        return ($pairs -join '; ')
+    }
+
+    function Get-GCTraceBody {
+        param([string]$Body)
+
+        if (-not $Body) { return '<empty>' }
+        if ($Body.Length -gt 512) {
+            return ($Body.Substring(0, 512) + '...')
         }
 
-        # Rebuild query string with URL encoding
-        $pairs = foreach ($k in $existing.Keys) {
-            $ek = [System.Uri]::EscapeDataString([string]$k)
-            $ev = [System.Uri]::EscapeDataString([string]$existing[$k])
-            "$ek=$ev"
+        return $Body
+    }
+
+    function Get-GCErrorInfo {
+        param([Parameter(Mandatory)][System.Exception]$Exception)
+
+        $info = [ordered]@{
+            Message    = $Exception.Message
+            StatusCode = $null
+            Reason     = $null
+            Body       = $null
+            Headers    = $null
         }
 
-        $ub.Query = ($pairs -join '&')
-        $url = $ub.Uri.AbsoluteUri
-    }
+        $resp = $null
+        try { $resp = $Exception.Response } catch { }
 
-    # Headers
+        if ($resp) {
+            try { $info.StatusCode = [int]$resp.StatusCode } catch { }
+            try { $info.Reason     = [string]$resp.StatusDescription } catch { }
 
-    $headers = @{
-        Authorization = "Bearer $($auth.AccessToken)"
-        Accept        = $Accept
-    }
-
-    # Build request parameters
-    $invokeParams = @{
-        Method      = $Method
-        Uri         = $url
-        Headers     = $headers
-        ErrorAction = 'Stop'
-    }
-
-    # Serialize body if present
-    if ($PSBoundParameters.ContainsKey('RawBody') -and -not [string]::IsNullOrEmpty($RawBody)) {
-        $invokeParams.Body = $RawBody
-        $invokeParams.ContentType = $ContentType
-    }
-    elseif ($PSBoundParameters.ContainsKey('Body') -and $null -ne $Body -and $Method -ne 'GET') {
-        # Convert objects to JSON with a sane depth for Genesys payloads
-        if ($Body -is [string]) {
-            $invokeParams.Body = $Body
-        }
-        else {
-            $invokeParams.Body = ($Body | ConvertTo-Json -Depth 30)
-        }
-        $invokeParams.ContentType = $ContentType
-    }
-
-    # Internal helper to extract HTTP status + headers when Invoke-RestMethod throws
-    function Get-HttpErrorInfo {
-        param([Parameter(Mandatory)]$ErrorRecord)
-
-        $statusCode = $null
-        $respHeaders = @{}
-        $respBody = $null
-
-        $ex = $ErrorRecord.Exception
-
-        # PowerShell 5.1: WebException.Response is the best source of truth
-        if ($ex -and $ex.Response) {
             try {
-                $httpResp = $ex.Response
-                if ($httpResp.StatusCode) {
-                    $statusCode = [int]$httpResp.StatusCode
+                $info.Headers = @{}
+                foreach ($k in $resp.Headers.Keys) { $info.Headers[$k] = $resp.Headers[$k] }
+            } catch { }
+
+            try {
+                $stream = $resp.GetResponseStream()
+                if ($stream) {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $info.Body = $reader.ReadToEnd()
+                    $reader.Close()
                 }
-
-                try {
-                    foreach ($h in $httpResp.Headers.AllKeys) {
-                        $respHeaders[$h] = $httpResp.Headers[$h]
-                    }
-                } catch { }
-
-                try {
-                    $stream = $httpResp.GetResponseStream()
-                    if ($stream) {
-                        $reader = New-Object System.IO.StreamReader($stream)
-                        $respBody = $reader.ReadToEnd()
-                        $reader.Close()
-                    }
-                } catch { }
             } catch { }
         }
-        else {
-            # PowerShell 7 sometimes populates ErrorDetails.Message with JSON
-            try { $respBody = $ErrorRecord.ErrorDetails.Message } catch { }
-        }
 
-        [pscustomobject]@{
-            StatusCode = $statusCode
-            Headers    = $respHeaders
-            Body       = $respBody
+        return [pscustomobject]$info
+    }
+
+    # -------- Mockable invoker seam --------
+    if (-not $script:GCInvoker) {
+        $script:GCInvoker = {
+            param([hashtable]$Request)
+
+            $irmSplat = @{
+                Method      = $Request.Method
+                Uri         = $Request.Uri
+                Headers     = $Request.Headers
+                TimeoutSec  = $Request.TimeoutSec
+                ErrorAction = 'Stop'
+            }
+            if ($Request.Body) { $irmSplat.Body = $Request.Body }
+
+            Invoke-RestMethod @irmSplat
         }
     }
 
-    # Retry loop
+    # -------- Execute w/ retries --------
     $attempt = 0
-    $lastError = $null
+    $lastErr = $null
 
     while ($attempt -lt $MaxAttempts) {
         $attempt++
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+        if ($script:GCContext.TraceEnabled) {
+            $traceHeaders = Get-GCTraceHeaders -Headers $Headers
+            $traceBody    = Get-GCTraceBody -Body $payload
+            Write-GCTraceLine -Message ("[Attempt {0}] Requesting {1} {2} Headers: {3} Body: {4}" -f $attempt, $Method, $Uri, $traceHeaders, $traceBody)
+        }
 
         try {
-            Write-GCTraceLine ("REQ {0} {1}" -f $Method, $url)
+            $req = @{
+                Method     = $Method
+                Uri        = $Uri
+                Headers    = $Headers
+                Body       = $payload
+                TimeoutSec = $TimeoutSec
+            }
 
-            $response = Invoke-RestMethod @invokeParams
+            $response = (& $script:GCInvoker $req)
 
-            $sw.Stop()
-            Write-GCTraceLine ("RES {0} {1}ms" -f 200, $sw.ElapsedMilliseconds)
-
-            if ($ReturnMeta) {
-                return [pscustomobject]@{
-                    Url        = $url
-                    Method     = $Method
-                    StatusCode = 200
-                    Headers    = @{}      # Invoke-RestMethod does not return headers; keep consistent shape
-                    DurationMs = $sw.ElapsedMilliseconds
-                    Attempt    = $attempt
-                    Response   = $response
-                }
+            if ($script:GCContext.TraceEnabled) {
+                Write-GCTraceLine -Message ("[Attempt {0}] Request succeeded for {1} {2}" -f $attempt, $Method, $Uri)
             }
 
             return $response
         }
         catch {
-            $sw.Stop()
-            $lastError = $_
-
-            $errInfo = Get-HttpErrorInfo -ErrorRecord $_
+            $errInfo = Get-GCErrorInfo -Exception $_.Exception
+            $lastErr = $errInfo
             $code = $errInfo.StatusCode
 
-            # Trace (best effort) without leaking bearer tokens
-            $codeMsg = if ($code) { $code } else { "ERR" }
-            Write-GCTraceLine ("RES {0} {1}ms" -f $codeMsg, $sw.ElapsedMilliseconds)
-
-            # If retry is disabled, fail fast.
-            if ($DisableRetry) { throw }
-
-            # Token refresh path (future-proofing): only if we're using context token
-            if ($code -eq 401 -and $null -ne $auth.TokenProvider -and -not $PSBoundParameters.ContainsKey('AccessToken')) {
-                try {
-                    Write-Verbose "401 received; attempting token refresh via TokenProvider..."
-                    $newToken = & $auth.TokenProvider
-                    if (-not [string]::IsNullOrWhiteSpace($newToken)) {
-                        $script:GCContext.AccessToken = $newToken
-                        $headers.Authorization = "Bearer $($script:GCContext.AccessToken)"
-                        continue
-                    }
-                }
-                catch {
-                    # If refresh fails, we fall through and throw.
-                }
+            if ($script:GCContext.TraceEnabled) {
+                $statusText = if ($code) { $code } else { 'unknown' }
+                Write-GCTraceLine -Message ("[Attempt {0}] Request failed for {1} {2} Status={3} Message={4}" -f $attempt, $Method, $Uri, $statusText, $errInfo.Message)
             }
 
-            # Determine if retryable
-            $retryable = $false
-            if ($code -eq 429) { $retryable = $true }
-            if ($code -ge 500 -and $code -le 599) { $retryable = $true }
-            if (-not $code) { $retryable = $true } # network / DNS / etc.
-
-            if (-not $retryable -or $attempt -ge $MaxAttempts) {
-                # Add server error body to exception message (without bloating output)
-                if ($errInfo.Body -and $errInfo.Body.Length -gt 0) {
-                    $msg = "HTTP {0} calling {1} {2}. Body: {3}" -f $code, $Method, $url, ($errInfo.Body.Substring(0, [Math]::Min(1200, $errInfo.Body.Length)))
-                    throw $msg
-                }
-                throw
+            # 429: honor Retry-After when present
+            if ($code -eq 429 -and $errInfo.Headers -and $errInfo.Headers['Retry-After']) {
+                $ra = 0
+                [int]::TryParse($errInfo.Headers['Retry-After'], [ref]$ra) | Out-Null
+                if ($ra -gt 0) { Start-Sleep -Seconds $ra }
+                else { Start-Sleep -Seconds ([Math]::Min(30, (2 * $attempt))) }
+                continue
             }
 
-            # Respect Retry-After when present (seconds or HTTP date)
-            $sleepSeconds = $null
-            if ($errInfo.Headers.ContainsKey('Retry-After')) {
-                $ra = $errInfo.Headers['Retry-After']
-                if ($ra -match '^\d+$') {
-                    $sleepSeconds = [int]$ra
-                }
-                else {
-                    # If it's a date, convert to seconds from now
-                    try {
-                        $dt = [DateTimeOffset]::Parse($ra)
-                        $delta = ($dt - [DateTimeOffset]::Now).TotalSeconds
-                        if ($delta -gt 0) { $sleepSeconds = [int][Math]::Ceiling($delta) }
-                    } catch { }
-                }
+            # Retry 5xx or unknown (network)
+            if (($code -ge 500 -and $code -le 599) -or ($null -eq $code)) {
+                Start-Sleep -Seconds ([Math]::Min(30, (2 * $attempt)))
+                continue
             }
 
-            # Exponential backoff with jitter
-            if (-not $sleepSeconds) {
-                $base = [Math]::Pow(2, [Math]::Min(6, $attempt))
-                $jitter = Get-Random -Minimum 0 -Maximum 1000
-                $sleepSeconds = [int][Math]::Min($MaxBackoffSeconds, ($base + ($jitter / 1000)))
-            }
-
-            Write-Verbose ("Retrying {0} {1} (attempt {2}/{3}) after {4}s. Last status: {5}" -f $Method, $url, $attempt, $MaxAttempts, $sleepSeconds, $code)
-            Start-Sleep -Seconds $sleepSeconds
+            $detail = ($errInfo | ConvertTo-Json -Depth 10)
+            throw "GC request failed (attempt $($attempt) of $($MaxAttempts)) for $($Method) $($Uri). Details: $($detail)"
         }
     }
 
-    throw ("Request failed after {0} attempts. Last error: {1}" -f $MaxAttempts, $lastError)
+    $final = ($lastErr | ConvertTo-Json -Depth 10)
+    throw "GC request failed after $($MaxAttempts) attempts for $($Method) $($Uri). Last error: $($final)"
 }
-### END FILE: Public\Invoke-GCRequest.ps1
+### END FILE

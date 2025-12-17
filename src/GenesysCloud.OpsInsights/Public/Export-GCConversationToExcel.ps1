@@ -1,47 +1,29 @@
-### BEGIN FILE: Public\Export-GCConversationToExcel.ps1
 function Export-GCConversationToExcel {
     <#
-        .SYNOPSIS
-        Exports Genesys Cloud conversation timeline data to a professionally formatted Excel workbook.
+      .SYNOPSIS
+        Export conversation objects (typically from Analytics Conversation Details) to XLSX/CSV/JSON.
 
-        .DESCRIPTION
-        Takes the output from Get-GCConversationTimeline and exports it to Excel with:
-          - TableStyle Light11 for elegant formatting
-          - AutoFilter enabled for easy data filtering
-          - AutoSize columns for optimal readability
-          - Multiple worksheets for different data sources (Timeline, Core, Analytics, etc.)
-          - Professional presentation suitable for executive reporting
+      .DESCRIPTION
+        - Prefers ImportExcel for XLSX export (if installed)
+        - Falls back to CSV automatically if ImportExcel is unavailable
+        - Writes UTF-8 for CSV/JSON
+        - Safe for PS 5.1 + 7+
 
-        This function requires the ImportExcel PowerShell module.
-        Install it with: Install-Module ImportExcel -Scope CurrentUser
+      .PARAMETER Conversation
+        One or more conversation objects (pipeline supported).
 
-        .PARAMETER ConversationData
-        The conversation data object returned by Get-GCConversationTimeline.
-        Must contain TimelineEvents property at minimum.
+      .PARAMETER OutputPath
+        Output file path. If omitted, a timestamped file is created in the current directory.
 
-        .PARAMETER OutputPath
-        Full path where the Excel file should be saved.
-        If not provided, defaults to ConversationTimeline_{ConversationId}_{timestamp}.xlsx
-        in the current directory.
-
-        .PARAMETER IncludeRawData
-        Switch to include additional worksheets with raw Core, Analytics, and other data sources.
-        By default, only the timeline events are exported.
-
-        .EXAMPLE
-        $timeline = Get-GCConversationTimeline -BaseUri $baseUri -AccessToken $token -ConversationId $convId
-        Export-GCConversationToExcel -ConversationData $timeline -OutputPath "C:\Reports\Conversation.xlsx"
-
-        .EXAMPLE
-        $timeline = Get-GCConversationTimeline -BaseUri $baseUri -AccessToken $token -ConversationId $convId
-        Export-GCConversationToExcel -ConversationData $timeline -IncludeRawData
+      .PARAMETER Format
+        Xlsx (default), Csv, or Json.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [PSCustomObject]$ConversationData,
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [object]$Conversation,
 
-        [Parameter(Mandatory = $false)]
+        [Parameter()]
         [string]$OutputPath,
 
         [Parameter(Mandatory = $false)]
@@ -91,265 +73,83 @@ function Export-GCConversationToExcel {
         return
     }
 
-    # Import the module if not already loaded
-    if (-not (Get-Module -Name ImportExcel)) {
-        Import-Module ImportExcel -ErrorAction Stop
-    }
+        # Flatten a reasonable "ops-friendly" row set (non-destructive; original objects can be JSON exported)
+        $rows = foreach ($c in $items) {
+            $start = $null
+            $end   = $null
+            $id    = $null
 
-    # Generate default output path if not provided
-    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-        $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-        $convId = $ConversationData.ConversationId
-        $OutputPath = Join-Path -Path $PWD -ChildPath "ConversationTimeline_${convId}_${timestamp}.xlsx"
-    }
+            if ($c.PSObject.Properties.Name -contains 'conversationId') { $id = $c.conversationId }
+            elseif ($c.PSObject.Properties.Name -contains 'id') { $id = $c.id }
 
-    Write-Verbose "Exporting conversation data to: $OutputPath"
+            if ($c.PSObject.Properties.Name -contains 'conversationStart') { $start = $c.conversationStart }
+            if ($c.PSObject.Properties.Name -contains 'conversationEnd')   { $end   = $c.conversationEnd }
 
-    # Ensure output directory exists
-    $outputDir = Split-Path -Path $OutputPath -Parent
-    if (-not (Test-Path -Path $outputDir)) {
-        New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
-    }
+            $participants = $null
+            if ($c.PSObject.Properties.Name -contains 'participants') { $participants = $c.participants }
 
-    # Remove existing file if present
-    if (Test-Path -Path $OutputPath) {
-        Remove-Item -Path $OutputPath -Force
-        Write-Verbose "Removed existing file: $OutputPath"
-    }
+            $pCount = 0
+            try { if ($participants) { $pCount = @($participants).Count } } catch { $pCount = 0 }
 
-    # Export Timeline Events - Main worksheet with professional formatting
-    if ($ConversationData.TimelineEvents -and $ConversationData.TimelineEvents.Count -gt 0) {
-        Write-Verbose "Exporting $($ConversationData.TimelineEvents.Count) timeline events..."
-        
-        # Flatten the Extra column for better Excel display
-        $flattenedEvents = $ConversationData.TimelineEvents | ForEach-Object {
-            $event = $_
-            $extraProps = @{}
-            
-            if ($event.Extra) {
-                foreach ($key in $event.Extra.Keys) {
-                    $value = $event.Extra[$key]
-                    # Convert arrays and objects to strings for Excel compatibility
-                    if ($value -is [array]) {
-                        $extraProps["Extra_$key"] = ($value -join ', ')
-                    }
-                    elseif ($value -is [hashtable] -or $value -is [PSCustomObject]) {
-                        $extraProps["Extra_$key"] = ($value | ConvertTo-Json -Compress)
-                    }
-                    else {
-                        $extraProps["Extra_$key"] = $value
-                    }
-                }
-            }
-            
-            # Create flattened object with all properties in one step
-            $allProps = [ordered]@{
-                ConversationId = $event.ConversationId
-                StartTime      = $event.StartTime
-                EndTime        = $event.EndTime
-                Source         = $event.Source
-                EventType      = $event.EventType
-                Participant    = $event.Participant
-                Queue          = $event.Queue
-                User           = $event.User
-                Direction      = $event.Direction
-                DisconnectType = $event.DisconnectType
-            }
-            
-            # Add extra properties
-            foreach ($key in $extraProps.Keys) {
-                $allProps[$key] = $extraProps[$key]
-            }
-            
-            [PSCustomObject]$allProps
-        }
-
-        $flattenedEvents | Export-Excel -Path $OutputPath `
-            -WorksheetName "Timeline Events" `
-            -TableName "ConversationTimeline" `
-            -TableStyle Light11 `
-            -AutoFilter `
-            -AutoSize `
-            -FreezeTopRow `
-            -BoldTopRow
-    }
-    else {
-        Write-Warning "No timeline events found in conversation data."
-    }
-
-    # Export additional raw data if requested
-    if ($IncludeRawData) {
-        # Core Conversation Data
-        if ($ConversationData.Core) {
-            Write-Verbose "Exporting core conversation data..."
-            $coreFlattened = @()
-            
-            if ($ConversationData.Core.participants) {
-                foreach ($participant in $ConversationData.Core.participants) {
-                    foreach ($segment in $participant.segments) {
-                        $coreFlattened += [PSCustomObject]@{
-                            ConversationId = $ConversationData.ConversationId
-                            ParticipantId  = $participant.participantId
-                            ParticipantName = $participant.name
-                            UserId         = $participant.userId
-                            QueueId        = $participant.queueId
-                            Purpose        = $participant.purpose
-                            SegmentType    = $segment.segmentType
-                            SegmentStart   = $segment.segmentStart
-                            SegmentEnd     = $segment.segmentEnd
-                            Direction      = $segment.direction
-                            DisconnectType = $segment.disconnectType
-                            Ani            = $segment.ani
-                            Dnis           = $segment.dnis
-                            WrapUpCode     = $segment.wrapUpCode
-                        }
-                    }
-                }
-            }
-            
-            if ($coreFlattened.Count -gt 0) {
-                $coreFlattened | Export-Excel -Path $OutputPath `
-                    -WorksheetName "Core Conversation" `
-                    -TableName "CoreConversation" `
-                    -TableStyle Light11 `
-                    -AutoFilter `
-                    -AutoSize `
-                    -FreezeTopRow `
-                    -BoldTopRow
+            [pscustomobject]@{
+                ConversationId      = $id
+                ConversationStart   = $start
+                ConversationEnd     = $end
+                DivisionId          = ($c.divisionId  | ForEach-Object { $_ })  # safe passthru
+                OriginatingDirection= ($c.originatingDirection | ForEach-Object { $_ })
+                MediaStatsCount     = (try { @($c.mediaStats).Count } catch { 0 })
+                ParticipantCount    = $pCount
             }
         }
 
-        # Analytics Details
-        if ($ConversationData.AnalyticsDetails -and $ConversationData.AnalyticsDetails.participants) {
-            Write-Verbose "Exporting analytics details..."
-            $analyticsFlattened = @()
-            
-            foreach ($participant in $ConversationData.AnalyticsDetails.participants) {
-                foreach ($session in $participant.sessions) {
-                    foreach ($segment in $session.segments) {
-                        $analyticsFlattened += [PSCustomObject]@{
-                            ConversationId  = $ConversationData.ConversationId
-                            ParticipantId   = $participant.participantId
-                            ParticipantName = $participant.participantName
-                            Purpose         = $participant.purpose
-                            SessionId       = $session.sessionId
-                            MediaType       = $session.mediaType
-                            Direction       = $session.direction
-                            SegmentType     = $segment.segmentType
-                            SegmentStart    = $segment.segmentStart
-                            SegmentEnd      = $segment.segmentEnd
-                            QueueId         = $segment.queueId
-                            DisconnectType  = $segment.disconnectType
-                            ErrorCode       = $segment.errorCode
-                        }
+        $formatLower = $Format.ToLower()
+
+        switch ($Format) {
+            'Json' {
+                $json = $items | ConvertTo-Json -Depth 80
+                if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) {
+                    throw "Refusing to overwrite existing file: $($OutputPath). Use -Force."
+                }
+                $json | Set-Content -LiteralPath $OutputPath -Encoding utf8
+                return $OutputPath
+            }
+
+            'Csv' {
+                if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) {
+                    throw "Refusing to overwrite existing file: $($OutputPath). Use -Force."
+                }
+                $rows | Export-Csv -LiteralPath $OutputPath -NoTypeInformation -Encoding utf8
+                return $OutputPath
+            }
+
+            'Xlsx' {
+                $hasImportExcel = $false
+                try { $hasImportExcel = [bool](Get-Module -ListAvailable -Name ImportExcel) } catch { $hasImportExcel = $false }
+
+                if ($hasImportExcel) {
+                    if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) {
+                        throw "Refusing to overwrite existing file: $($OutputPath). Use -Force."
                     }
+
+                    Import-Module ImportExcel -ErrorAction Stop
+
+                    $rows | Export-Excel -Path $OutputPath `
+                        -WorksheetName 'Conversations' `
+                        -FreezeTopRow `
+                        -AutoSize
+
+                    return $OutputPath
                 }
-            }
-            
-            if ($analyticsFlattened.Count -gt 0) {
-                $analyticsFlattened | Export-Excel -Path $OutputPath `
-                    -WorksheetName "Analytics Details" `
-                    -TableName "AnalyticsDetails" `
-                    -TableStyle Light11 `
-                    -AutoFilter `
-                    -AutoSize `
-                    -FreezeTopRow `
-                    -BoldTopRow
+
+                # Fallback: write CSV next to the requested xlsx path
+                $csvPath = [System.IO.Path]::ChangeExtension($OutputPath, 'csv')
+                if ((Test-Path -LiteralPath $csvPath) -and -not $Force) {
+                    throw "ImportExcel not found; refusing to overwrite existing fallback file: $($csvPath). Use -Force."
+                }
+
+                $rows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding utf8
+                return $csvPath
             }
         }
-
-        # Media Endpoint Stats (if available in analytics)
-        if ($ConversationData.AnalyticsDetails -and $ConversationData.AnalyticsDetails.participants) {
-            Write-Verbose "Extracting MediaEndpointStats..."
-            $mediaStats = @()
-            
-            foreach ($participant in $ConversationData.AnalyticsDetails.participants) {
-                foreach ($session in $participant.sessions) {
-                    if ($session.metrics) {
-                        foreach ($metric in $session.metrics) {
-                            $mediaStats += [PSCustomObject]@{
-                                ConversationId  = $ConversationData.ConversationId
-                                ParticipantId   = $participant.participantId
-                                SessionId       = $session.sessionId
-                                MediaType       = $session.mediaType
-                                MetricName      = $metric.name
-                                MetricValue     = $metric.value
-                                EmitDate        = $metric.emitDate
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if ($mediaStats.Count -gt 0) {
-                $mediaStats | Export-Excel -Path $OutputPath `
-                    -WorksheetName "Media Stats" `
-                    -TableName "MediaEndpointStats" `
-                    -TableStyle Light11 `
-                    -AutoFilter `
-                    -AutoSize `
-                    -FreezeTopRow `
-                    -BoldTopRow
-            }
-        }
-
-        # SIP Messages
-        if ($ConversationData.SipMessages -and $ConversationData.SipMessages.Count -gt 0) {
-            Write-Verbose "Exporting SIP messages..."
-            $sipFlattened = $ConversationData.SipMessages | ForEach-Object {
-                [PSCustomObject]@{
-                    ConversationId = $ConversationData.ConversationId
-                    Timestamp      = $_.timestamp
-                    Method         = $_.method
-                    StatusCode     = $_.statusCode
-                    ReasonPhrase   = $_.reasonPhrase
-                    Direction      = $_.direction
-                    ParticipantId  = $_.participantId
-                }
-            }
-            
-            $sipFlattened | Export-Excel -Path $OutputPath `
-                -WorksheetName "SIP Messages" `
-                -TableName "SIPMessages" `
-                -TableStyle Light11 `
-                -AutoFilter `
-                -AutoSize `
-                -FreezeTopRow `
-                -BoldTopRow
-        }
-
-        # Sentiment Data
-        if ($ConversationData.Sentiments -and $ConversationData.Sentiments.sentiment) {
-            Write-Verbose "Exporting sentiment data..."
-            $sentimentFlattened = $ConversationData.Sentiments.sentiment | ForEach-Object {
-                [PSCustomObject]@{
-                    ConversationId = $ConversationData.ConversationId
-                    Time           = $_.time
-                    ParticipantId  = $_.participantId
-                    UserId         = $_.userId
-                    Score          = $_.score
-                    Label          = $_.label
-                }
-            }
-            
-            $sentimentFlattened | Export-Excel -Path $OutputPath `
-                -WorksheetName "Sentiment Analysis" `
-                -TableName "SentimentData" `
-                -TableStyle Light11 `
-                -AutoFilter `
-                -AutoSize `
-                -FreezeTopRow `
-                -BoldTopRow
-        }
-    }
-
-    Write-Host "✓ Conversation data exported successfully to: $OutputPath" -ForegroundColor Green
-    
-    # Return the output path for pipeline use
-    return [PSCustomObject]@{
-        OutputPath     = $OutputPath
-        ConversationId = $ConversationData.ConversationId
-        EventCount     = if ($ConversationData.TimelineEvents) { $ConversationData.TimelineEvents.Count } else { 0 }
     }
 }
-### END FILE: Public\Export-GCConversationToExcel.ps1

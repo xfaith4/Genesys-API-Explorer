@@ -1,25 +1,13 @@
 ### BEGIN FILE: tools\Import-LocalOpsInsights.ps1
-<#
-.SYNOPSIS
-Developer helper to import the local GenesysCloud.OpsInsights module from this repo (no PSModulePath install needed).
+# Import the module from the repo without requiring PSModulePath changes
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$moduleRoot = Join-Path $repoRoot 'src\GenesysCloud.OpsInsights'
 
-.EXAMPLE
-. .\tools\Import-LocalOpsInsights.ps1
-Connect-GCCloud -RegionDomain 'usw2.pure.cloud' -AccessToken $token
-Get-GCConversationTimeline -ConversationId '...'
-#>
-
-[CmdletBinding()]
-param()
-
-$here = $PSScriptRoot
-$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $here '..'))
-
-$moduleManifest = Join-Path $repoRoot 'src\GenesysCloud.OpsInsights\GenesysCloud.OpsInsights.psd1'
-if (-not (Test-Path $moduleManifest)) {
-    throw ("Module manifest not found: {0}" -f $moduleManifest)
+# If your module is already built/manifested differently, adjust this path once and keep it stable.
+$psm1 = Join-Path $moduleRoot 'GenesysCloud.OpsInsights.psm1'
+if (-not (Test-Path -LiteralPath $psm1)) {
+    throw "Module entrypoint not found: $($psm1)"
 }
 
-Import-Module $moduleManifest -Force -ErrorAction Stop
-Write-Host ("Imported GenesysCloud.OpsInsights from {0}" -f $moduleManifest)
-### END FILE: tools\Import-LocalOpsInsights.ps1
+Import-Module -Name $psm1 -Force
+### END FILE

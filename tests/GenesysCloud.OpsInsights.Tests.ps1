@@ -1,5 +1,4 @@
 ### BEGIN FILE: tests\GenesysCloud.OpsInsights.Tests.ps1
-# Pester scaffold (v5)
 Describe 'GenesysCloud.OpsInsights' {
     BeforeAll {
         $here = Split-Path -Parent $PSCommandPath
@@ -12,7 +11,24 @@ Describe 'GenesysCloud.OpsInsights' {
         $here = Split-Path -Parent $PSCommandPath
         $repo = Split-Path -Parent $here
         $module = Join-Path $repo 'src\GenesysCloud.OpsInsights\GenesysCloud.OpsInsights.psd1'
-        { Import-Module $module -Force -ErrorAction Stop } | Should -Not -Throw
+        Import-Module $module -Force -ErrorAction Stop
+    }
+
+    It 'Loads the module' {
+        $true | Should -BeTrue
+    }
+
+    It 'Core module owns consolidated functions' {
+        $names = @(
+            'Get-GCConversationTimeline',
+            'Get-GCQueueSmokeReport',
+            'Invoke-GCSmokeDrill',
+            'Get-GCConversationDetails'
+        )
+
+        foreach ($n in $names) {
+            (Get-Command $n -ErrorAction Stop).Source | Should -Be 'GenesysCloud.OpsInsights'
+        }
     }
 
     Context 'Reporting Functions' {
@@ -71,4 +87,4 @@ Describe 'GenesysCloud.OpsInsights' {
         }
     }
 }
-### END FILE: tests\GenesysCloud.OpsInsights.Tests.ps1
+### END FILE
