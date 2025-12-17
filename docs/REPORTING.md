@@ -366,6 +366,85 @@ Write-Host "All reports generated successfully!"
 
 ---
 
+## Get-GCPeakConcurrentVoice
+
+Produces a single monthly statistic: the highest number of simultaneous voice calls across all trunks/edges in any 1-minute interval.
+
+### Features
+
+- Uses the Conversation Detail Job workflow for scalability:
+  - `POST /api/v2/analytics/conversations/details/jobs`
+  - `GET /api/v2/analytics/conversations/details/jobs/{jobId}`
+  - `GET /api/v2/analytics/conversations/details/jobs/{jobId}/results`
+- Filters to `mediaType = voice` and performs a sweep-line minute-bucket calculation to find the maximum concurrency.
+- Returns a compact object with the peak count and the minute the peak first occurred.
+- Accepts pre-loaded conversation detail objects for offline validation (fixtures or saved exports).
+
+### Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `Interval` | **Yes** | Analytics interval (e.g., `2025-12-01T00:00:00.000Z/2026-01-01T00:00:00.000Z`) |
+| `BaseUri` | No | Region base URI (resolved from `Connect-GCCloud` if omitted) |
+| `AccessToken` | No | OAuth bearer token (resolved from `Connect-GCCloud` if omitted) |
+| `PageSize` | No | Page size for job creation/results (default 200) |
+| `PollSeconds` | No | Poll interval for job completion |
+| `MaxPollMinutes` | No | Max wait for job completion |
+| `Conversations` | No | Pre-loaded conversation objects to compute locally (bypasses API) |
+
+### Return Object
+
+```powershell
+@{
+    Interval              = '2024-02-01T00:00:00Z/2024-03-01T00:00:00Z'
+    PeakConcurrentCalls   = 10
+    FirstPeakMinuteUtc    = [datetime]'2024-02-16T18:23:00Z'
+    AllPeakMinutesUtc     = '2024-02-16 18:23'
+    ConversationsEvaluated= 10
+    Source                = 'analytics:conversation-details-job'
+}
+```
+
+### Example Usage
+
+```powershell
+# Monthly peak concurrency using Analytics Conversation Detail Job
+$peak = Get-GCPeakConcurrentVoice -Interval '2025-11-01T00:00:00.000Z/2025-12-01T00:00:00.000Z'
+$peak.PeakConcurrentCalls  # single monthly statistic
+
+# Offline validation against fixture data (1-day slice recommended)
+$fixture = Get-Content ./tests/fixtures/ConversationDetails.sample.json | ConvertFrom-Json
+$sample = Get-GCPeakConcurrentVoice `
+    -Interval '2024-02-01T00:00:00Z/2024-03-01T00:00:00Z' `
+    -Conversations $fixture.conversations
+```
+
+### Validation Query (1-Day Conversation Detail)
+
+Use a focused 24-hour query to cross-check the peak minute returned by the job:
+
+```json
+POST /api/v2/analytics/conversations/details/query
+{
+  "interval": "2024-02-16T00:00:00.000Z/2024-02-17T00:00:00.000Z",
+  "order": "asc",
+  "orderBy": "conversationStart",
+  "paging": { "pageNumber": 1, "pageSize": 25 },
+  "segmentFilters": [
+    {
+      "type": "and",
+      "predicates": [
+        { "type": "dimension", "dimension": "mediaType", "operator": "matches", "value": "voice" }
+      ]
+    }
+  ]
+}
+```
+
+The minute-level sweep derived from this 1-day detail should match the peak minute reported by `Get-GCPeakConcurrentVoice`, providing a validation path for monthly aggregates.
+
+---
+
 ## Troubleshooting
 
 ### Common Issues

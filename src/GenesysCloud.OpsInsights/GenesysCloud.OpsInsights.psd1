@@ -51,7 +51,8 @@
         
         # Reporting and aggregations
         'Get-GCDivisionReport',
-        'Get-GCRoutingStatusReport'
+        'Get-GCRoutingStatusReport',
+        'Get-GCPeakConcurrentVoice'
     )
 
     CmdletsToExport   = @()
@@ -63,7 +64,7 @@
             Tags         = @('GenesysCloud','Ops','Analytics','Architect','DataActions','Reporting')
             ProjectUri   = ''
             LicenseUri   = ''
-            ReleaseNotes = 'v0.3.0: Added division and routing status reporting with abandon rates and Not Responding tracking.'
+            ReleaseNotes = 'v0.3.0: Added division and routing status reporting with abandon rates, Not Responding tracking, and peak voice concurrency.'
         }
     }
 }
