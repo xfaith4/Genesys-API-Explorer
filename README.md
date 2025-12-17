@@ -20,6 +20,8 @@ PowerShell-based WPF application that mirrors the Genesys Cloud API catalog, pro
 - `Get-GCConversationTimeline` - Aggregate data from 6 API endpoints into unified timeline
 - `Export-GCConversationToExcel` - Professional Excel reports with elegant formatting
 - `Get-GCQueueSmokeReport` - Queue performance and error rate analysis
+- `Get-GCDivisionReport` - Division-level conversation aggregation with abandon rates
+- `Get-GCRoutingStatusReport` - Track routing status durations including "Not Responding"
 - `Get-GCQueueHotConversations` - Identify problematic conversations
 - `Show-GCConversationTimelineUI` - Interactive WPF timeline viewer
 - `Invoke-GCSmokeDrill` - End-to-end investigation workflow
@@ -40,6 +42,21 @@ Export-GCConversationToExcel `
     -ConversationData $timeline `
     -OutputPath "Report.xlsx" `
     -IncludeRawData
+
+# Generate division-level report with abandon rates
+$divisionReport = Get-GCDivisionReport `
+    -Interval '2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z' `
+    -TopN 5
+
+# Track routing status durations (including "Not Responding")
+$routingStatusReport = Get-GCRoutingStatusReport `
+    -Interval '2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z' `
+    -GroupBy 'queue'
+
+# Queue smoke report with abandon rates
+$queueReport = Get-GCQueueSmokeReport `
+    -Interval '2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z' `
+    -TopN 10
 ```
 
 📖 **[Complete Conversation Toolkit Documentation](docs/CONVERSATION_TOOLKIT.md)**

@@ -1,6 +1,6 @@
 @{
     RootModule        = 'GenesysCloud.OpsInsights.psm1'
-    ModuleVersion     = '0.2.0'
+    ModuleVersion     = '0.3.0'
     GUID              = 'b5a6c3bb-8a66-4b49-9d44-6ad9b33caa11'
     Author            = 'Your Team'
     CompanyName       = 'Internal'
@@ -32,7 +32,11 @@
         'Get-GCQueueSmokeReport',
         'Get-GCQueueHotConversations',
         'Show-GCConversationTimelineUI',
-        'Invoke-GCSmokeDrill'
+        'Invoke-GCSmokeDrill',
+        
+        # Reporting and aggregations
+        'Get-GCDivisionReport',
+        'Get-GCRoutingStatusReport'
     )
 
     CmdletsToExport   = @()
@@ -44,7 +48,7 @@
             Tags         = @('GenesysCloud','Ops','Analytics','Architect','DataActions','Reporting')
             ProjectUri   = ''
             LicenseUri   = ''
-            ReleaseNotes = 'PR2: Transport hardened + toolkit consolidated into Core module.'
+            ReleaseNotes = 'v0.3.0: Added division and routing status reporting with abandon rates and Not Responding tracking.'
         }
     }
 }
