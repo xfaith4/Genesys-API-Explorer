@@ -15,6 +15,11 @@
 Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase, System.Xaml
 Add-Type -AssemblyName System.Windows.Forms
 
+$ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+if (-not $ScriptRoot) {
+    $ScriptRoot = Get-Location
+}
+
 $DeveloperDocsUrl = "https://developer.genesys.cloud"
 $SupportDocsUrl = "https://help.mypurecloud.com"
 
@@ -247,7 +252,7 @@ function ConvertTo-FormEncodedString {
     )
 
     $pairs = foreach ($entry in $Values.GetEnumerator()) {
-        $value = if ($entry.Value -eq $null) { '' } else { $entry.Value }
+        $value = if ($null -eq $entry.Value) { '' } else { $entry.Value }
         "$($entry.Key)=$([System.Uri]::EscapeDataString($value))"
     }
 
@@ -273,15 +278,15 @@ function Show-LoginWindow {
             <ComboBoxItem Content="mypurecloud.com.au (Australia)"/>
             <ComboBoxItem Content="use2.us-gov-pure.cloud (FedRAMP)"/>
           </ComboBox>
-          
+
           <TextBlock Text="Client ID (PKCE Grant)" FontWeight="Bold" Margin="0 0 0 5"/>
           <TextBox Name="UserClientIdInput" Height="28" Margin="0 0 0 5"/>
           <TextBlock Text="Ensure this Client ID is configured for Code Grant (PKCE) with Redirect URI: http://localhost:8080" FontSize="10" Foreground="Gray" TextWrapping="Wrap" Margin="0 0 0 15"/>
-          
+
           <Button Name="UserLoginButton" Content="Login with Browser" Height="32" Margin="0 10 0 0"/>
         </StackPanel>
       </TabItem>
-      
+
       <TabItem Header="Client Credentials">
         <StackPanel Margin="10">
           <TextBlock Text="Region" FontWeight="Bold" Margin="0 0 0 5"/>
@@ -294,13 +299,13 @@ function Show-LoginWindow {
             <ComboBoxItem Content="mypurecloud.com.au (Australia)"/>
             <ComboBoxItem Content="use2.us-gov-pure.cloud (FedRAMP)"/>
           </ComboBox>
-          
+
           <TextBlock Text="Client ID" FontWeight="Bold" Margin="0 0 0 5"/>
           <TextBox Name="ClientClientIdInput" Height="28" Margin="0 0 0 15"/>
-          
+
           <TextBlock Text="Client Secret" FontWeight="Bold" Margin="0 0 0 5"/>
           <PasswordBox Name="ClientSecretInput" Height="28" Margin="0 0 0 15"/>
-          
+
           <Button Name="ClientLoginButton" Content="Get Token" Height="32" Margin="0 10 0 0"/>
         </StackPanel>
       </TabItem>
@@ -311,27 +316,27 @@ function Show-LoginWindow {
 
     $loginWindow = [System.Windows.Markup.XamlReader]::Parse($loginXaml)
     if (-not $loginWindow) { return $null }
-    
+
     if ($Window) { $loginWindow.Owner = $Window }
-    
+
     # User Login Controls
     $userRegionCombo = $loginWindow.FindName("UserRegionCombo")
     $userClientIdInput = $loginWindow.FindName("UserClientIdInput")
     $userLoginButton = $loginWindow.FindName("UserLoginButton")
-    
+
     # Client Login Controls
     $clientRegionCombo = $loginWindow.FindName("ClientRegionCombo")
     $clientClientIdInput = $loginWindow.FindName("ClientClientIdInput")
     $clientSecretInput = $loginWindow.FindName("ClientSecretInput")
     $clientLoginButton = $loginWindow.FindName("ClientLoginButton")
-    
+
     # Stored Settings Key (simple persistence for convenience)
     $settingsPath = Join-Path -Path $env:USERPROFILE -ChildPath "GenesysApiExplorer.settings.json"
     $savedSettings = @{}
     if (Test-Path $settingsPath) {
         try { $savedSettings = Get-Content $settingsPath -Raw | ConvertFrom-Json } catch {}
     }
-    
+
     # Restore saved values
     if ($savedSettings.UserClientId) { $userClientIdInput.Text = $savedSettings.UserClientId }
     if ($savedSettings.ClientClientId) { $clientClientIdInput.Text = $savedSettings.ClientClientId }
@@ -348,39 +353,39 @@ function Show-LoginWindow {
     }
 
     $script:LoginResult = $null
-    
+
     # --- Client Credentials Flow ---
     $clientLoginButton.Add_Click({
             $regionText = $clientRegionCombo.SelectedItem.Content.ToString().Split(' ')[0]
             $clientId = $clientClientIdInput.Text.Trim()
             $clientSecret = $clientSecretInput.Password
-        
+
             if (-not $clientId -or -not $clientSecret) {
                 [System.Windows.MessageBox]::Show("Please enter Client ID and Secret.", "Missing Credentials", "OK", "Warning")
                 return
             }
-        
+
             try {
                 $authHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${clientId}:${clientSecret}"))
                 $body = @{ grant_type = "client_credentials" }
-            
+
                 $loginWindow.Cursor = [System.Windows.Input.Cursors]::Wait
-            
+
                 $formBody = ConvertTo-FormEncodedString -Values $body
                 $headers = @{
                     Authorization = "Basic $authHeader"
                     'Content-Type' = 'application/x-www-form-urlencoded'
                 }
                 $response = Invoke-GCRequest -Method Post -Uri "https://login.$regionText/oauth/token" -Headers $headers -Body $formBody
-            
+
                 if ($response.access_token) {
                     $script:LoginResult = $response.access_token
-                
+
                     # Save settings
                     $savedSettings.ClientClientId = $clientId
                     $savedSettings.Region = $regionText
                     $savedSettings | ConvertTo-Json | Set-Content $settingsPath
-                
+
                     $loginWindow.Close()
                 }
             }
@@ -391,37 +396,37 @@ function Show-LoginWindow {
                 $loginWindow.Cursor = [System.Windows.Input.Cursors]::Arrow
             }
         })
-    
+
     # --- User PKCE Flow ---
     $userLoginButton.Add_Click({
             $regionText = $userRegionCombo.SelectedItem.Content.ToString().Split(' ')[0]
             $clientId = $userClientIdInput.Text.Trim()
             $redirectUri = "http://localhost:8080"
-        
+
             if (-not $clientId) {
                 [System.Windows.MessageBox]::Show("Please enter a Client ID.", "Missing info", "OK", "Warning")
                 return
             }
-        
+
             # Save settings immediately
             $savedSettings.UserClientId = $clientId
             $savedSettings.Region = $regionText
             $savedSettings | ConvertTo-Json | Set-Content $settingsPath
-        
+
             # 1. Generate Code Verifier and Challenge (PKCE)
             # Verifier: Random 32-96 bytes, base64url encoded
             $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
             $bytes = New-Object byte[] 32
             $rng.GetBytes($bytes)
             $verifier = [Convert]::ToBase64String($bytes).Replace('+', '-').Replace('/', '_').Replace('=', '')
-        
+
             # Challenge: SHA256(verifier) -> base64url
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
             $challengeBytes = $sha256.ComputeHash([Text.Encoding]::ASCII.GetBytes($verifier))
             $challenge = [Convert]::ToBase64String($challengeBytes).Replace('+', '-').Replace('/', '_').Replace('=', '')
 
             $authUrl = "https://login.$regionText/oauth/authorize?client_id=$clientId&response_type=code&redirect_uri=$redirectUri&code_challenge=$challenge&code_challenge_method=S256"
-        
+
             # Create a browser window
             $browserXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -431,20 +436,20 @@ function Show-LoginWindow {
 "@
             $browserWindow = [System.Windows.Markup.XamlReader]::Parse($browserXaml)
             $browser = $browserWindow.FindName("AuthBrowser")
-        
+
             $browser.Add_Navigated({
                     param($sender, $e)
                     $url = $e.Uri.AbsoluteUri
-            
+
                     # Check for Authorization Code redirect
                     if ($url -match "[?&]code=([^&]+)") {
                         $authCode = $Matches[1]
                         $browserWindow.Close() # Close immediately to prevent user confusion
-                
+
                         # 2. Exchange Code for Token
                         try {
                             $loginWindow.Cursor = [System.Windows.Input.Cursors]::Wait
-                    
+
                             $tokenBody = @{
                                 grant_type    = "authorization_code"
                                 client_id     = $clientId
@@ -459,7 +464,7 @@ function Show-LoginWindow {
                             }
 
                             $response = Invoke-GCRequest -Method Post -Uri "https://login.$regionText/oauth/token" -Headers $headers -Body $formBody
-                    
+
                             if ($response.access_token) {
                                 $script:LoginResult = $response.access_token
                                 $loginWindow.Close()
@@ -473,7 +478,7 @@ function Show-LoginWindow {
                         }
                     }
                 })
-        
+
             $browser.Navigate($authUrl)
             $browserWindow.ShowDialog() | Out-Null
         })
@@ -719,7 +724,7 @@ function Test-ParameterValue {
     # Validate integer type
     if ($ValidationMetadata.Type -eq "integer") {
         $intValue = $null
-        if (-not [int]::TryParse($Value, [ref]$intValue)) { 
+        if (-not [int]::TryParse($Value, [ref]$intValue)) {
             $errors += "Must be an integer value"
         }
         else {
@@ -735,7 +740,7 @@ function Test-ParameterValue {
     # Validate number type (float/double)
     if ($ValidationMetadata.Type -eq "number") {
         $numValue = $null
-        if (-not [double]::TryParse($Value, [ref]$numValue)) { 
+        if (-not [double]::TryParse($Value, [ref]$numValue)) {
             $errors += "Must be a numeric value"
         }
         else {
@@ -758,7 +763,7 @@ function Test-ParameterValue {
             foreach ($item in $items) {
                 if (-not [string]::IsNullOrWhiteSpace($item)) {
                     $intValue = $null
-                    if (-not [int]::TryParse($item, [ref]$intValue)) { 
+                    if (-not [int]::TryParse($item, [ref]$intValue)) {
                         $errors += "Array item '$item' must be an integer"
                         break
                     }
@@ -790,7 +795,7 @@ function Test-NumericValue {
     $number = $null
     $parseSuccess = $false
 
-    if ($Type -eq "integer") { 
+    if ($Type -eq "integer") {
         $parseSuccess = [int]::TryParse($Value, [ref]$number)
         if (-not $parseSuccess) {
             return @{ IsValid = $false; ErrorMessage = "Must be a valid integer" }
@@ -798,7 +803,7 @@ function Test-NumericValue {
     }
     elseif ($Type -eq "number") {
         $parseSuccess = [double]::TryParse($Value, [ref]$number)
-        if (-not $parseSuccess) { 
+        if (-not $parseSuccess) {
             return @{ IsValid = $false; ErrorMessage = "Must be a valid number" }
         }
     }
@@ -830,7 +835,7 @@ function Test-StringFormat {
     # Check pattern first if provided
     if ($Pattern) {
         try {
-            if ($Value -notmatch $Pattern) { 
+            if ($Value -notmatch $Pattern) {
                 return @{ IsValid = $false; ErrorMessage = "Does not match required pattern" }
             }
         }
@@ -843,7 +848,7 @@ function Test-StringFormat {
     switch ($Format) {
         "email" {
             # Simple email validation
-            if ($Value -notmatch '^[^@]+@[^@]+\.[^@]+$') { 
+            if ($Value -notmatch '^[^@]+@[^@]+\.[^@]+$') {
                 return @{ IsValid = $false; ErrorMessage = "Must be a valid email address" }
             }
         }
@@ -855,7 +860,7 @@ function Test-StringFormat {
         }
         { $_ -in @("date", "date-time") } {
             # Try to parse as date
-            $date = $null 
+            $date = $null
             if (-not [DateTime]::TryParse($Value, [ref]$date)) {
                 return @{ IsValid = $false; ErrorMessage = "Must be a valid date/time" }
             }
@@ -888,7 +893,7 @@ function Test-ArrayValue {
         foreach ($item in $items) {
             if ([string]::IsNullOrWhiteSpace($item)) { continue }
 
-            $testResult = Test-NumericValue -Value $item -Type $ItemType.type -Minimum $null -Maximum $null 
+            $testResult = Test-NumericValue -Value $item -Type $ItemType.type -Minimum $null -Maximum $null
             if (-not $testResult.IsValid) {
                 return @{ IsValid = $false; ErrorMessage = "Array items must be valid $($ItemType.type) values" }
             }
@@ -913,7 +918,7 @@ function Test-ParameterVisibility {
         $conditionParam = $Parameter.'x-conditional-on'
         $conditionValue = $Parameter.'x-conditional-value'
 
-        # Check if the condition parameter exists and has the required value 
+        # Check if the condition parameter exists and has the required value
         if ($ParameterInputs.ContainsKey($conditionParam)) {
             $actualValue = Get-ParameterControlValue -Control $ParameterInputs[$conditionParam]
 
@@ -928,7 +933,7 @@ function Test-ParameterVisibility {
         $exclusiveParams = $Parameter.'x-mutually-exclusive-with'
 
         foreach ($exclusiveParam in $exclusiveParams) {
-            if ($ParameterInputs.ContainsKey($exclusiveParam)) { 
+            if ($ParameterInputs.ContainsKey($exclusiveParam)) {
                 $exclusiveValue = Get-ParameterControlValue -Control $ParameterInputs[$exclusiveParam]
 
                 if (-not [string]::IsNullOrWhiteSpace($exclusiveValue)) {
@@ -951,7 +956,7 @@ function Update-ParameterVisibility {
     # Update visibility for all parameters based on current values
     foreach ($param in $Parameters) {
         if ($ParameterInputs.ContainsKey($param.name)) {
-            $control = $ParameterInputs[$param.name] 
+            $control = $ParameterInputs[$param.name]
             $isVisible = Test-ParameterVisibility -Parameter $param -AllParameters $Parameters -ParameterInputs $ParameterInputs
 
             # Find the Grid row that contains this control
@@ -1006,7 +1011,7 @@ function Export-PowerShellScript {
     if ($Parameters) {
         foreach ($paramName in $Parameters.Keys) {
             $paramValue = $Parameters[$paramName]
-            if ([string]::IsNullOrWhiteSpace($paramValue)) { continue } 
+            if ([string]::IsNullOrWhiteSpace($paramValue)) { continue }
 
             # Determine parameter type based on name and path
             $pattern = "{$paramName}"
@@ -1090,7 +1095,7 @@ function Export-CurlCommand {
     if ($Parameters) {
         foreach ($paramName in $Parameters.Keys) {
             $paramValue = $Parameters[$paramName]
-            if ([string]::IsNullOrWhiteSpace($paramValue)) { continue } 
+            if ([string]::IsNullOrWhiteSpace($paramValue)) { continue }
 
             $pattern = "{$paramName}"
             if ($fullPath -match [regex]::Escape($pattern)) {
@@ -1136,7 +1141,7 @@ function Populate-ParameterValues {
     if (-not $ParameterSet) { return }
     foreach ($entry in $ParameterSet) {
         $name = $entry.name
-        if (-not $name) { continue } 
+        if (-not $name) { continue }
 
         $paramControl = $paramInputs[$name]
         if ($paramControl -and $null -ne $entry.value) {
@@ -1152,7 +1157,7 @@ function Resolve-SchemaReference {
     )
 
     if (-not $Schema) {
-        return $null 
+        return $null
     }
 
     $current = $Schema
@@ -1160,7 +1165,7 @@ function Resolve-SchemaReference {
     while ($current.'$ref' -and $depth -lt 10) {
         if ($current.'$ref' -match "#/definitions/(.+)") {
             $refName = $Matches[1]
-            if ($Definitions -and $Definitions.$refName) { 
+            if ($Definitions -and $Definitions.$refName) {
                 $current = $Definitions.$refName
             }
             else {
@@ -1187,7 +1192,7 @@ function Format-SchemaType {
         return "unknown"
     }
 
-    $type = $resolved.type 
+    $type = $resolved.type
     if (-not $type -and $resolved.'$ref') {
         $type = "ref"
     }
@@ -1213,7 +1218,7 @@ function Flatten-Schema {
     )
 
     if ($Depth -ge 10) {
-        return @() 
+        return @()
     }
 
     $resolved = Resolve-SchemaReference -Schema $Schema -Definitions $Definitions
@@ -1221,7 +1226,7 @@ function Flatten-Schema {
         return @()
     }
 
-    $entries = @() 
+    $entries = @()
     $type = $resolved.type
 
     if ($type -eq "object" -or $resolved.properties) {
@@ -1233,7 +1238,7 @@ function Flatten-Schema {
 
         $props = $resolved.properties
         if ($props) {
-            foreach ($prop in $props.PSObject.Properties) { 
+            foreach ($prop in $props.PSObject.Properties) {
                 $fieldName = if ($Prefix) { "$Prefix.$($prop.Name)" } else { $prop.Name }
                 $propResolved = Resolve-SchemaReference -Schema $prop.Value -Definitions $Definitions
                 $entries += [PSCustomObject]@{
@@ -1268,7 +1273,7 @@ function Get-ResponseSchema {
     param ($MethodObject)
 
     if (-not $MethodObject) { return $null }
- 
+
     $preferredCodes = @("200", "201", "202", "203", "default")
     foreach ($code in $preferredCodes) {
         $resp = $MethodObject.responses.$code
@@ -1278,7 +1283,7 @@ function Get-ResponseSchema {
     }
 
     foreach ($resp in $MethodObject.responses.PSObject.Properties) {
-        if ($resp.Value -and $resp.Value.schema) { 
+        if ($resp.Value -and $resp.Value.schema) {
             return $resp.Value.schema
         }
     }
@@ -1289,7 +1294,7 @@ function Get-ResponseSchema {
 function Update-SchemaList {
     param ($Schema)
 
-    if (-not $schemaList) { return } 
+    if (-not $schemaList) { return }
     $schemaList.Items.Clear()
 
     $entries = Flatten-Schema -Schema $Schema -Definitions $Definitions
@@ -1314,7 +1319,7 @@ function Get-EnumValues {
     )
 
     if (-not $Schema) {
-        return @() 
+        return @()
     }
 
     # First check if the schema has properties
@@ -1325,7 +1330,7 @@ function Get-EnumValues {
 
     # Look for the property by name
     $property = $properties.PSObject.Properties[$PropertyName]
-    if (-not $property) { 
+    if (-not $property) {
         return @()
     }
 
@@ -1388,7 +1393,7 @@ function Update-FilterFieldOptions {
             $items = @()
         }
     }
-    if (-not $items -or $items.Count -eq 0) { 
+    if (-not $items -or $items.Count -eq 0) {
         $ComboBox.Items.Add("(no fields available)") | Out-Null
         $ComboBox.IsEnabled = $false
         $ComboBox.SelectedIndex = 0
@@ -1405,7 +1410,7 @@ function Update-FilterFieldOptions {
 function Format-FilterSummary {
     param ($Filter)
 
-    if (-not $Filter) { return "" } 
+    if (-not $Filter) { return "" }
 
     $predicate = if ($Filter.predicates -and $Filter.predicates.Count -gt 0) { $Filter.predicates[0] } else { $null }
     if (-not $predicate) { return "$($Filter.type) filter" }
@@ -1436,7 +1441,7 @@ function Format-FilterSummary {
 function Reset-FilterBuilderData {
     $script:FilterBuilderData.ConversationFilters = New-Object System.Collections.ArrayList
     $script:FilterBuilderData.SegmentFilters = New-Object System.Collections.ArrayList
-    if ($conversationFiltersList) { $conversationFiltersList.Items.Clear() } 
+    if ($conversationFiltersList) { $conversationFiltersList.Items.Clear() }
     if ($segmentFiltersList) { $segmentFiltersList.Items.Clear() }
     if ($filterIntervalInput) {
         $filterIntervalInput.Text = $script:FilterBuilderData.Interval
@@ -1452,7 +1457,7 @@ function Reset-FilterBuilderData {
 function Refresh-FilterList {
     param ([string]$Scope)
 
-    if ($Scope -eq "Conversation") { 
+    if ($Scope -eq "Conversation") {
         if (-not $conversationFiltersList) { return }
         $conversationFiltersList.Items.Clear()
         foreach ($filter in $script:FilterBuilderData.ConversationFilters) {
@@ -1472,7 +1477,7 @@ function Refresh-FilterList {
 
 function Get-BodyTextBox {
     if ($script:CurrentBodyControl) {
-        if ($script:CurrentBodyControl.ValueControl -and ($script:CurrentBodyControl.ValueControl -is [System.Windows.Controls.TextBox])) { 
+        if ($script:CurrentBodyControl.ValueControl -and ($script:CurrentBodyControl.ValueControl -is [System.Windows.Controls.TextBox])) {
             return $script:CurrentBodyControl.ValueControl
         }
         if ($script:CurrentBodyControl -is [System.Windows.Controls.TextBox]) {
@@ -1484,7 +1489,7 @@ function Get-BodyTextBox {
 function Invoke-FilterBuilderBody {
     $bodyTextBox = Get-BodyTextBox
     if (-not $bodyTextBox) { return }
- 
+
     $intervalValue = if ($filterIntervalInput -and ($filterIntervalInput.Text.Trim())) {
         $filterIntervalInput.Text.Trim()
     }
@@ -1495,7 +1500,7 @@ function Invoke-FilterBuilderBody {
     $payload = [ordered]@{}
     if ($intervalValue) {
         $payload.interval = $intervalValue
-        $script:FilterBuilderData.Interval = $intervalValue 
+        $script:FilterBuilderData.Interval = $intervalValue
     }
 
     if ($script:FilterBuilderData.ConversationFilters.Count -gt 0) {
@@ -1511,7 +1516,7 @@ function Invoke-FilterBuilderBody {
 function Set-FilterBuilderVisibility {
     param ([bool]$Visible)
 
-    if ($filterBuilderExpander) { 
+    if ($filterBuilderExpander) {
         $filterBuilderExpander.Visibility = if ($Visible) { "Visible" } else { "Collapsed" }
         $filterBuilderExpander.IsExpanded = $Visible
     }
@@ -1545,7 +1550,7 @@ function Update-FilterBuilderHint {
 function Release-FilterBuilderResources {
     if ($conversationFiltersList) {
         $conversationFiltersList.Items.Clear()
-        $conversationFiltersList.ItemsSource = $null 
+        $conversationFiltersList.ItemsSource = $null
     }
     if ($segmentFiltersList) {
         $segmentFiltersList.Items.Clear()
@@ -1567,7 +1572,7 @@ function Parse-FilterValueInput {
     param ([string]$Text)
 
     $value = if ($Text) { $Text.Trim() } else { "" }
-    if (-not $value) { return $null } 
+    if (-not $value) { return $null }
 
     if ($value.StartsWith("{") -and $value.EndsWith("}")) {
         try {
@@ -1588,7 +1593,7 @@ function Add-FilterEntry {
         $FilterObject
     )
 
-    if ($Scope -eq "Conversation") { 
+    if ($Scope -eq "Conversation") {
         $script:FilterBuilderData.ConversationFilters.Add($FilterObject) | Out-Null
     }
     else {
@@ -1617,7 +1622,7 @@ function Build-FilterFromInput {
         $PropertyTypeCombo
     )
 
-    $filterType = if ($FilterTypeCombo -and $FilterTypeCombo.SelectedItem) { $FilterTypeCombo.SelectedItem } else { "and" } 
+    $filterType = if ($FilterTypeCombo -and $FilterTypeCombo.SelectedItem) { $FilterTypeCombo.SelectedItem } else { "and" }
     $predicateType = if ($PredicateTypeCombo -and $PredicateTypeCombo.SelectedItem) { $PredicateTypeCombo.SelectedItem } else { "dimension" }
     $fieldName = if ($FieldCombo -and $FieldCombo.SelectedItem) { $FieldCombo.SelectedItem } else { "" }
     $operator = if ($OperatorCombo -and $OperatorCombo.SelectedItem) { $OperatorCombo.SelectedItem } else { "" }
@@ -1629,7 +1634,7 @@ function Build-FilterFromInput {
     if (-not $operator) {
         Show-FilterBuilderMessage -Message "Please select an operator."
         return $null
-    } 
+    }
 
     $valueInput = Parse-FilterValueInput -Text $ValueInput.Text
     if ($operator -ne "exists" -and $null -eq $valueInput) {
@@ -1669,7 +1674,7 @@ function Build-FilterFromInput {
 }
 
 function Initialize-FilterBuilderControl {
-    if (-not $conversationFilterTypeCombo) { return } 
+    if (-not $conversationFilterTypeCombo) { return }
 
     $conversationFilterTypeCombo.Items.Clear()
     $conversationFilterTypeCombo.Items.Add("and") | Out-Null
@@ -1682,7 +1687,7 @@ function Initialize-FilterBuilderControl {
     $segmentFilterTypeCombo.SelectedIndex = 0
 
     $conversationPredicateTypeCombo.Items.Clear()
-    if ($script:FilterBuilderEnums.Conversation.Types.Count -gt 0) { 
+    if ($script:FilterBuilderEnums.Conversation.Types.Count -gt 0) {
         foreach ($type in $script:FilterBuilderEnums.Conversation.Types) {
             $conversationPredicateTypeCombo.Items.Add($type) | Out-Null
         }
@@ -1696,7 +1701,7 @@ function Initialize-FilterBuilderControl {
     $conversationPredicateTypeCombo.SelectedIndex = 0
 
     $segmentPredicateTypeCombo.Items.Clear()
-    if ($script:FilterBuilderEnums.Segment.Types.Count -gt 0) { 
+    if ($script:FilterBuilderEnums.Segment.Types.Count -gt 0) {
         foreach ($type in $script:FilterBuilderEnums.Segment.Types) {
             $segmentPredicateTypeCombo.Items.Add($type) | Out-Null
         }
@@ -1710,7 +1715,7 @@ function Initialize-FilterBuilderControl {
     $segmentPredicateTypeCombo.SelectedIndex = 0
 
     if ($conversationOperatorCombo) {
-        $conversationOperatorCombo.Items.Clear() 
+        $conversationOperatorCombo.Items.Clear()
         foreach ($op in $script:FilterBuilderEnums.Operators) {
             $conversationOperatorCombo.Items.Add($op) | Out-Null
         }
@@ -1725,7 +1730,7 @@ function Initialize-FilterBuilderControl {
     }
 
     if ($segmentPropertyTypeCombo) {
-        $segmentPropertyTypeCombo.Items.Clear() 
+        $segmentPropertyTypeCombo.Items.Clear()
         if ($script:FilterBuilderEnums.Segment.PropertyTypes.Count -gt 0) {
             foreach ($propType in $script:FilterBuilderEnums.Segment.PropertyTypes) {
                 $segmentPropertyTypeCombo.Items.Add($propType) | Out-Null
@@ -1765,7 +1770,7 @@ function Populate-InspectorTree {
         [int]$Depth = 0
     )
 
-    if (-not $Tree) { return } 
+    if (-not $Tree) { return }
 
     # Check if we've exceeded the maximum node count to prevent freezing
     if ($script:InspectorNodeCount -ge $script:InspectorMaxNodes) {
@@ -1789,7 +1794,7 @@ function Populate-InspectorTree {
 
     $script:InspectorNodeCount++
     $node = New-Object System.Windows.Controls.TreeViewItem
-    $isEnumerable = ($Data -is [System.Collections.IEnumerable]) -and -not ($Data -is [string]) 
+    $isEnumerable = ($Data -is [System.Collections.IEnumerable]) -and -not ($Data -is [string])
     if ($Data -and $Data.PSObject.Properties.Count -gt 0) {
         $node.Header = "$($Label) (object)"
         foreach ($prop in $Data.PSObject.Properties) {
@@ -1827,7 +1832,7 @@ function Populate-InspectorTree {
         }
     }
     else {
-        $valueText = if ($null -ne $Data) { $Data.ToString() } else { "<null>" } 
+        $valueText = if ($null -ne $Data) { $Data.ToString() } else { "<null>" }
         $node.Header = "$($Label): $valueText"
     }
 
@@ -1839,7 +1844,7 @@ function Show-DataInspector {
     param ([string]$JsonText)
 
     $sourceText = $JsonText
-    if (-not $sourceText -and $script:LastResponseFile -and (Test-Path -Path $script:LastResponseFile)) { 
+    if (-not $sourceText -and $script:LastResponseFile -and (Test-Path -Path $script:LastResponseFile)) {
         $fileInfo = Get-Item -Path $script:LastResponseFile
         if ($fileInfo.Length -gt 5MB) {
             $result = [System.Windows.MessageBox]::Show("The stored result is large ($([math]::Round($fileInfo.Length / 1MB, 1)) MB). Parsing it may take some time. Continue?", "Large Result Warning", "YesNo")
@@ -1851,7 +1856,7 @@ function Show-DataInspector {
         $sourceText = Get-Content -Path $script:LastResponseFile -Raw
     }
 
-    if (-not $sourceText) { 
+    if (-not $sourceText) {
         Add-LogEntry "Inspector: no data to show."
         return
     }
@@ -1859,7 +1864,7 @@ function Show-DataInspector {
     try {
         $parsed = $sourceText | ConvertFrom-Json -ErrorAction Stop
     }
-    catch { 
+    catch {
         [System.Windows.MessageBox]::Show("Unable to parse current response for inspection.`n$($_.Exception.Message)", "Data Inspector")
         return
     }
@@ -1889,7 +1894,7 @@ function Show-DataInspector {
 "@
 
     $inspectorWindow = [System.Windows.Markup.XamlReader]::Parse($inspectorXaml)
-    if (-not $inspectorWindow) { 
+    if (-not $inspectorWindow) {
         Add-LogEntry "Data Inspector UI failed to load."
         return
     }
@@ -1899,7 +1904,7 @@ function Show-DataInspector {
     $copyButton = $inspectorWindow.FindName("CopyJsonButton")
     $exportButton = $inspectorWindow.FindName("ExportJsonButton")
 
-    if ($rawBox) { 
+    if ($rawBox) {
         $rawBox.Text = $sourceText
     }
 
@@ -1917,7 +1922,7 @@ function Show-DataInspector {
                 if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
                     Set-Clipboard -Value $sourceText
                     Add-LogEntry "Raw JSON copied to clipboard via inspector."
-                } 
+                }
                 else {
                     [System.Windows.MessageBox]::Show("Clipboard access is not available in this host.", "Clipboard")
                     Add-LogEntry "Clipboard copy skipped (command missing)."
@@ -1933,7 +1938,7 @@ function Show-DataInspector {
                 $dialog.Title = "Export Inspector JSON"
                 if ($dialog.ShowDialog() -eq $true) {
                     $JsonText | Out-File -FilePath $dialog.FileName -Encoding utf8
-                    Add-LogEntry "Inspector JSON exported to $($dialog.FileName)" 
+                    Add-LogEntry "Inspector JSON exported to $($dialog.FileName)"
                 }
             })
     }
@@ -1959,7 +1964,7 @@ function Show-ConversationTimelineReport {
         $Report
     )
 
-    if (-not $Report) { 
+    if (-not $Report) {
         Add-LogEntry "No conversation report data to display."
         return
     }
@@ -1970,7 +1975,7 @@ function Show-ConversationTimelineReport {
     # Sanitize ConversationId for safe use in XAML Title (prevent XML injection)
     $safeConvId = if ($Report.ConversationId) {
         [System.Security.SecurityElement]::Escape($Report.ConversationId)
-    } 
+    }
     else {
         "Unknown"
     }
@@ -2001,7 +2006,7 @@ function Show-ConversationTimelineReport {
     }
 
     if (-not $timelineWindow) {
-        Add-LogEntry "Timeline report window failed to load." 
+        Add-LogEntry "Timeline report window failed to load."
         return
     }
 
@@ -2011,7 +2016,7 @@ function Show-ConversationTimelineReport {
 
     if ($timelineTextBox) {
         $timelineTextBox.Text = $reportText
-    } 
+    }
 
     if ($copyButton) {
         $copyButton.Add_Click({
@@ -2020,7 +2025,7 @@ function Show-ConversationTimelineReport {
                         Set-Clipboard -Value $reportText
                         Add-LogEntry "Timeline report copied to clipboard."
                     }
-                    else { 
+                    else {
                         [System.Windows.Clipboard]::SetText($reportText)
                         Add-LogEntry "Timeline report copied to clipboard."
                     }
@@ -2036,11 +2041,11 @@ function Show-ConversationTimelineReport {
                 # Sanitize ConversationId for safe use in filename (remove invalid filename characters)
                 $safeFilenameConvId = if ($Report.ConversationId) {
                     $Report.ConversationId -replace '[\\/:*?"<>|]', '_'
-                } 
+                }
                 else {
                     "Unknown"
                 }
-            
+
                 $dialog = New-Object Microsoft.Win32.SaveFileDialog
                 $dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
                 $dialog.Title = "Export Conversation Timeline Report"
@@ -2067,7 +2072,7 @@ function Show-ConversationTimelineReport {
 function Job-StatusIsPending {
     param ([string]$Status)
 
-    if (-not $Status) { return $false } 
+    if (-not $Status) { return $false }
     return $Status -match '^(pending|running|in[-]?progress|processing|created)$'
 }
 
@@ -2095,10 +2100,10 @@ function Update-UrlParameter {
         [Parameter(Mandatory = $true)]
         [string]$ParameterValue
     )
-    
+
     # Parse URL into path and query parts
     if ($Path -match '^([^\?]+)(\?.*)$') {
-        $pathPart = $matches[1] 
+        $pathPart = $matches[1]
         $queryPart = $matches[2]
         # Check if parameter already exists in query (match any value, not just digits)
         $paramPattern = "[&\?]$ParameterName=[^&]*"
@@ -2108,7 +2113,7 @@ function Update-UrlParameter {
         }
         else {
             return "$Path&$ParameterName=$ParameterValue"
-        } 
+        }
     }
     else {
         # No query string yet
@@ -2159,13 +2164,13 @@ function Get-PaginatedResults {
     $continueLoop = $true
 
     while ($continueLoop) {
-        if ($ProgressCallback) { 
+        if ($ProgressCallback) {
             & $ProgressCallback -PageNumber $pageNumber -Status "Fetching page $pageNumber..."
         }
 
         try {
             $url = if ($currentPath -match '^https?://') { $currentPath } else { "$BaseUrl$currentPath" }
-            
+
             $invokeParams = @{
                 Uri         = $url
                 Method      = $Method
@@ -2173,7 +2178,7 @@ function Get-PaginatedResults {
                 ErrorAction = 'Stop'
             }
 
-            if ($Body -and $Method -eq "POST") { 
+            if ($Body -and $Method -eq "POST") {
                 $invokeParams['Body'] = $Body
                 $invokeParams['ContentType'] = 'application/json'
             }
@@ -2182,7 +2187,7 @@ function Get-PaginatedResults {
             $data = $response.Content | ConvertFrom-Json
 
             # Add results from this page
-            if ($data.entities) { 
+            if ($data.entities) {
                 foreach ($entity in $data.entities) {
                     [void]$allResults.Add($entity)
                 }
@@ -2192,7 +2197,7 @@ function Get-PaginatedResults {
                     [void]$allResults.Add($conv)
                 }
             }
-            elseif ($data -is [array]) { 
+            elseif ($data -is [array]) {
                 foreach ($item in $data) {
                     [void]$allResults.Add($item)
                 }
@@ -2203,7 +2208,7 @@ function Get-PaginatedResults {
             }
 
             # Check for cursor-based pagination
-            if ($data.cursor) { 
+            if ($data.cursor) {
                 # URL-encode the cursor value to handle special characters
                 $encodedCursor = [uri]::EscapeDataString($data.cursor)
                 $currentPath = $InitialPath
@@ -2213,7 +2218,7 @@ function Get-PaginatedResults {
                 else {
                     $currentPath += "?cursor=$encodedCursor"
                 }
-                $pageNumber++ 
+                $pageNumber++
             }
             elseif ($data.nextUri) {
                 $currentPath = $data.nextUri
@@ -2221,7 +2226,7 @@ function Get-PaginatedResults {
             }
             # Check for page number based pagination
             elseif ($data.pageCount -and $data.pageNumber) {
-                if ($data.pageNumber -lt $data.pageCount) { 
+                if ($data.pageNumber -lt $data.pageCount) {
                     $nextPage = $data.pageNumber + 1
                     # Use helper function to safely update pageNumber parameter
                     $currentPath = Update-UrlParameter -Path $InitialPath -ParameterName "pageNumber" -ParameterValue $nextPage
@@ -2233,7 +2238,7 @@ function Get-PaginatedResults {
             }
             else {
                 # No pagination info found, this is the last page
-                $continueLoop = $false 
+                $continueLoop = $false
             }
         }
         catch {
@@ -2262,7 +2267,7 @@ function Get-PaginatedResults {
     - Recording Metadata (optional)
     - Sentiments (optional)
     - SIP Messages (optional)
-    
+
     Reports progress via optional callback for real-time UI updates.
 .PARAMETER ConversationId
     The conversation ID to retrieve data for
@@ -2316,9 +2321,9 @@ function Get-ConversationReport {
     foreach ($endpoint in $endpoints) {
         $currentEndpoint++
         $percentComplete = [int](($currentEndpoint / $totalEndpoints) * 100)
-        
+
         # Report progress if callback provided
-        if ($ProgressCallback) { 
+        if ($ProgressCallback) {
             & $ProgressCallback -PercentComplete $percentComplete -Status "Querying: $($endpoint.Name)" -EndpointName $endpoint.Name -IsStarting $true
         }
 
@@ -2335,17 +2340,17 @@ function Get-ConversationReport {
             $response = Invoke-WebRequest -Uri $url -Method Get -Headers $Headers -ErrorAction Stop
             $data = $response.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
             $result.($endpoint.PropertyName) = $data
-            
-            $logEntry.Status = "Success" 
+
+            $logEntry.Status = "Success"
             $logEntry.Message = "Retrieved successfully"
-            
+
             if ($ProgressCallback) {
                 & $ProgressCallback -PercentComplete $percentComplete -Status "✓ $($endpoint.Name)" -EndpointName $endpoint.Name -IsSuccess $true
             }
         }
         catch {
             $errorMessage = $_.Exception.Message
-            if ($endpoint.Optional) { 
+            if ($endpoint.Optional) {
                 $logEntry.Status = "Optional - Not Available"
                 $logEntry.Message = $errorMessage
             }
@@ -2354,7 +2359,7 @@ function Get-ConversationReport {
                 $logEntry.Status = "Failed"
                 $logEntry.Message = $errorMessage
             }
-            
+
             if ($ProgressCallback) {
                 & $ProgressCallback -PercentComplete $percentComplete -Status "✗ $($endpoint.Name)" -EndpointName $endpoint.Name -IsSuccess $false -IsOptional $endpoint.Optional
             }
@@ -2389,7 +2394,7 @@ function Get-GCConversationDetailsTimeline {
             $participantName = if ($participant.participantName) { $participant.participantName } else { $participant.purpose }
             $participantId = $participant.participantId
 
-            if ($participant.sessions) { 
+            if ($participant.sessions) {
                 foreach ($session in $participant.sessions) {
                     $mediaType = $session.mediaType
                     $direction = $session.direction
@@ -2400,7 +2405,7 @@ function Get-GCConversationDetailsTimeline {
                     # Extract MOS from session-level mediaEndpointStats
                     # MOS is at the session level, not segment level
                     $sessionMos = $null
-                    if ($session.mediaEndpointStats) { 
+                    if ($session.mediaEndpointStats) {
                         foreach ($stat in $session.mediaEndpointStats) {
                             if ($stat.minMos) {
                                 $sessionMos = $stat.minMos
@@ -2409,7 +2414,7 @@ function Get-GCConversationDetailsTimeline {
                         }
                     }
 
-                    if ($session.segments) { 
+                    if ($session.segments) {
                         foreach ($segment in $session.segments) {
                             $segmentCounter++
                             $segmentId = $segmentCounter
@@ -2422,7 +2427,7 @@ function Get-GCConversationDetailsTimeline {
                             $wrapUpNote = $segment.wrapUpNote
 
                             # Extract error codes from segment
-                            $errorCode = $null 
+                            $errorCode = $null
                             if ($segment.errorCode) {
                                 $errorCode = $segment.errorCode
                             }
@@ -2431,7 +2436,7 @@ function Get-GCConversationDetailsTimeline {
                                 $errorCode = "sip:$($segment.sipResponseCode)"
                             }
 
-                            # Segment start event - parse with InvariantCulture for reliable ISO 8601 parsing 
+                            # Segment start event - parse with InvariantCulture for reliable ISO 8601 parsing
                             if ($segment.segmentStart) {
                                 [void]$events.Add([PSCustomObject]@{
                                         Timestamp      = [DateTime]::Parse($segment.segmentStart, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
@@ -2791,38 +2796,38 @@ function Format-GCConversationTimelineText {
 
     $sb = [System.Text.StringBuilder]::new()
 
-    foreach ($event in $Events) {
-        $timestamp = $event.Timestamp.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssK')
-        $eventType = $event.EventType.PadRight(18)
+    foreach ($timelineEvent in $Events) {
+        $timestamp = $timelineEvent.Timestamp.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssK')
+        $eventType = $timelineEvent.EventType.PadRight(18)
 
         $participantStr = ''
-        if ($event.FlowName) {
-            $participantStr = 'Flow: ' + $event.FlowName
+        if ($timelineEvent.FlowName) {
+            $participantStr = 'Flow: ' + $timelineEvent.FlowName
         }
-        elseif ($event.QueueName) {
-            $participantStr = 'Queue: ' + $event.QueueName
+        elseif ($timelineEvent.QueueName) {
+            $participantStr = 'Queue: ' + $timelineEvent.QueueName
         }
-        elseif ($event.Participant) {
-            $participantStr = $event.Participant
+        elseif ($timelineEvent.Participant) {
+            $participantStr = $timelineEvent.Participant
         }
         else {
             $participantStr = '(unknown)'
         }
 
-        $segmentStr = if ($event.SegmentId) { 'seg=' + $event.SegmentId } else { '' }
+        $segmentStr = if ($timelineEvent.SegmentId) { 'seg=' + $timelineEvent.SegmentId } else { '' }
 
         $mediaStr = ''
-        if ($event.MediaType -or $event.Direction) {
+        if ($timelineEvent.MediaType -or $timelineEvent.Direction) {
             $parts = @()
-            if ($event.MediaType) { $parts += 'media=' + $event.MediaType }
-            if ($event.Direction) { $parts += 'dir=' + $event.Direction }
+            if ($timelineEvent.MediaType) { $parts += 'media=' + $timelineEvent.MediaType }
+            if ($timelineEvent.Direction) { $parts += 'dir=' + $timelineEvent.Direction }
             $mediaStr = $parts -join ' | '
         }
 
         $mosStr = ''
-        if ($null -ne $event.Mos) {
+        if ($null -ne $timelineEvent.Mos) {
             $mosValue = 0.0
-            if ([double]::TryParse($event.Mos.ToString(), [ref]$mosValue)) {
+            if ([double]::TryParse($timelineEvent.Mos.ToString(), [ref]$mosValue)) {
                 if ($mosValue -lt 3.5) {
                     $mosStr = 'MOS=' + $mosValue.ToString('0.00') + ' (DEGRADED)'
                 }
@@ -2832,11 +2837,11 @@ function Format-GCConversationTimelineText {
             }
         }
 
-        $errorStr = if ($event.ErrorCode) { 'errorCode=' + $event.ErrorCode } else { '' }
+        $errorStr = if ($timelineEvent.ErrorCode) { 'errorCode=' + $timelineEvent.ErrorCode } else { '' }
 
         $disconnectStr = ''
-        if ($event.EventType -eq 'Disconnect' -and $event.DisconnectType) {
-            $disconnectStr = $event.Participant + ' disconnected (' + $event.DisconnectType + ')'
+        if ($timelineEvent.EventType -eq 'Disconnect' -and $timelineEvent.DisconnectType) {
+            $disconnectStr = $timelineEvent.Participant + ' disconnected (' + $timelineEvent.DisconnectType + ')'
         }
 
         $lineParts = @($timestamp, '|', $eventType, '|', $participantStr)
@@ -4193,11 +4198,11 @@ function Fetch-JobResults {
         # Update status to show we're fetching
         $statusText.Text = "Fetching job results (may be paginated)..."
         Add-LogEntry "Fetching job results from $resultsPath"
-        
+
         # Define progress callback for pagination
         $paginationCallback = {
             param($PageNumber, $Status, $IsError, $IsComplete)
-            
+
             if ($IsError) {
                 $statusText.Text = "Error: $Status"
             }
@@ -4210,7 +4215,7 @@ function Fetch-JobResults {
             Add-LogEntry $Status
             [System.Windows.Forms.Application]::DoEvents()
         }
-        
+
         # Use pagination helper to fetch all results
         $allResults = Get-PaginatedResults `
             -BaseUrl $ApiBaseUrl `
@@ -4218,10 +4223,10 @@ function Fetch-JobResults {
             -Headers $JobTracker.Headers `
             -Method "GET" `
             -ProgressCallback $paginationCallback
-        
+
         # Save all results to temp file
         $allResults | ConvertTo-Json -Depth 20 | Set-Content -Path $tempFile -Encoding UTF8
-        
+
         $JobTracker.ResultFile = $tempFile
         if ($jobResultsPath) {
             $jobResultsPath.Text = "Results file: $tempFile"
@@ -4354,14 +4359,48 @@ $script:FilterBuilderEnums = @{
     Operators    = @("matches", "exists", "notExists")
 }
 
-$ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
-if (-not $ScriptRoot) {
-    $ScriptRoot = Get-Location
-}
-$insightPackRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptRoot))) -ChildPath 'insightpacks'
-$insightBriefingRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptRoot))) -ChildPath 'InsightBriefings'
+function Join-FromScriptRoot {
+    param (
+        [int]$Levels,
+        [string]$Child
+    )
 
-$script:OpsInsightsManifest = Join-Path -Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptRoot))) -ChildPath 'src/GenesysCloud.OpsInsights/GenesysCloud.OpsInsights.psd1'
+    $base = $ScriptRoot
+    for ($i = 1; $i -le $Levels; $i++) {
+        $base = Split-Path -Parent $base
+    }
+
+    return Join-Path -Path $base -ChildPath $Child
+}
+
+$insightPackRoot = Join-FromScriptRoot -Levels 3 -Child 'insightpacks'
+$insightBriefingRoot = Join-FromScriptRoot -Levels 3 -Child 'InsightBriefings'
+$script:OpsInsightsManifest = Join-FromScriptRoot -Levels 3 -Child 'src/GenesysCloud.OpsInsights/GenesysCloud.OpsInsights.psd1'
+$script:OpsInsightsModuleRoot = Split-Path -Parent $script:OpsInsightsManifest
+$script:OpsInsightsCoreManifest = Join-Path -Path $script:OpsInsightsModuleRoot -ChildPath '..\GenesysCloud.OpsInsights.Core\GenesysCloud.OpsInsights.Core.psd1'
+
+function Load-OpsInsightsScripts {
+    if ($script:OpsInsightsScriptsLoaded) { return }
+
+    $directories = @(
+        Join-Path -Path $script:OpsInsightsModuleRoot -ChildPath 'Private',
+        Join-Path -Path $script:OpsInsightsModuleRoot -ChildPath 'Public'
+    )
+
+    foreach ($dir in $directories) {
+        if (-not (Test-Path -LiteralPath $dir)) { continue }
+        Get-ChildItem -Path $dir -Filter '*.ps1' -File | Sort-Object Name | ForEach-Object {
+            try {
+                . $_.FullName
+            }
+            catch {
+                Write-Warning "Failed to load OpsInsights script '$($_.FullName)': $($_.Exception.Message)"
+            }
+        }
+    }
+
+    $script:OpsInsightsScriptsLoaded = $true
+}
 
 function Ensure-OpsInsightsModuleLoaded {
     param(
@@ -4371,13 +4410,25 @@ function Ensure-OpsInsightsModuleLoaded {
     if (-not $script:OpsInsightsManifest) {
         throw "OpsInsights module manifest path is unavailable."
     }
-
     if (-not (Test-Path -LiteralPath $script:OpsInsightsManifest)) {
         throw "OpsInsights module manifest not found at '$script:OpsInsightsManifest'."
     }
 
     if ($Force -or (-not (Get-Module -Name 'GenesysCloud.OpsInsights'))) {
         Import-Module -Name $script:OpsInsightsManifest -Force -ErrorAction Stop
+    }
+
+    if ($Force -or (-not (Get-Module -Name 'GenesysCloud.OpsInsights.Core'))) {
+        if ($script:OpsInsightsCoreManifest -and (Test-Path -LiteralPath $script:OpsInsightsCoreManifest)) {
+            Import-Module -Name $script:OpsInsightsCoreManifest -Force -ErrorAction Stop
+        }
+        else {
+            Write-Verbose "OpsInsights core manifest missing or unavailable at '$script:OpsInsightsCoreManifest'."
+        }
+    }
+
+    if (-not (Get-Command -Name 'Invoke-GCInsightPack' -ErrorAction SilentlyContinue)) {
+        Load-OpsInsightsScripts
     }
 }
 
@@ -6110,7 +6161,7 @@ if ($runConversationReportButton) {
                 # Define progress callback to update UI
                 $progressCallback = {
                     param($PercentComplete, $Status, $EndpointName, $IsStarting, $IsSuccess, $IsOptional)
-                
+
                     if ($conversationReportProgressBar) {
                         $conversationReportProgressBar.Value = $PercentComplete
                     }
@@ -6859,7 +6910,7 @@ $btnSubmit.Add_Click({
 
             # Calculate duration and update status
             $requestDuration = ((Get-Date) - $requestStartTime).TotalMilliseconds
-        
+
             # Detect pagination in response
             $hasPagination = $false
             $paginationInfo = ""
@@ -6877,10 +6928,10 @@ $btnSubmit.Add_Click({
                     $paginationInfo = " (Page $($json.pageNumber) of $($json.pageCount))"
                 }
             }
-        
+
             $statusText.Text = "Last call succeeded ($($response.StatusCode)) - {0:N0} ms$paginationInfo" -f $requestDuration
             Add-LogEntry ("Response: {0} returned {1} chars in {2:N0} ms.$paginationInfo" -f $response.StatusCode, $formattedContent.Length, $requestDuration)
-        
+
             # If pagination detected, log a note
             if ($hasPagination) {
                 Add-LogEntry "Note: Response contains pagination. To fetch all pages, use Get-PaginatedResults function or the Jobs results fetcher for job endpoints."
