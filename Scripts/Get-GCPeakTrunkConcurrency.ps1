@@ -1,742 +1,473 @@
-### BEGIN FILE: Get-GCPeakTrunkConcurrency.ps1
 <#
 .SYNOPSIS
-  Peak Concurrent "Trunk-Active" Voice Calls (per minute) for a month from Genesys Cloud Conversation Details Jobs.
+  Computes Peak Concurrent external-trunk voice calls over a time interval (typically a month),
+  excluding wrapup time by ending the interval at wrapup.segmentStart.
 
 .DESCRIPTION
-  - Uses /api/v2/analytics/conversations/details/jobs (async)
-  - Pages results via cursor until cursor is absent (jobs paging behavior)
-  - Extracts intervals from VOICE sessions where:
-      * ani starts with tel:
-      * dnis starts with tel:
-      * participant appears external/customer (guard to avoid counting agent legs)
-    Then excludes segmentType=wrapup and builds an active interval from remaining segments.
-  - Computes peak concurrency using a minute delta sweep (fast, deterministic).
-  - Includes rate-limit aware request wrapper (handles 429 + sleeps until reset).
+  - Uses Analytics Conversation Details Async Jobs:
+      POST  /api/v2/analytics/conversations/details/jobs
+      GET   /api/v2/analytics/conversations/details/jobs/{jobId}
+      GET   /api/v2/analytics/conversations/details/jobs/{jobId}/results?cursor=...
 
-.REQUIREMENTS
-  - PowerShell 5.1 or 7+
-  - OAuth client credentials with permission to run analytics conversation details jobs.
+  - Pages results until cursor is absent.
+  - Monitors inin-ratelimit-* headers and sleeps when near limit.
+  - Shows work by optionally exporting every trunk-leg interval to CSV.
+
+  External-trunk leg identification (purpose-agnostic):
+    - session.mediaType = voice
+    - session.ani and session.dnis start with 'tel:'
+    - session.peerId is null/missing (root leg)
+    - optional: session.edgeId must be in allow-list
+
+.PARAMETER AccessToken
+  OAuth bearer token (no "Bearer " prefix required).
+
+.PARAMETER BaseUri
+  Region base, e.g. https://api.usw2.pure.cloud
+
+.PARAMETER IntervalStartUtc
+  Interval start in UTC (DateTime). Example: 2025-11-01 00:00:00Z
+
+.PARAMETER IntervalEndUtc
+  Interval end in UTC (DateTime). Example: 2025-12-01 00:00:00Z
+
+.PARAMETER ChunkDays
+  Subdivide the interval into smaller job intervals to reduce payload size/timeouts.
+
+.PARAMETER EdgeIdAllowList
+  Optional array of edgeIds to include. This is the practical replacement for "filter on IPs".
+
+.PARAMETER ExportIntervalsCsv
+  Optional path to write per-session computed intervals (shows work).
+
+.EXAMPLE
+  .\Get-GCPeakTrunkConcurrency.ps1 `
+    -AccessToken $env:GC_TOKEN `
+    -BaseUri 'https://api.usw2.pure.cloud' `
+    -IntervalStartUtc ([datetime]'2025-11-01T00:00:00Z') `
+    -IntervalEndUtc   ([datetime]'2025-12-01T00:00:00Z') `
+    -ChunkDays 1 `
+    -ExportIntervalsCsv '.\trunk-intervals.csv'
 #>
 
 [CmdletBinding()]
 param(
-    # Genesys Cloud environment suffix, e.g. "mypurecloud.com" or "usw2.pure.cloud"
-    [Parameter(Mandatory)]
-    [string]$Environment,
+  [Parameter(Mandatory)]
+  [string]$AccessToken,
 
-    # OAuth Client Id
-    [Parameter(Mandatory)]
-    [string]$ClientId,
+  [Parameter(Mandatory)]
+  [string]$BaseUri,
 
-    # OAuth Client Secret (SecureString strongly preferred)
-    [Parameter(Mandatory)]
-    [securestring]$ClientSecret,
+  [Parameter(Mandatory)]
+  [datetime]$IntervalStartUtc,
 
-    # Target month (YYYY-MM). Example: "2025-11"
-    [Parameter(Mandatory)]
-    [ValidatePattern('^\d{4}-\d{2}$')]
-    [string]$YearMonth,
+  [Parameter(Mandatory)]
+  [datetime]$IntervalEndUtc,
 
-    # Chunk size (days) for job intervals (7 is usually a good balance)
-    [ValidateRange(1,31)]
-    [int]$ChunkDays = 7,
+  [int]$ChunkDays = 1,
 
-    # Results page size (Genesys supports pageSize in results call; keep reasonable)
-    [ValidateRange(25,500)]
-    [int]$PageSize = 200,
+  [string[]]$EdgeIdAllowList = @(),
 
-    # Poll frequency while waiting for async job fulfillment
-    [ValidateRange(2,60)]
-    [int]$PollSeconds = 5,
-
-    # Output folder (created if missing)
-    [string]$OutputDir = "",
-
-    # If set, uses ONLY tel/tel filtering (no participant guard). Not recommended.
-    [switch]$LooseTelOnly
+  [string]$ExportIntervalsCsv
 )
 
-# -----------------------------
-# Helpers: time + output folder
-# -----------------------------
-function New-OutputFolder {
-    param([string]$Base)
-    if ([string]::IsNullOrWhiteSpace($Base)) {
-        $stamp = (Get-Date).ToString('yyyyMMdd_HHmmss')
-        $Base = ".\GC_PeakTrunk_$($YearMonth.Replace('-',''))_$stamp"
-    }
-    if (-not (Test-Path -LiteralPath $Base)) {
-        New-Item -ItemType Directory -Path $Base | Out-Null
-    }
-    return (Resolve-Path -LiteralPath $Base).Path
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+#region Helpers
+
+function Parse-GcUtc {
+  param([Parameter(Mandatory)][string]$Value)
+  # Genesys returns ISO-8601 Zulu timestamps; parse to UTC DateTime.
+  return [datetime]::Parse(
+    $Value,
+    [System.Globalization.CultureInfo]::InvariantCulture,
+    [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+  )
 }
 
-function ConvertTo-UtcIsoZ {
-    param([datetime]$Dt)
-    $u = $Dt.ToUniversalTime()
-    return $u.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+function Floor-ToMinuteUtc {
+  param([Parameter(Mandatory)][datetime]$Utc)
+  return [datetime]::SpecifyKind(
+    (New-Object datetime($Utc.Year, $Utc.Month, $Utc.Day, $Utc.Hour, $Utc.Minute, 0)),
+    [System.DateTimeKind]::Utc
+  )
 }
 
-function Get-MonthIntervalUtc {
-    param([string]$Ym)
-
-    $y = [int]$Ym.Substring(0,4)
-    $m = [int]$Ym.Substring(5,2)
-
-    $start = [datetime]::SpecifyKind((Get-Date -Year $y -Month $m -Day 1 -Hour 0 -Minute 0 -Second 0), [DateTimeKind]::Local).ToUniversalTime()
-    $end   = $start.AddMonths(1)
-
-    # Return as [datetime] in UTC kind (safe for formatting)
-    return [pscustomobject]@{
-        StartUtc = [datetime]::SpecifyKind($start, [DateTimeKind]::Utc)
-        EndUtc   = [datetime]::SpecifyKind($end,   [DateTimeKind]::Utc)
-    }
+function Ceil-ToMinuteUtc {
+  param([Parameter(Mandatory)][datetime]$Utc)
+  $flo = Floor-ToMinuteUtc -Utc $Utc
+  if ($Utc -gt $flo) { return $flo.AddMinutes(1) }
+  return $flo
 }
 
-# ---------------------------------------
-# OAuth: Client Credentials access token
-# ---------------------------------------
-function ConvertFrom-SecureStringPlain {
-    param([Parameter(Mandatory)][securestring]$Secure)
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
-    try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
-    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
-}
+function Invoke-GcApi {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][ValidateSet('GET','POST')]
+    [string]$Method,
 
-function Get-GCAccessToken {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Env,
-        [Parameter(Mandatory)][string]$Id,
-        [Parameter(Mandatory)][securestring]$Secret
-    )
+    [Parameter(Mandatory)]
+    [string]$Path,
 
-    $secretPlain = ConvertFrom-SecureStringPlain -Secure $Secret
+    [object]$Body,
+
+    [hashtable]$Query
+  )
+
+  $uri = "$($BaseUri)$($Path)"
+  if ($Query -and $Query.Count -gt 0) {
+    $qs = ($Query.GetEnumerator() | ForEach-Object {
+      "$([uri]::EscapeDataString($_.Key))=$([uri]::EscapeDataString([string]$_.Value))"
+    }) -join '&'
+    $uri = "$($uri)?$($qs)"
+  }
+
+  $headers = @{
+    'Authorization' = "Bearer $($AccessToken)"
+    'Accept'        = 'application/json'
+  }
+
+  while ($true) {
+    $rh = $null
     try {
-        $pair  = "{0}:{1}" -f $Id, $secretPlain
-        $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
-
-        $uri = "https://login.$($Env)/oauth/token"
-        $headers = @{ Authorization = "Basic $basic" }
-        $body = "grant_type=client_credentials"
-
-        Write-Host "Auth: requesting client-credentials token from $($uri) ..." -ForegroundColor Cyan
-
-        $resp = Invoke-WebRequest -UseBasicParsing -Method Post -Uri $uri -Headers $headers `
-            -ContentType 'application/x-www-form-urlencoded' -Body $body
-
-        $json = $resp.Content | ConvertFrom-Json
-        if (-not $json.access_token) { throw "Token response missing access_token." }
-
-        return $json.access_token
-    }
-    finally {
-        # Best-effort: wipe plaintext variable reference
-        $secretPlain = $null
-    }
-}
-
-# ---------------------------------------
-# Rate-limit aware HTTP wrapper
-# ---------------------------------------
-function Get-RateLimitSnapshot {
-    param([hashtable]$Headers)
-
-    # Genesys historically uses inin-ratelimit-* (allowed/count/reset). :contentReference[oaicite:3]{index=3}
-    # Some infrastructure uses x-ratelimit-* or other variants; we handle both.
-    $limit = $null
-    $used  = $null
-    $remain = $null
-    $reset = $null
-
-    # Normalize keys (case-insensitive)
-    $keys = @{}
-    foreach ($k in $Headers.Keys) { $keys[$k.ToLowerInvariant()] = $k }
-
-    function Get-H([string]$name) {
-        $lk = $name.ToLowerInvariant()
-        if ($keys.ContainsKey($lk)) { return [string]$Headers[$keys[$lk]] }
-        return $null
-    }
-
-    $ininAllowed = Get-H 'inin-ratelimit-allowed'
-    $ininCount   = Get-H 'inin-ratelimit-count'
-    $ininReset   = Get-H 'inin-ratelimit-reset'
-    $ininRemain  = Get-H 'inin-ratelimit-remaining'
-
-    $xLimit      = Get-H 'x-ratelimit-limit'
-    $xRemain     = Get-H 'x-ratelimit-remaining'
-    $xReset      = Get-H 'x-ratelimit-reset'
-
-    if ($ininAllowed) { $limit = [int]$ininAllowed }
-    if ($ininCount)   { $used  = [int]$ininCount }
-    if ($ininRemain)  { $remain = [int]$ininRemain }
-    if ($ininReset)   { $reset = $ininReset }
-
-    if (-not $limit -and $xLimit)  { $limit = [int]$xLimit }
-    if (-not $remain -and $xRemain){ $remain = [int]$xRemain }
-    if (-not $reset -and $xReset)  { $reset = $xReset }
-
-    # Derive remaining from limit-used if needed
-    if (-not $remain -and $limit -and ($used -ne $null)) {
-        $remain = [Math]::Max(0, ($limit - $used))
-    }
-
-    # Reset parsing:
-    # - Could be epoch seconds
-    # - Could be seconds-until-reset
-    # We'll heuristically interpret.
-    $resetSeconds = $null
-    if ($reset) {
-        if ($reset -match '^\d+$') {
-            $n = [int64]$reset
-            $nowEpoch = [int64][Math]::Floor(([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()))
-            if ($n -gt ($nowEpoch + 120)) {
-                # Looks like epoch seconds
-                $resetSeconds = [Math]::Max(0, ($n - $nowEpoch))
-            }
-            else {
-                # Looks like seconds until reset
-                $resetSeconds = [Math]::Max(0, [int]$n)
-            }
+      if ($Method -eq 'POST') {
+        $json = $null
+        if ($null -ne $Body) {
+          $json = ($Body | ConvertTo-Json -Depth 50 -Compress)
         }
-    }
+        $resp = Invoke-RestMethod -Method POST -Uri $uri -Headers $headers -ContentType 'application/json' -Body $json -ResponseHeadersVariable rh
+      } else {
+        $resp = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -ResponseHeadersVariable rh
+      }
 
-    return [pscustomobject]@{
-        Limit        = $limit
-        Used         = $used
-        Remaining    = $remain
-        ResetSeconds = $resetSeconds
-    }
-}
+      # Rate limit soft-throttle (Genesys headers: inin-ratelimit-allowed/count/reset)
+      $allowed = $null
+      $count   = $null
+      $reset   = $null
 
-function Invoke-GCRequest {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Method,
-        [Parameter(Mandatory)][string]$Uri,
-        [Parameter(Mandatory)][string]$AccessToken,
-        [object]$Body = $null,
-        [hashtable]$ExtraHeaders = $null,
-        [int]$MaxRetries = 6
-    )
+      if ($rh) {
+        $allowed = $rh['inin-ratelimit-allowed'] | Select-Object -First 1
+        $count   = $rh['inin-ratelimit-count']   | Select-Object -First 1
+        $reset   = $rh['inin-ratelimit-reset']   | Select-Object -First 1
+      }
 
-    $attempt = 0
-    while ($true) {
-        $attempt++
-
-        $headers = @{
-            Authorization = "Bearer $AccessToken"
-            Accept        = "application/json"
+      if ($allowed -and $count) {
+        $remaining = [int]$allowed - [int]$count
+        if ($remaining -le 5) {
+          $sleepSec = 1
+          if ($reset -and ($reset -match '^\d+$')) { $sleepSec = [int]$reset + 1 }
+          Write-Host "⏳ Near rate limit (remaining=$($remaining)). Sleeping $($sleepSec)s..." -ForegroundColor Yellow
+          Start-Sleep -Seconds $sleepSec
         }
-        if ($ExtraHeaders) {
-            foreach ($k in $ExtraHeaders.Keys) { $headers[$k] = $ExtraHeaders[$k] }
-        }
+      }
 
-        $respHeaders = $null
-
-        try {
-            if ($Body -ne $null) {
-                $payload = ($Body | ConvertTo-Json -Depth 50)
-                $resp = Invoke-WebRequest -UseBasicParsing -Method $Method -Uri $Uri -Headers $headers `
-                    -ContentType 'application/json' -Body $payload -ResponseHeadersVariable respHeaders
-            }
-            else {
-                $resp = Invoke-WebRequest -UseBasicParsing -Method $Method -Uri $Uri -Headers $headers `
-                    -ResponseHeadersVariable respHeaders
-            }
-
-            $rl = Get-RateLimitSnapshot -Headers $respHeaders
-            if ($rl.Limit) {
-                $msg = "RateLimit: remaining=$($rl.Remaining) limit=$($rl.Limit)"
-                if ($rl.ResetSeconds -ne $null) { $msg += " resetSec=$($rl.ResetSeconds)" }
-                Write-Host $msg -ForegroundColor DarkGray
-            }
-
-            if ($resp.Content -and $resp.Content.Trim().StartsWith('{')) {
-                return ($resp.Content | ConvertFrom-Json)
-            }
-            elseif ($resp.Content -and $resp.Content.Trim().StartsWith('[')) {
-                return ($resp.Content | ConvertFrom-Json)
-            }
-            else {
-                return $resp.Content
-            }
-        }
-        catch {
-            $ex = $_.Exception
-            $statusCode = $null
-            $retryAfterSec = $null
-            $headersFromError = $null
-            $bodyText = $null
-
-            if ($ex.Response) {
-                try {
-                    $statusCode = [int]$ex.Response.StatusCode
-                } catch { }
-
-                try {
-                    $headersFromError = @{}
-                    foreach ($k in $ex.Response.Headers.Keys) { $headersFromError[$k] = $ex.Response.Headers[$k] }
-                } catch { }
-
-                try {
-                    $stream = $ex.Response.GetResponseStream()
-                    if ($stream) {
-                        $reader = New-Object System.IO.StreamReader($stream)
-                        $bodyText = $reader.ReadToEnd()
-                        $reader.Close()
-                    }
-                } catch { }
-
-                if ($headersFromError) {
-                    # Retry-After is the simplest
-                    $ra = $headersFromError['Retry-After']
-                    if ($ra -and ($ra -match '^\d+$')) { $retryAfterSec = [int]$ra }
-                }
-            }
-
-            # Rate limited
-            if ($statusCode -eq 429) {
-                $wait = $retryAfterSec
-
-                if (-not $wait -and $headersFromError) {
-                    $rl = Get-RateLimitSnapshot -Headers $headersFromError
-                    if ($rl.ResetSeconds -ne $null) { $wait = [Math]::Max(1, $rl.ResetSeconds) }
-                }
-
-                if (-not $wait) { $wait = 10 }
-
-                Write-Host "HTTP 429 rate-limited. Sleeping $($wait)s then retrying ($attempt/$MaxRetries)..." -ForegroundColor Yellow
-                Start-Sleep -Seconds $wait
-            }
-            # Transient gateway-ish failures
-            elseif ($statusCode -in 502,503,504) {
-                if ($attempt -ge $MaxRetries) { throw }
-                $backoff = [Math]::Min(60, [Math]::Pow(2, $attempt))
-                Write-Host "HTTP $($statusCode) transient error. Sleeping $($backoff)s then retrying ($attempt/$MaxRetries)..." -ForegroundColor Yellow
-                Start-Sleep -Seconds $backoff
-            }
-            else {
-                $msg = "Request failed: $($Method) $($Uri)"
-                if ($statusCode) { $msg += " status=$($statusCode)" }
-                if ($bodyText)   { $msg += "`nBody: $bodyText" }
-                throw $msg
-            }
-
-            if ($attempt -ge $MaxRetries) {
-                throw "Max retries reached for $($Method) $($Uri)"
-            }
-        }
-    }
-}
-
-# ---------------------------------------
-# Genesys Conversation Details Jobs
-# ---------------------------------------
-function New-GCConversationDetailsJob {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$ApiBase,
-        [Parameter(Mandatory)][string]$AccessToken,
-        [Parameter(Mandatory)][string]$IntervalIso
-    )
-
-    $uri = "$($ApiBase)/api/v2/analytics/conversations/details/jobs"
-
-    # Best-effort server-side filter to VOICE media. If your org rejects segmentFilters for jobs,
-    # we'll automatically fall back to "interval only".
-    $bodyPreferred = @{
-        interval = $IntervalIso
-        order    = "asc"
-        orderBy  = "conversationStart"
-        segmentFilters = @(
-            @{
-                type = "and"
-                predicates = @(
-                    @{
-                        type      = "dimension"
-                        dimension = "mediaType"
-                        operator  = "matches"
-                        value     = "voice"
-                    }
-                )
-            }
-        )
-    }
-
-    try {
-        Write-Host "Job: creating details job for interval $($IntervalIso) ..." -ForegroundColor Cyan
-        return (Invoke-GCRequest -Method Post -Uri $uri -AccessToken $AccessToken -Body $bodyPreferred)
+      return $resp
     }
     catch {
-        Write-Host "Job: server-side filter rejected; retrying with minimal body (interval only)..." -ForegroundColor Yellow
-        $bodyFallback = @{ interval = $IntervalIso }
-        return (Invoke-GCRequest -Method Post -Uri $uri -AccessToken $AccessToken -Body $bodyFallback)
+      $ex = $_.Exception
+      $statusCode = $null
+      $retryAfter = $null
+
+      if ($ex.Response) {
+        try {
+          $statusCode = [int]$ex.Response.StatusCode
+        } catch {}
+
+        try {
+          $retryAfter = $ex.Response.Headers['Retry-After']
+        } catch {}
+      }
+
+      # 429: too many requests -> obey Retry-After if present, else short backoff
+      if ($statusCode -eq 429) {
+        $sleepSec = 2
+        if ($retryAfter -and ($retryAfter -match '^\d+$')) { $sleepSec = [int]$retryAfter }
+        Write-Host "🧯 429 throttled. Sleeping $($sleepSec)s then retrying $($Method) $($Path)..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $sleepSec
+        continue
+      }
+
+      throw
     }
+  }
 }
 
-function Get-GCConversationDetailsJobStatus {
-    param(
-        [Parameter(Mandatory)][string]$ApiBase,
-        [Parameter(Mandatory)][string]$AccessToken,
-        [Parameter(Mandatory)][string]$JobId
-    )
-    $uri = "$($ApiBase)/api/v2/analytics/conversations/details/jobs/$($JobId)"
-    return (Invoke-GCRequest -Method Get -Uri $uri -AccessToken $AccessToken)
+function New-IntervalCursorRow {
+  param(
+    [string]$ConversationId,
+    [string]$SessionId,
+    [string]$EdgeId,
+    [datetime]$StartUtc,
+    [datetime]$EndUtc
+  )
+
+  [pscustomobject]@{
+    conversationId = $ConversationId
+    sessionId      = $SessionId
+    edgeId         = $EdgeId
+    startUtc       = $StartUtc.ToString('o')
+    endUtc         = $EndUtc.ToString('o')
+    durationSec    = [math]::Round(($EndUtc - $StartUtc).TotalSeconds, 3)
+  }
 }
 
-function Get-GCConversationDetailsJobResultsAll {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$ApiBase,
-        [Parameter(Mandatory)][string]$AccessToken,
-        [Parameter(Mandatory)][string]$JobId,
-        [Parameter(Mandatory)][int]$PageSize
+#endregion Helpers
+
+#region Minute-bucket diff array (fast concurrency math)
+
+if ($IntervalEndUtc -le $IntervalStartUtc) {
+  throw "IntervalEndUtc must be greater than IntervalStartUtc."
+}
+
+$monthStart = [datetime]::SpecifyKind($IntervalStartUtc, [System.DateTimeKind]::Utc)
+$monthEnd   = [datetime]::SpecifyKind($IntervalEndUtc,   [System.DateTimeKind]::Utc)
+
+$totalMinutes = [int][math]::Ceiling(($monthEnd - $monthStart).TotalMinutes)
+# diff array length is totalMinutes + 1 so we can safely decrement at endExclusiveIndex == totalMinutes
+$diff = New-Object int[] ($totalMinutes + 1)
+
+$intervalRows = New-Object System.Collections.Generic.List[object]
+
+#endregion Minute-bucket diff array
+
+#region Chunk loop
+
+$chunkSpan = [timespan]::FromDays([math]::Max(1, $ChunkDays))
+$chunkStart = $monthStart
+$chunkIndex = 0
+
+while ($chunkStart -lt $monthEnd) {
+  $chunkIndex++
+  $chunkEnd = $chunkStart.Add($chunkSpan)
+  if ($chunkEnd -gt $monthEnd) { $chunkEnd = $monthEnd }
+
+  $intervalStr = "$($chunkStart.ToString('o'))/$($chunkEnd.ToString('o'))"
+  Write-Host "🔎 Chunk $($chunkIndex): $($intervalStr)" -ForegroundColor Cyan
+
+  # Build async conversation details job query (filter to voice via segmentFilters)
+  $jobBody = @{
+    interval    = $intervalStr
+    order       = 'asc'
+    orderBy     = 'conversationStart'
+    segmentFilters = @(
+      @{
+        type = 'and'
+        predicates = @(
+          @{ type = 'dimension'; dimension = 'mediaType'; value = 'voice' }
+        )
+      }
     )
+  }
 
-    $all = New-Object System.Collections.Generic.List[object]
-    $cursor = $null
-    $page = 0
+  $job = Invoke-GcApi -Method POST -Path '/api/v2/analytics/conversations/details/jobs' -Body $jobBody
+  $jobId = $job.id
+  if ([string]::IsNullOrWhiteSpace($jobId)) { throw "Job id not returned for interval $($intervalStr)" }
 
-    while ($true) {
-        $page++
-        $q = "pageSize=$($PageSize)"
-        if ($cursor) { $q += "&cursor=$([uri]::EscapeDataString($cursor))" }
+  Write-Host "🧾 JobId: $($jobId) (polling...)" -ForegroundColor DarkCyan
 
-        $uri = "$($ApiBase)/api/v2/analytics/conversations/details/jobs/$($JobId)/results?$q"
+  # Poll job status
+  while ($true) {
+    Start-Sleep -Seconds 2
+    $jobStatus = Invoke-GcApi -Method GET -Path "/api/v2/analytics/conversations/details/jobs/$($jobId)"
+    $state = $jobStatus.state
+    if ([string]::IsNullOrWhiteSpace($state)) { $state = $jobStatus.status } # defensive
 
-        Write-Host "Job $($JobId): fetching results page $($page) ..." -ForegroundColor DarkCyan
-        $resp = Invoke-GCRequest -Method Get -Uri $uri -AccessToken $AccessToken
+    Write-Host "   ↳ State: $($state)" -ForegroundColor DarkGray
 
-        # Response shape can vary by SDK/version; handle common patterns.
-        $rows = $null
-        if ($resp.PSObject.Properties.Name -contains 'conversations') { $rows = @($resp.conversations) }
-        elseif ($resp.PSObject.Properties.Name -contains 'results')   { $rows = @($resp.results) }
-        else { $rows = @() }
-
-        foreach ($r in $rows) { $all.Add($r) }
-
-        # Cursor: jobs end when cursor is absent (forum confirmed behavior). :contentReference[oaicite:4]{index=4}
-        $next = $null
-        if ($resp.PSObject.Properties.Name -contains 'cursor') { $next = [string]$resp.cursor }
-
-        if ([string]::IsNullOrWhiteSpace($next)) { break }
-        $cursor = $next
+    if ($state -match 'FULFILLED|COMPLETED') { break }
+    if ($state -match 'FAILED|ERROR') {
+      throw "Job $($jobId) failed. State=$($state)"
     }
+  }
 
-    return $all
-}
+  # Page results until no cursor
+  $cursor = $null
+  $pageNum = 0
+  $processedConversations = 0
 
-# ---------------------------------------
-# Trunk interval extraction (wrapup excluded)
-# ---------------------------------------
-function Get-SegmentTimes {
-    param([object]$Seg)
+  do {
+    $pageNum++
+    $q = @{}
+    if ($cursor) { $q['cursor'] = $cursor }
 
-    # Support both naming styles if they show up
-    $s = $null
-    $e = $null
+    Write-Host "   📦 Fetching results page $($pageNum) (cursor=$($cursor))" -ForegroundColor DarkGray
 
-    if ($Seg.PSObject.Properties.Name -contains 'segmentStart') { $s = $Seg.segmentStart }
-    elseif ($Seg.PSObject.Properties.Name -contains 'startTime') { $s = $Seg.startTime }
+    $page = Invoke-GcApi -Method GET -Path "/api/v2/analytics/conversations/details/jobs/$($jobId)/results" -Query $q
 
-    if ($Seg.PSObject.Properties.Name -contains 'segmentEnd') { $e = $Seg.segmentEnd }
-    elseif ($Seg.PSObject.Properties.Name -contains 'endTime') { $e = $Seg.endTime }
+    $conversations = @()
+    if ($page.conversations) { $conversations = $page.conversations }
+    $cursor = $page.cursor
 
-    if (-not $s -or -not $e) { return $null }
+    foreach ($conv in $conversations) {
+      $processedConversations++
 
-    return [pscustomobject]@{
-        StartUtc = [datetime]$s
-        EndUtc   = [datetime]$e
-    }
-}
+      $convId = $conv.conversationId
+      if ([string]::IsNullOrWhiteSpace($convId)) { $convId = $conv.id }
 
-function Extract-TrunkIntervals {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object]$ConversationRecord,
-        [switch]$LooseTelOnly
-    )
+      # Build a set of peerIds used in this conversation (optional sanity checks)
+      $peerIds = New-Object 'System.Collections.Generic.HashSet[string]'
+      foreach ($p in @($conv.participants)) {
+        foreach ($s in @($p.sessions)) {
+          if ($s.PSObject.Properties.Name -contains 'peerId') {
+            if (-not [string]::IsNullOrWhiteSpace($s.peerId)) { [void]$peerIds.Add([string]$s.peerId) }
+          }
+        }
+      }
 
-    $out = New-Object System.Collections.Generic.List[object]
-
-    foreach ($p in @($ConversationRecord.participants)) {
-
-        $purpose = [string]$p.purpose
-        $ptype   = if ($p.PSObject.Properties.Name -contains 'participantType') { [string]$p.participantType } else { "" }
-
-        $looksExternal =
-            ($purpose -match '(?i)\bcustomer\b|\bexternal\b') -or
-            ($ptype   -match '(?i)\bexternal\b')
-
+      foreach ($p in @($conv.participants)) {
         foreach ($s in @($p.sessions)) {
 
-            if ($s.mediaType -ne 'voice') { continue }
+          # ---- External trunk root-leg filter (purpose-agnostic) ----
+          if ($s.mediaType -ne 'voice') { continue }
+          if (-not ($s.ani  -is [string] -and $s.ani  -like 'tel:*')) { continue }
+          if (-not ($s.dnis -is [string] -and $s.dnis -like 'tel:*')) { continue }
 
-            $ani  = [string]$s.ani
-            $dnis = [string]$s.dnis
+          # Root-leg heuristic: peerId must be missing/empty
+          $hasPeerProp = ($s.PSObject.Properties.Name -contains 'peerId')
+          if ($hasPeerProp -and (-not [string]::IsNullOrWhiteSpace([string]$s.peerId))) { continue }
 
-            if ($ani  -notmatch '(?i)^tel:' ) { continue }
-            if ($dnis -notmatch '(?i)^tel:' ) { continue }
+          if ($s.provider -and $s.provider -ne 'Edge') { continue }
 
-            # Guard: avoid counting agent legs that also happen to show tel: ani/dnis.
-            if (-not $LooseTelOnly) {
-                if (-not $looksExternal) { continue }
+          $edgeId = [string]$s.edgeId
+          if ($EdgeIdAllowList.Count -gt 0) {
+            if ([string]::IsNullOrWhiteSpace($edgeId)) { continue }
+            if ($EdgeIdAllowList -notcontains $edgeId) { continue }
+          }
+
+          # Optional extra guard: root sessionId is commonly referenced by other sessions' peerId
+          # (If you find edge cases where this drops valid trunk legs, comment it out.)
+          $sessionId = [string]$s.sessionId
+          if (-not [string]::IsNullOrWhiteSpace($sessionId)) {
+            if (-not $peerIds.Contains($sessionId)) {
+              # Keep it permissive by default; comment next line IN if you want strict "must-have-child" behavior.
+              # continue
+              $null = $null
             }
+          }
 
-            # Extra defensive guard: if sessionDnis exists and is sip:, it's likely internal.
-            if ($s.PSObject.Properties.Name -contains 'sessionDnis') {
-                $sd = [string]$s.sessionDnis
-                if ($sd -match '(?i)^sip:') { continue }
-            }
+          # ---- Compute interval excluding wrapup ----
+          $startUtc = $null
+          $endUtc   = $null
 
-            # Build interval from non-wrapup segments (wrapup excluded)
-            $segs = @($s.segments) | Where-Object {
-                $_ -and ([string]$_.segmentType -notmatch '(?i)^wrapup$')
-            } | ForEach-Object {
-                $t = Get-SegmentTimes -Seg $_
-                if ($t) {
-                    [pscustomobject]@{
-                        SegmentType = [string]$_.segmentType
-                        StartUtc    = $t.StartUtc
-                        EndUtc      = $t.EndUtc
-                    }
+          $segments = @()
+          if ($s.segments) { $segments = @($s.segments) }
+
+          if ($segments.Count -gt 0) {
+            # Sort by segmentStart
+            $segmentsSorted = $segments | Sort-Object { Parse-GcUtc -Value $_.segmentStart }
+
+            $startUtc = Parse-GcUtc -Value $segmentsSorted[0].segmentStart
+
+            # If wrapup exists, end at wrapup.segmentStart; else max(segmentEnd)
+            $wrap = $segmentsSorted | Where-Object { $_.segmentType -eq 'wrapup' } | Select-Object -First 1
+            if ($wrap) {
+              $endUtc = Parse-GcUtc -Value $wrap.segmentStart
+            } else {
+              $maxEnd = $null
+              foreach ($seg in $segmentsSorted) {
+                if ($seg.segmentEnd) {
+                  $t = Parse-GcUtc -Value $seg.segmentEnd
+                  if (-not $maxEnd -or $t -gt $maxEnd) { $maxEnd = $t }
                 }
-            } | Where-Object { $_ } | Sort-Object StartUtc
-
-            if (-not $segs -or $segs.Count -lt 1) { continue }
-
-            $startUtc = [datetime]$segs[0].StartUtc
-            $endUtc   = [datetime]($segs | Select-Object -Last 1).EndUtc
-            if ($endUtc -le $startUtc) { continue }
-
-            $divs = @()
-            if ($ConversationRecord.PSObject.Properties.Name -contains 'divisionIds') {
-                $divs = @($ConversationRecord.divisionIds)
+              }
+              $endUtc = $maxEnd
             }
+          }
 
-            $out.Add([pscustomobject]@{
-                ConversationId = $ConversationRecord.conversationId
-                ParticipantId  = $p.participantId
-                Purpose        = $purpose
-                SessionId      = $s.sessionId
-                Ani            = $ani
-                Dnis           = $dnis
-                DivisionIds    = ($divs -join ';')
-                StartUtc       = $startUtc
-                EndUtc         = $endUtc
-            })
+          # Fallbacks if segments are missing
+          if (-not $startUtc) {
+            if ($conv.conversationStart) { $startUtc = Parse-GcUtc -Value $conv.conversationStart }
+          }
+          if (-not $endUtc) {
+            if ($conv.conversationEnd) { $endUtc = Parse-GcUtc -Value $conv.conversationEnd }
+          }
+
+          if (-not $startUtc -or -not $endUtc) { continue }
+          if ($endUtc -le $startUtc) { continue }
+
+          # Export "show your work" row
+          if ($ExportIntervalsCsv) {
+            $intervalRows.Add((New-IntervalCursorRow -ConversationId $convId -SessionId $sessionId -EdgeId $edgeId -StartUtc $startUtc -EndUtc $endUtc)) | Out-Null
+          }
+
+          # Minute bucket math: count if interval intersects the minute bucket.
+          # Use [startFloor, endCeil) in minutes.
+          $startBucket = Floor-ToMinuteUtc -Utc $startUtc
+          $endBucketEx = Ceil-ToMinuteUtc  -Utc $endUtc
+
+          if ($endBucketEx -le $startBucket) { continue }
+
+          $startIndex = [int][math]::Floor(($startBucket - $monthStart).TotalMinutes)
+          $endIndexEx = [int][math]::Floor(($endBucketEx - $monthStart).TotalMinutes)
+
+          if ($startIndex -lt 0) { $startIndex = 0 }
+          if ($endIndexEx -gt $totalMinutes) { $endIndexEx = $totalMinutes }
+
+          if ($endIndexEx -le $startIndex) { continue }
+
+          $diff[$startIndex]++
+          $diff[$endIndexEx]--
         }
+      }
+
+      if (($processedConversations % 250) -eq 0) {
+        Write-Host "   … processed $($processedConversations) conversations (chunk $($chunkIndex))" -ForegroundColor DarkGray
+      }
     }
 
-    return $out
+  } while ($cursor)
+
+  Write-Host "✅ Chunk $($chunkIndex) complete. Conversations processed: $($processedConversations)" -ForegroundColor Green
+
+  $chunkStart = $chunkEnd
 }
 
-# ---------------------------------------
-# Peak concurrency (minute delta sweep)
-# ---------------------------------------
-function Get-PeakConcurrentMinuteSeries {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object[]]$Intervals,
-        [Parameter(Mandatory)][datetime]$MonthStartUtc,
-        [Parameter(Mandatory)][datetime]$MonthEndUtc
-    )
+#endregion Chunk loop
 
-    $delta = @{}
+#region Final reduce: diff -> concurrency + peak
 
-    foreach ($x in $Intervals) {
-        $s = [datetime]$x.StartUtc
-        $e = [datetime]$x.EndUtc
-        if ($e -le $s) { continue }
+$running = 0
+$peak = 0
+$peakMinuteIndex = 0
 
-        # Clamp to month window so boundaries don't drift
-        if ($s -lt $MonthStartUtc) { $s = $MonthStartUtc }
-        if ($e -gt $MonthEndUtc)   { $e = $MonthEndUtc }
-        if ($e -le $s) { continue }
-
-        # Floor start to minute
-        $startMin = Get-Date $s -Second 0 -Millisecond 0
-
-        # Ceil end to minute
-        $endMin = Get-Date $e -Second 0 -Millisecond 0
-        if ($e.Second -ne 0 -or $e.Millisecond -ne 0) {
-            $endMin = $endMin.AddMinutes(1)
-        }
-
-        if (-not $delta.ContainsKey($startMin)) { $delta[$startMin] = 0 }
-        if (-not $delta.ContainsKey($endMin))   { $delta[$endMin]   = 0 }
-
-        $delta[$startMin] += 1
-        $delta[$endMin]   -= 1
-    }
-
-    # Build full minute series for the month (43k-ish rows; totally manageable)
-    $series = New-Object System.Collections.Generic.List[object]
-    $running = 0
-    $peak = 0
-    $peakMinute = $null
-
-    $t = Get-Date $MonthStartUtc -Second 0 -Millisecond 0
-    $end = Get-Date $MonthEndUtc -Second 0 -Millisecond 0
-
-    while ($t -lt $end) {
-        if ($delta.ContainsKey($t)) { $running += $delta[$t] }
-
-        if ($running -gt $peak) {
-            $peak = $running
-            $peakMinute = $t
-        }
-
-        $series.Add([pscustomobject]@{
-            MinuteUtc    = $t.ToString("yyyy-MM-ddTHH:mm:00Z")
-            Concurrent   = $running
-        })
-
-        $t = $t.AddMinutes(1)
-    }
-
-    return [pscustomobject]@{
-        PeakConcurrent = $peak
-        PeakMinuteUtc  = $peakMinute
-        Series         = $series
-    }
+for ($i = 0; $i -lt $totalMinutes; $i++) {
+  $running += $diff[$i]
+  if ($running -gt $peak) {
+    $peak = $running
+    $peakMinuteIndex = $i
+  }
 }
 
-# -----------------------------
-# Main
-# -----------------------------
-$OutputDir = New-OutputFolder -Base $OutputDir
-Write-Host "Output: $($OutputDir)" -ForegroundColor Green
+$peakMinuteUtc = $monthStart.AddMinutes($peakMinuteIndex)
 
-$apiBase = "https://api.$($Environment)"
+Write-Host ""
+Write-Host "🏁 Peak Concurrent External Trunk Calls: $($peak)" -ForegroundColor Magenta
+Write-Host "🕒 Peak Minute (UTC): $($peakMinuteUtc.ToString('o'))" -ForegroundColor Magenta
 
-$month = Get-MonthIntervalUtc -Ym $YearMonth
-Write-Host "Month UTC interval: $((ConvertTo-UtcIsoZ $month.StartUtc)) / $((ConvertTo-UtcIsoZ $month.EndUtc))" -ForegroundColor Green
+# Export "show your work" CSV (optional)
+if ($ExportIntervalsCsv) {
+  $outPath = [System.IO.Path]::GetFullPath($ExportIntervalsCsv)
+  $dir = [System.IO.Path]::GetDirectoryName($outPath)
+  if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+    New-Item -ItemType Directory -Path $dir | Out-Null
+  }
 
-$token = Get-GCAccessToken -Env $Environment -Id $ClientId -Secret $ClientSecret
-Write-Host "Auth: token acquired." -ForegroundColor Green
+  $intervalRows
+  | Sort-Object startUtc
+  | Export-Csv -NoTypeInformation -Encoding UTF8 -LiteralPath $outPath
 
-# Build chunk intervals
-$chunks = New-Object System.Collections.Generic.List[object]
-$cur = $month.StartUtc
-while ($cur -lt $month.EndUtc) {
-    $next = $cur.AddDays($ChunkDays)
-    if ($next -gt $month.EndUtc) { $next = $month.EndUtc }
-
-    $chunks.Add([pscustomobject]@{
-        StartUtc = $cur
-        EndUtc   = $next
-        Interval = "{0}/{1}" -f (ConvertTo-UtcIsoZ $cur), (ConvertTo-UtcIsoZ $next)
-    })
-
-    $cur = $next
+  Write-Host "🧾 Intervals exported: $($outPath)" -ForegroundColor Cyan
 }
 
-Write-Host "Plan: $($chunks.Count) async job chunk(s) of up to $($ChunkDays) day(s) each." -ForegroundColor Green
-
-# Dedup store: session key -> merged interval
-$dedup = @{}  # key => object with StartUtc/EndUtc/etc
-
-for ($i = 0; $i -lt $chunks.Count; $i++) {
-    $c = $chunks[$i]
-    Write-Host "`n==== Chunk $($i+1)/$($chunks.Count): $($c.Interval) ====" -ForegroundColor Magenta
-
-    $job = New-GCConversationDetailsJob -ApiBase $apiBase -AccessToken $token -IntervalIso $c.Interval
-    $jobId = [string]$job.id
-    if (-not $jobId) { throw "Job create response missing id." }
-
-    Write-Host "Job: created id=$($jobId)" -ForegroundColor Cyan
-
-    # Poll status
-    while ($true) {
-        $st = Get-GCConversationDetailsJobStatus -ApiBase $apiBase -AccessToken $token -JobId $jobId
-        $state = if ($st.PSObject.Properties.Name -contains 'state') { [string]$st.state } else { "" }
-        $pct   = if ($st.PSObject.Properties.Name -contains 'percentComplete') { [int]$st.percentComplete } else { $null }
-
-        $msg = "Job $($jobId): state=$($state)"
-        if ($pct -ne $null) { $msg += " pct=$($pct)%" }
-        Write-Host $msg -ForegroundColor DarkCyan
-
-        if ($state -match '(?i)fulfilled|completed') { break }
-        if ($state -match '(?i)failed|canceled|cancelled') {
-            throw "Job $($jobId) ended in state=$($state)"
-        }
-
-        Start-Sleep -Seconds $PollSeconds
-    }
-
-    # Fetch results
-    $convos = Get-GCConversationDetailsJobResultsAll -ApiBase $apiBase -AccessToken $token -JobId $jobId -PageSize $PageSize
-    Write-Host "Job $($jobId): fetched $($convos.Count) conversation record(s)." -ForegroundColor Cyan
-
-    # Extract + merge trunk intervals
-    $extractedCount = 0
-    foreach ($conv in $convos) {
-        $ivals = Extract-TrunkIntervals -ConversationRecord $conv -LooseTelOnly:$LooseTelOnly
-        foreach ($iv in $ivals) {
-            $extractedCount++
-
-            $k = "{0}|{1}|{2}" -f $iv.ConversationId, $iv.ParticipantId, $iv.SessionId
-            if (-not $dedup.ContainsKey($k)) {
-                $dedup[$k] = $iv
-            }
-            else {
-                # Merge (keep earliest start and latest end)
-                $curIv = $dedup[$k]
-                if ([datetime]$iv.StartUtc -lt [datetime]$curIv.StartUtc) { $curIv.StartUtc = $iv.StartUtc }
-                if ([datetime]$iv.EndUtc   -gt [datetime]$curIv.EndUtc)   { $curIv.EndUtc   = $iv.EndUtc }
-            }
-        }
-    }
-
-    Write-Host "Chunk $($i+1): extracted $($extractedCount) trunk-interval candidate(s); dedup now $($dedup.Count)." -ForegroundColor Green
+# Return a structured object too
+[pscustomobject]@{
+  intervalStartUtc = $monthStart.ToString('o')
+  intervalEndUtc   = $monthEnd.ToString('o')
+  peakConcurrent   = $peak
+  peakMinuteUtc    = $peakMinuteUtc.ToString('o')
+  chunkDays        = $ChunkDays
+  edgeIdAllowList  = $EdgeIdAllowList
 }
 
-# Final interval list
-$finalIntervals = @($dedup.Values)
-
-Write-Host "`nTotal deduped trunk intervals: $($finalIntervals.Count)" -ForegroundColor Green
-
-# Save intervals (show-your-work)
-$intervalsPath = [System.IO.Path]::Combine($OutputDir, "Intervals_TrunkVoice_NoWrapup.csv")
-$finalIntervals | Sort-Object StartUtc | Export-Csv -NoTypeInformation -Path $intervalsPath
-Write-Host "Wrote: $($intervalsPath)" -ForegroundColor Green
-
-# Compute peak + time series
-Write-Host "`nComputing minute-by-minute concurrency series..." -ForegroundColor Cyan
-$result = Get-PeakConcurrentMinuteSeries -Intervals $finalIntervals -MonthStartUtc $month.StartUtc -MonthEndUtc $month.EndUtc
-
-$peakMinute = $result.PeakMinuteUtc
-$peakVal    = $result.PeakConcurrent
-
-Write-Host "PEAK CONCURRENT TRUNK CALLS: $($peakVal)" -ForegroundColor Green
-Write-Host "PEAK MINUTE (UTC): $($peakMinute.ToString('yyyy-MM-ddTHH:mm:00Z'))" -ForegroundColor Green
-
-# Save series
-$seriesPath = [System.IO.Path]::Combine($OutputDir, "MinuteSeries_Concurrency.csv")
-$result.Series | Export-Csv -NoTypeInformation -Path $seriesPath
-Write-Host "Wrote: $($seriesPath)" -ForegroundColor Green
-
-# Save summary JSON
-$summary = [pscustomobject]@{
-    Environment        = $Environment
-    YearMonth          = $YearMonth
-    MonthStartUtc      = (ConvertTo-UtcIsoZ $month.StartUtc)
-    MonthEndUtc        = (ConvertTo-UtcIsoZ $month.EndUtc)
-    ChunkDays          = $ChunkDays
-    PageSize           = $PageSize
-    IntervalCount      = $finalIntervals.Count
-    PeakConcurrent     = $peakVal
-    PeakMinuteUtc      = $peakMinute.ToString('yyyy-MM-ddTHH:mm:00Z')
-    FilterMode         = if ($LooseTelOnly) { "tel/tel only" } else { "tel/tel + external/customer guard" }
-}
-
-$summaryPath = [System.IO.Path]::Combine($OutputDir, "Summary.json")
-$summary | ConvertTo-Json -Depth 10 | Out-File -Encoding UTF8 -FilePath $summaryPath
-Write-Host "Wrote: $($summaryPath)" -ForegroundColor Green
-
-Write-Host "`nDone." -ForegroundColor Green
-### END FILE: Get-GCPeakTrunkConcurrency.ps1
+#endregion Final reduce
