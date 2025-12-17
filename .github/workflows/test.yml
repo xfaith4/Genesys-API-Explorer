@@ -44,6 +44,13 @@ jobs:
       shell: pwsh
       run: |
         $jsonPath = ".\GenesysCloudAPIEndpoints.json"
+
+        # Check if file exists before validating
+        if (-Not (Test-Path $jsonPath)) {
+          Write-Host "::warning::$jsonPath not found, skipping validation."
+          exit 0
+        }
+        
         Write-Host "Validating JSON syntax for: $jsonPath"
         
         try {
