@@ -579,6 +579,22 @@ function Get-ParameterControlValue {
 
     if (-not $Control) { return $null }
 
+    # Handle wrapped controls (e.g., panels storing the actual control in ValueControl)
+    if ($Control.ValueControl) {
+        $inner = $Control.ValueControl
+        if ($inner -is [System.Windows.Controls.CheckBox]) {
+            if ($inner.IsChecked -eq $true) { return "true" }
+            if ($inner.IsChecked -eq $false) { return "false" }
+        }
+        elseif ($inner -is [System.Windows.Controls.ComboBox]) {
+            $innerValue = $inner.SelectedItem
+            if ($innerValue) { return $innerValue.ToString() }
+        }
+        elseif ($inner -is [System.Windows.Controls.TextBox]) {
+            return $inner.Text
+        }
+    }
+
     # Handle CheckBox (wrapped in StackPanel)
     if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
         $checkBox = $Control.ValueControl
@@ -632,6 +648,25 @@ function Set-ParameterControlValue {
     )
 
     if (-not $Control) { return }
+
+    # Handle wrapped controls (e.g., panels storing the actual control in ValueControl)
+    if ($Control.ValueControl) {
+        $inner = $Control.ValueControl
+        if ($inner -is [System.Windows.Controls.CheckBox]) {
+            if ($Value -eq "true" -or $Value -eq $true) { $inner.IsChecked = $true; return }
+            if ($Value -eq "false" -or $Value -eq $false) { $inner.IsChecked = $false; return }
+            $inner.IsChecked = $null
+            return
+        }
+        elseif ($inner -is [System.Windows.Controls.ComboBox]) {
+            $inner.SelectedItem = $Value
+            return
+        }
+        elseif ($inner -is [System.Windows.Controls.TextBox]) {
+            $inner.Text = $Value
+            return
+        }
+    }
 
     # Handle CheckBox (wrapped in StackPanel)
     if ($Control.ValueControl -and $Control.ValueControl -is [System.Windows.Controls.CheckBox]) {
@@ -4932,6 +4967,30 @@ $script:TemplatesFilePath = Join-Path -Path $env:USERPROFILE -ChildPath "Genesys
 $script:CurrentBodyControl = $null
 $script:CurrentBodySchema = $null
 
+function Get-LastSuccessfulRequestParameters {
+    param (
+        [string]$Path,
+        [string]$Method
+    )
+
+    if (-not $script:RequestHistory -or $script:RequestHistory.Count -eq 0) {
+        return $null
+    }
+
+    $methodUpper = $Method.ToUpper()
+    foreach ($entry in $script:RequestHistory) {
+        if ($entry.Path -ne $Path) { continue }
+        if ($entry.Method -ne $methodUpper) { continue }
+
+        $status = $entry.Status
+        if ($status -is [int] -and $status -ge 200 -and $status -lt 300 -and $entry.Parameters) {
+            return $entry.Parameters
+        }
+    }
+
+    return $null
+}
+
 function Invoke-ReloadEndpoints {
     param (
         [string]$JsonPath
@@ -5522,21 +5581,37 @@ $methodCombo.Add_SelectionChanged({
             $pendingFavoriteParameters = $null
         }
         else {
-            # Try to populate body parameter with example template if available
-            $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
-            if ($exampleBody) {
-                # Find the body parameter input and populate it
-                foreach ($param in $params) {
-                    if ($param.in -eq "body") {
-                        $bodyInput = $paramInputs[$param.name]
-                        if ($bodyInput) {
-                            $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
-                            if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
-                                $bodyTextControl.Text = $exampleBody
-                            }
-                            $statusText.Text = "Example body template loaded. Modify as needed and submit."
+            $populatedFromHistory = $false
+            if ($selectedMethod -and $selectedMethod.ToLower() -eq "post") {
+                $lastParams = Get-LastSuccessfulRequestParameters -Path $selectedPath -Method $selectedMethod
+                if ($lastParams) {
+                    foreach ($param in $params) {
+                        if ($paramInputs.ContainsKey($param.name) -and $lastParams.ContainsKey($param.name)) {
+                            Set-ParameterControlValue -Control $paramInputs[$param.name] -Value $lastParams[$param.name]
                         }
-                        break
+                    }
+                    $populatedFromHistory = $true
+                    $statusText.Text = "Restored values from last successful request."
+                }
+            }
+
+            if (-not $populatedFromHistory) {
+                # Try to populate body parameter with example template if available
+                $exampleBody = Get-ExamplePostBody -Path $selectedPath -Method $selectedMethod
+                if ($exampleBody -and $selectedMethod -and $selectedMethod.ToLower() -eq "post") {
+                    # Find the body parameter input and populate it
+                    foreach ($param in $params) {
+                        if ($param.in -eq "body") {
+                            $bodyInput = $paramInputs[$param.name]
+                            if ($bodyInput) {
+                                $bodyTextControl = if ($bodyInput.ValueControl) { $bodyInput.ValueControl } else { $bodyInput }
+                                if ($bodyTextControl -is [System.Windows.Controls.TextBox]) {
+                                    $bodyTextControl.Text = $exampleBody
+                                }
+                                $statusText.Text = "Example body template loaded. Modify as needed and submit."
+                            }
+                            break
+                        }
                     }
                 }
             }
@@ -6470,6 +6545,7 @@ $btnSubmit.Add_Click({
         $queryParams = @{}
         $pathParams = @{}
         $bodyParams = @{}
+        $bodyText = $null
         $headers = @{
             "Content-Type" = "application/json"
         }
@@ -6495,7 +6571,10 @@ $btnSubmit.Add_Click({
             switch ($param.in) {
                 "query" { $queryParams[$param.name] = $value }
                 "path" { $pathParams[$param.name] = $value }
-                "body" { $bodyParams[$param.name] = $value }
+                "body" {
+                    $bodyParams[$param.name] = $value
+                    $bodyText = $value
+                }
                 "header" { $headers[$param.name] = $value }
             }
         }
@@ -6517,7 +6596,13 @@ $btnSubmit.Add_Click({
         }
 
         $fullUrl = $baseUrl + $pathWithReplacements + $queryString
-        $body = if ($bodyParams.Count -gt 0) { $bodyParams | ConvertTo-Json -Depth 10 } else { $null }
+        $body = $null
+        if ($bodyText) {
+            $body = $bodyText
+        }
+        elseif ($bodyParams.Count -gt 0) {
+            $body = $bodyParams | ConvertTo-Json -Depth 10
+        }
 
         Add-LogEntry "Request $($selectedMethod.ToUpper()) $fullUrl"
         $statusText.Text = "Sending request..."
