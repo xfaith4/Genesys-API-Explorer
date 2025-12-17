@@ -26,33 +26,52 @@ function Export-GCConversationToExcel {
         [Parameter()]
         [string]$OutputPath,
 
-        [Parameter()]
-        [ValidateSet('Xlsx','Csv','Json')]
-        [string]$Format = 'Xlsx',
-
-        [Parameter()]
-        [switch]$Force
+        [Parameter(Mandatory = $false)]
+        [switch]$IncludeRawData
     )
 
-    begin {
-        $items = New-Object System.Collections.Generic.List[object]
+
+    # Check if ImportExcel module is available
+    $hasImportExcel = $false
+    try {
+        $hasImportExcel = [bool](Get-Module -ListAvailable -Name ImportExcel)
+    }
+    catch { 
+        $hasImportExcel = $false 
     }
 
-    process {
-        $items.Add($Conversation) | Out-Null
+    if (-not $hasImportExcel) {
+        Write-Warning "ImportExcel module not found. Falling back to CSV exports."
+        
+        # --- CSV fallback (portable, zero-deps) ---
+        $outDir = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($OutputPath))
+        if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($OutputPath)
+
+        # Timeline
+        $timeline = $ConversationData.TimelineEvents
+        $timelineCsv = Join-Path $outDir ($baseName + '_Timeline.csv')
+        $timeline | Export-Csv -Path $timelineCsv -NoTypeInformation -Encoding UTF8
+
+        # Core + Analytics (raw payloads flattened to JSON where needed)
+        if ($ConversationData.Raw) {
+            $coreJson = Join-Path $outDir ($baseName + '_Core.json')
+            ($ConversationData.Raw.CoreConversation | ConvertTo-Json -Depth 30) | Set-Content -Path $coreJson -Encoding UTF8
+
+            $analyticsJson = Join-Path $outDir ($baseName + '_AnalyticsDetails.json')
+            ($ConversationData.Raw.AnalyticsDetails | ConvertTo-Json -Depth 30) | Set-Content -Path $analyticsJson -Encoding UTF8
+        }
+
+        Write-Host ("CSV/JSON fallback export created under: {0}" -f $outDir)
+        return
     }
 
-    end {
-        if (-not $OutputPath) {
-            $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-            $OutputPath = Join-Path -Path (Get-Location).Path -ChildPath ("GCConversations_{0}.{1}" -f $stamp, $Format.ToLower())
-        }
-
-        # Ensure extension matches the chosen format
-        $ext = [System.IO.Path]::GetExtension($OutputPath)
-        if ([string]::IsNullOrWhiteSpace($ext)) {
-            $OutputPath = "$($OutputPath).$($Format.ToLower())"
-        }
+    # Check if ImportExcel module is available (should be true here)
+    if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
+        Write-Error "ImportExcel module is required but not installed. Please run: Install-Module ImportExcel -Scope CurrentUser"
+        return
+    }
 
         # Flatten a reasonable "ops-friendly" row set (non-destructive; original objects can be JSON exported)
         $rows = foreach ($c in $items) {
