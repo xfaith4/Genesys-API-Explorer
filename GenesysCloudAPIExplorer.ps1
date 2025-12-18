@@ -30,6 +30,12 @@ function Open-Url {
     }
 }
 
+function Launch-Url {
+    param ([string]$Url)
+
+    Open-Url -Url $Url
+}
+
 function Show-HelpWindow {
     $helpXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
