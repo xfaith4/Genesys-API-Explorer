@@ -296,6 +296,28 @@ Write-Host "All reports generated successfully!"
 
 ---
 
+## Monthly Executive Scorecard (by Division)
+
+Compose a single monthly packet that senior leaders can skim while engineers can still drill into evidence. Use a consistent monthly interval (e.g., `2025-12-01T00:00:00Z/2026-01-01T00:00:00Z`) across each lens:
+
+- **Platform maintenance health** – `Get-GCDivisionReport` for error rate/abandon rate, plus `Get-GCQueueSmokeReport` TopN to spotlight failing queues. Include `Get-GCPeakConcurrentVoice` to show capacity headroom and whether busy-hour volume was handled without throttling.
+- **Voice network quality** – Run `Get-GCConversationTimeline` for voice media and aggregate MOS/packet loss/jitter by `DivisionId` (e.g., median MOS, % MOS < 3.5, avg packetLossPercent). Count WebRTC disconnects (endpoint-initiated or network drop reasons) to show reliability trends.
+- **Agent/WebRTC stability** – `Get-GCRoutingStatusReport -GroupBy division` to surface NOT_RESPONDING duration and segment counts; correlate spikes with the WebRTC disconnect counts above.
+- **Division comparison slide** – Rank divisions by error rate, abandon rate, MOS compliance, and WebRTC disconnect rate so leaders can see which divisions need action.
+
+Example monthly pull (export each object to Excel/CSV for distribution):
+
+```powershell
+$interval = '2025-12-01T00:00:00.000Z/2026-01-01T00:00:00.000Z'
+$divisions   = Get-GCDivisionReport -Interval $interval
+$queues      = Get-GCQueueSmokeReport -Interval $interval -TopN 10
+$routing     = Get-GCRoutingStatusReport -Interval $interval -GroupBy 'division'
+$peakVoice   = Get-GCPeakConcurrentVoice -Interval $interval
+# Voice quality rollups can be derived by iterating $timeline = Get-GCConversationTimeline ... and grouping on DivisionId.
+```
+
+---
+
 ## Metrics Glossary
 
 ### Common Metrics
