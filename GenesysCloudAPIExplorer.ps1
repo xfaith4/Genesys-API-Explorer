@@ -1324,6 +1324,80 @@ function Update-SchemaList {
     }
 }
 
+function Get-ReferenceIdHints {
+    param ($Schema)
+
+    if (-not $Schema) { return @() }
+
+    $entries = Flatten-Schema -Schema $Schema -Definitions $Definitions
+    if (-not $entries) { return @() }
+
+    $keywordHints = [ordered]@{
+        "skill"   = "/api/v2/routing/skills/{skillId}"
+        "queue"   = "/api/v2/routing/queues/{queueId}"
+        "group"   = "/api/v2/groups/{groupId}"
+        "role"    = "/api/v2/authorization/roles/{roleId}"
+        "subject" = "/api/v2/authorization/subjects/{subjectId}"
+        "user"    = "/api/v2/users/{userId}"
+    }
+    $explicitFields = @{
+        "profileskills" = "skill"
+    }
+    $hintLimit = 3
+    $idPattern = "(?i)\b(identifier|id)\b"
+
+    $results = New-Object System.Collections.ArrayList
+    $seen = @{}
+
+    foreach ($entry in $entries) {
+        $fieldLower = if ($entry.Field) { $entry.Field.ToLower() } else { "" }
+        $typeLower = if ($entry.Type) { $entry.Type.ToLower() } else { "" }
+        $descLower = if ($entry.Description) { $entry.Description.ToLower() } else { "" }
+
+        if (-not $fieldLower -or $fieldLower -eq "id") { continue }
+
+        $stringLike = ($typeLower -eq "string" -or $typeLower -match "^array of string")
+        $fieldHasId = $fieldLower -match "ids?($|[^a-z0-9])"
+        $idCue = ($fieldHasId -or $descLower -match $idPattern)
+        $explicitKeyword = if ($explicitFields.ContainsKey($fieldLower)) { $explicitFields[$fieldLower] } else { $null }
+        $looksLikeId = $stringLike -and $idCue
+
+        if (-not $looksLikeId -and -not $explicitKeyword) {
+            continue
+        }
+
+        foreach ($keyword in $keywordHints.Keys) {
+            if ($explicitKeyword -and $explicitKeyword -ne $keyword) { continue }
+            if ($fieldLower -match $keyword -and ($looksLikeId -or $explicitKeyword)) {
+                if (-not $seen.ContainsKey($keyword)) {
+                    $seen[$keyword] = $true
+                    $hintText = "Field '$($entry.Field)' includes IDs for $keyword resources. Follow-up: GET $($keywordHints[$keyword])."
+                    [void]$results.Add($hintText)
+                }
+                break
+            }
+        }
+    }
+
+    return $results | Select-Object -First $hintLimit
+}
+
+function Update-ReferenceHintText {
+    param ($Schema)
+
+    if (-not $referenceHintText) { return }
+
+    $hints = Get-ReferenceIdHints -Schema $Schema
+    if (-not $hints -or $hints.Count -eq 0) {
+        $referenceHintText.Visibility = "Collapsed"
+        $referenceHintText.Text = ""
+        return
+    }
+
+    $referenceHintText.Visibility = "Visible"
+    $referenceHintText.Text = "Related lookups: " + ($hints -join " | ")
+}
+
 function Get-EnumValues {
     param (
         $Schema,
@@ -4666,7 +4740,10 @@ $Xaml = @"
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
           </Grid.RowDefinitions>
-          <TextBlock Grid.Row="0" Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
+          <StackPanel Grid.Row="0">
+            <TextBlock Text="Expected response structure" FontWeight="Bold" Margin="0 0 0 6"/>
+            <TextBlock Name="ReferenceHintText" FontSize="12" Foreground="DarkBlue" TextWrapping="Wrap" Visibility="Collapsed" Margin="0 0 0 6"/>
+          </StackPanel>
           <ListView Grid.Row="1" Name="SchemaList"
                     VirtualizingStackPanel.IsVirtualizing="True"
                     VirtualizingStackPanel.VirtualizationMode="Recycling"
@@ -4825,6 +4902,7 @@ $favoritesList = $Window.FindName("FavoritesList")
 $favoriteNameInput = $Window.FindName("FavoriteNameInput")
 $saveFavoriteButton = $Window.FindName("SaveFavoriteButton")
 $schemaList = $Window.FindName("SchemaList")
+$referenceHintText = $Window.FindName("ReferenceHintText")
 $inspectResponseButton = $Window.FindName("InspectResponseButton")
 $toggleResponseViewButton = $Window.FindName("ToggleResponseViewButton")
 $jobIdText = $Window.FindName("JobIdText")
@@ -5068,6 +5146,22 @@ function Add-LogEntry {
     }
 }
 
+function Reset-RequestUIState {
+    if ($parameterPanel) {
+        $parameterPanel.Children.Clear()
+    }
+    if ($paramInputs) {
+        $paramInputs.Clear()
+    }
+    if ($responseBox) {
+        $responseBox.Text = ""
+    }
+    if ($btnSave) {
+        $btnSave.IsEnabled = $false
+    }
+    Update-ReferenceHintText -Schema $null
+}
+
 function Refresh-FavoritesList {
     if (-not $favoritesList) { return }
     $favoritesList.Items.Clear()
@@ -5098,12 +5192,9 @@ else {
 Show-SplashScreen
 
 $groupCombo.Add_SelectionChanged({
-        $parameterPanel.Children.Clear()
-        $paramInputs.Clear()
+        Reset-RequestUIState
         $pathCombo.Items.Clear()
         $methodCombo.Items.Clear()
-        $responseBox.Text = ""
-        $btnSave.IsEnabled = $false
 
         $selectedGroup = $groupCombo.SelectedItem
         if (-not $selectedGroup) {
@@ -5121,10 +5212,7 @@ $groupCombo.Add_SelectionChanged({
 
 $pathCombo.Add_SelectionChanged({
         $methodCombo.Items.Clear()
-        $parameterPanel.Children.Clear()
-        $paramInputs.Clear()
-        $responseBox.Text = ""
-        $btnSave.IsEnabled = $false
+        Reset-RequestUIState
 
         $selectedPath = $pathCombo.SelectedItem
         if (-not $selectedPath) { return }
@@ -5144,10 +5232,7 @@ $pathCombo.Add_SelectionChanged({
     })
 
 $methodCombo.Add_SelectionChanged({
-        $parameterPanel.Children.Clear()
-        $paramInputs.Clear()
-        $responseBox.Text = ""
-        $btnSave.IsEnabled = $false
+        Reset-RequestUIState
 
         $selectedPath = $pathCombo.SelectedItem
         $selectedMethod = $methodCombo.SelectedItem
@@ -5630,6 +5715,7 @@ $methodCombo.Add_SelectionChanged({
         }
         $responseSchema = Get-ResponseSchema -MethodObject $methodObject
         Update-SchemaList -Schema $responseSchema
+        Update-ReferenceHintText -Schema $responseSchema
     })
 
 if ($favoritesList) {
