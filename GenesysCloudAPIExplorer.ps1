@@ -30,8 +30,14 @@ function Open-Url {
     }
 }
 
+# Wrapper retained because XAML click handlers reference Launch-Url
 function Launch-Url {
     param ([string]$Url)
+
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        Write-Warning "Launch-Url called without a valid URL."
+        return
+    }
 
     Open-Url -Url $Url
 }
