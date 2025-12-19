@@ -98,8 +98,10 @@ param(
 # -----------------------------
 # Ensure we can talk TLS 1.2+ or APIs will just sulk.
 [Net.ServicePointManager]::SecurityProtocol = `
-    [Net.SecurityProtocolType]::Tls12 -bor `
-    [Net.SecurityProtocolType]::Tls13
+    [Net.SecurityProtocolType]::Tls12 -bor `
+    [Net.SecurityProtocolType]::Tls13
+
+. (Join-Path $PSScriptRoot '..\tools\Import-LocalOpsInsights.ps1')
 
 # -----------------------------
 # Default interval if not set
@@ -152,20 +154,18 @@ function Get-GCAccessToken {
     $pairBytes   = [System.Text.Encoding]::UTF8.GetBytes("$ClientId`:$ClientSecret")
     $basicToken  = [Convert]::ToBase64String($pairBytes)
 
-    $headers = @{
-        Authorization = "Basic $basicToken"
-    }
+    $headers = @{
+        Authorization = "Basic $basicToken"
+        'Content-Type' = 'application/x-www-form-urlencoded'
+    }
 
-    $body = @{
-        grant_type = 'client_credentials'
-    }
+    $body = "grant_type=client_credentials"
 
-    Write-Verbose "Requesting new Genesys Cloud OAuth token from $($tokenUri)..."
+    Write-Verbose "Requesting new Genesys Cloud OAuth token from $($tokenUri)..."
 
-    try {
-        $response = Invoke-RestMethod -Method Post -Uri $tokenUri `
-                                      -Headers $headers -Body $body
-    }
+    try {
+        $response = GenesysCloud.OpsInsights\Invoke-GCRequest -Method 'POST' -Uri $tokenUri -Headers $headers -Body $body
+    }
     catch {
         throw "OAuth token request failed against $($tokenUri): $($_)"
     }
@@ -185,59 +185,47 @@ function Get-GCAccessToken {
 }
 
 # -----------------------------
-# Helper: Invoke GC REST call
+# Helper: Invoke GC REST call (routes through OpsInsights transport)
 # -----------------------------
 function Invoke-GCRequest {
-    param(
-        [Parameter(Mandatory = $true)][string]$Method,
-        [Parameter(Mandatory = $true)][string]$Path,   # Path after base Uri (starts with /)
-        [object]$Body,
-        [hashtable]$Query
-    )
+    param(
+        [Parameter(Mandatory = $true)][string]$Method,
+        [Parameter(Mandatory = $true)][string]$Path,   # Path after base Uri (starts with /)
+        [object]$Body,
+        [hashtable]$Query
+    )
 
-    # Build full URL
-    $uriBuilder = [System.UriBuilder]::new($script:GcBaseUri)
-    $uriBuilder.Path = $Path.TrimStart('/')
+    # Build full URL
+    $uriBuilder = [System.UriBuilder]::new($script:GcBaseUri)
+    $uriBuilder.Path = $Path.TrimStart('/')
 
-    if ($Query) {
-        # Simple query string builder, no fancy encoding beyond key=value pairs.
-        $pairs = @()
-        foreach ($k in $Query.Keys) {
-            $v = $Query[$k]
-            if ($null -ne $v -and $v -ne '') {
-                $pairs += ("{0}={1}" -f [uri]::EscapeDataString($k), [uri]::EscapeDataString([string]$v))
-            }
-        }
-        $uriBuilder.Query = ($pairs -join '&')
-    }
+    if ($Query) {
+        # Simple query string builder, no fancy encoding beyond key=value pairs.
+        $pairs = @()
+        foreach ($k in $Query.Keys) {
+            $v = $Query[$k]
+            if ($null -ne $v -and $v -ne '') {
+                $pairs += ("{0}={1}" -f [uri]::EscapeDataString($k), [uri]::EscapeDataString([string]$v))
+            }
+        }
+        $uriBuilder.Query = ($pairs -join '&')
+    }
 
-    $uri     = $uriBuilder.Uri.AbsoluteUri
-    $token   = Get-GCAccessToken
+    $uri   = $uriBuilder.Uri.AbsoluteUri
+    $token = Get-GCAccessToken
 
-    $headers = @{
-        Authorization = "Bearer $token"
-        'Content-Type' = 'application/json'
-    }
+    $headers = @{
+        Authorization = "Bearer $token"
+        'Accept'      = 'application/json'
+    }
 
-    $invokeParams = @{
-        Method  = $Method
-        Uri     = $uri
-        Headers = $headers
-    }
+    $payload = $Body
+    if ($null -ne $Body -and -not ($Body -is [string])) {
+        $payload = ($Body | ConvertTo-Json -Depth 10)
+    }
 
-    if ($null -ne $Body) {
-        $invokeParams.Body = ($Body | ConvertTo-Json -Depth 10)
-    }
-
-    Write-Verbose "Calling $($Method) $($uri)"
-
-    try {
-        $result = Invoke-RestMethod @invokeParams
-        return $result
-    }
-    catch {
-        throw "API call failed: $($Method) $($uri) :: $($_)"
-    }
+    Write-Verbose "Calling $($Method) $($uri)"
+    GenesysCloud.OpsInsights\Invoke-GCRequest -Method $Method -Uri $uri -Headers $headers -Body $payload
 }
 
 # -----------------------------

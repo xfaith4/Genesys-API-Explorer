@@ -18,6 +18,44 @@ Describe 'GenesysCloud.OpsInsights' {
         $true | Should -BeTrue
     }
 
+    It 'Exports only the expected public commands' {
+        $expected = @(
+            'Connect-GCCloud',
+            'Disconnect-GCCloud',
+            'Export-GCConversationToExcel',
+            'Export-GCInsightBriefing',
+            'Export-GCInsightPackExcel',
+            'Export-GCInsightPackSnapshot',
+            'Get-GCContext',
+            'Get-GCConversationDetails',
+            'Get-GCConversationTimeline',
+            'Get-GCDivisionReport',
+            'Get-GCPeakConcurrentVoice',
+            'Get-GCQueueHotConversations',
+            'Get-GCQueueSmokeReport',
+            'Get-GCRoutingStatusReport',
+            'Import-GCSnapshot',
+            'Invoke-GCInsightPack',
+            'Invoke-GCInsightsPack',
+            'Invoke-GCRequest',
+            'Invoke-GCSmokeDrill',
+            'New-GCSnapshot',
+            'Save-GCSnapshot',
+            'Set-GCContext',
+            'Set-GCInvoker',
+            'Show-GCConversationTimelineUI',
+            'Start-GCTrace',
+            'Stop-GCTrace'
+        ) | Sort-Object
+
+        $exported = Get-Command -Module GenesysCloud.OpsInsights |
+            Where-Object { $_.CommandType -eq 'Function' } |
+            Select-Object -ExpandProperty Name |
+            Sort-Object
+
+        $exported | Should -Be $expected
+    }
+
     It 'Core module owns consolidated functions' {
         $names = @(
             'Get-GCConversationTimeline',
@@ -28,6 +66,27 @@ Describe 'GenesysCloud.OpsInsights' {
 
         foreach ($n in $names) {
             (Get-Command $n -ErrorAction Stop).Source | Should -Be 'GenesysCloud.OpsInsights'
+        }
+    }
+
+    It 'Allows Invoke-GCRequest to run through a mocked invoker' {
+        $requests = New-Object System.Collections.ArrayList
+        $module = Get-Module GenesysCloud.OpsInsights
+
+        Set-GCInvoker -Invoker {
+            param([hashtable]$Request)
+            $null = $requests.Add($Request)
+            @{ ok = $true }
+        }
+
+        try {
+            $result = Invoke-GCRequest -Method 'GET' -Uri 'https://api.test.local/path'
+            $result.ok | Should -BeTrue
+            $requests.Count | Should -Be 1
+            $requests[0].Uri | Should -Be 'https://api.test.local/path'
+        }
+        finally {
+            & $module { $script:GCInvoker = $null }
         }
     }
 

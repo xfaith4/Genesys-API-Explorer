@@ -74,6 +74,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot '..\tools\Import-LocalOpsInsights.ps1')
+
 #region Helpers
 
 function Parse-GcUtc {
@@ -128,69 +130,12 @@ function Invoke-GcApi {
     'Accept'        = 'application/json'
   }
 
-  while ($true) {
-    $rh = $null
-    try {
-      if ($Method -eq 'POST') {
-        $json = $null
-        if ($null -ne $Body) {
-          $json = ($Body | ConvertTo-Json -Depth 50 -Compress)
-        }
-        $resp = Invoke-RestMethod -Method POST -Uri $uri -Headers $headers -ContentType 'application/json' -Body $json -ResponseHeadersVariable rh
-      } else {
-        $resp = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -ResponseHeadersVariable rh
-      }
-
-      # Rate limit soft-throttle (Genesys headers: inin-ratelimit-allowed/count/reset)
-      $allowed = $null
-      $count   = $null
-      $reset   = $null
-
-      if ($rh) {
-        $allowed = $rh['inin-ratelimit-allowed'] | Select-Object -First 1
-        $count   = $rh['inin-ratelimit-count']   | Select-Object -First 1
-        $reset   = $rh['inin-ratelimit-reset']   | Select-Object -First 1
-      }
-
-      if ($allowed -and $count) {
-        $remaining = [int]$allowed - [int]$count
-        if ($remaining -le 5) {
-          $sleepSec = 1
-          if ($reset -and ($reset -match '^\d+$')) { $sleepSec = [int]$reset + 1 }
-          Write-Host "⏳ Near rate limit (remaining=$($remaining)). Sleeping $($sleepSec)s..." -ForegroundColor Yellow
-          Start-Sleep -Seconds $sleepSec
-        }
-      }
-
-      return $resp
-    }
-    catch {
-      $ex = $_.Exception
-      $statusCode = $null
-      $retryAfter = $null
-
-      if ($ex.Response) {
-        try {
-          $statusCode = [int]$ex.Response.StatusCode
-        } catch {}
-
-        try {
-          $retryAfter = $ex.Response.Headers['Retry-After']
-        } catch {}
-      }
-
-      # 429: too many requests -> obey Retry-After if present, else short backoff
-      if ($statusCode -eq 429) {
-        $sleepSec = 2
-        if ($retryAfter -and ($retryAfter -match '^\d+$')) { $sleepSec = [int]$retryAfter }
-        Write-Host "🧯 429 throttled. Sleeping $($sleepSec)s then retrying $($Method) $($Path)..." -ForegroundColor Yellow
-        Start-Sleep -Seconds $sleepSec
-        continue
-      }
-
-      throw
-    }
+  $payload = $Body
+  if ($Method -eq 'POST' -and $null -ne $Body -and -not ($Body -is [string])) {
+    $payload = ($Body | ConvertTo-Json -Depth 50)
   }
+
+  Invoke-GCRequest -Method $Method -Uri $uri -Headers $headers -Body $payload
 }
 
 function New-IntervalCursorRow {

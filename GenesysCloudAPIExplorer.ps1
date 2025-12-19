@@ -18,6 +18,66 @@ Add-Type -AssemblyName System.Windows.Forms
 $DeveloperDocsUrl = "https://developer.genesys.cloud"
 $SupportDocsUrl = "https://help.mypurecloud.com"
 
+$script:OpsInsightsModuleImported = $false
+function Import-GCOpsInsights {
+    if ($script:OpsInsightsModuleImported) { return }
+
+    $localPsd1 = Join-Path $PSScriptRoot 'src/GenesysCloud.OpsInsights/GenesysCloud.OpsInsights.psd1'
+    if (Test-Path -LiteralPath $localPsd1) {
+        Import-Module -Name $localPsd1 -Force -ErrorAction Stop
+    }
+    else {
+        Import-Module -Name 'GenesysCloud.OpsInsights' -Force -ErrorAction Stop
+    }
+
+    $script:OpsInsightsModuleImported = $true
+}
+
+function ConvertTo-FormBody {
+    param([hashtable]$Data)
+
+    if (-not $Data -or $Data.Count -eq 0) { return '' }
+    $pairs = $Data.GetEnumerator() | ForEach-Object {
+        "$([uri]::EscapeDataString([string]$_.Key))=$([uri]::EscapeDataString([string]$_.Value))"
+    }
+    return ($pairs -join '&')
+}
+
+function Invoke-GCExplorerRequest {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Method,
+
+        [Parameter(Mandatory)]
+        [string]$Uri,
+
+        [Parameter()]
+        [hashtable]$Headers,
+
+        [Parameter()]
+        [object]$Body,
+
+        [Parameter()]
+        [int]$TimeoutSec = 100
+    )
+
+    Import-GCOpsInsights
+
+    $invokeParams = @{
+        Method     = $Method.ToUpperInvariant()
+        Uri        = $Uri
+        Headers    = $Headers
+        TimeoutSec = $TimeoutSec
+    }
+
+    if ($PSBoundParameters.ContainsKey('Body')) {
+        $invokeParams.Body = $Body
+    }
+
+    Invoke-GCRequest @invokeParams
+}
+
 function Open-Url {
     param ([string]$Url)
 
@@ -360,11 +420,15 @@ function Show-LoginWindow {
         
             try {
                 $authHeader = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${clientId}:${clientSecret}"))
-                $body = @{ grant_type = "client_credentials" }
+                $formBody = ConvertTo-FormBody @{ grant_type = "client_credentials" }
+                $authHeaders = @{
+                    Authorization  = "Basic $authHeader"
+                    'Content-Type' = 'application/x-www-form-urlencoded'
+                }
             
                 $loginWindow.Cursor = [System.Windows.Input.Cursors]::Wait
             
-                $response = Invoke-RestMethod -Uri "https://login.$regionText/oauth/token" -Method Post -Headers @{ Authorization = "Basic $authHeader" } -Body $body
+                $response = Invoke-GCExplorerRequest -Method 'POST' -Uri "https://login.$regionText/oauth/token" -Headers $authHeaders -Body $formBody
             
                 if ($response.access_token) {
                     $script:LoginResult = $response.access_token
@@ -446,7 +510,11 @@ function Show-LoginWindow {
                                 code_verifier = $verifier
                             }
                     
-                            $response = Invoke-RestMethod -Uri "https://login.$regionText/oauth/token" -Method Post -Body $tokenBody
+                            $response = Invoke-GCExplorerRequest `
+                                -Method 'POST' `
+                                -Uri "https://login.$regionText/oauth/token" `
+                                -Headers @{ 'Content-Type' = 'application/x-www-form-urlencoded' } `
+                                -Body (ConvertTo-FormBody $tokenBody)
                     
                             if ($response.access_token) {
                                 $script:LoginResult = $response.access_token
@@ -999,6 +1067,8 @@ function Export-PowerShellScript {
 # Endpoint: $Method $Path
 # Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
+Import-Module GenesysCloud.OpsInsights -ErrorAction Stop
+
 `$token = "$Token"
 `$region = "$Region"
 `$baseUrl = "https://api.`$region"
@@ -1058,16 +1128,15 @@ function Export-PowerShellScript {
 
     $script += "`r`n"
 
-    # Build the Invoke-WebRequest command
+    # Build the Invoke-GCRequest command
     if ($bodyContent) {
         $script += "`$body = @'`r`n"
         $script += $bodyContent
         $script += "`r`n'@`r`n`r`n"
         $script += @"
 try {
-    `$response = Invoke-WebRequest -Uri `$url -Method $Method -Headers `$headers -Body `$body -ContentType "application/json"
-    Write-Host "Success: `$(`$response.StatusCode)"
-    `$response.Content | ConvertFrom-Json | ConvertTo-Json -Depth 10
+    `$response = Invoke-GCRequest -Method '$Method' -Uri `$url -Headers `$headers -Body `$body
+    `$response | ConvertTo-Json -Depth 10
 } catch {
     Write-Error "Request failed: `$(`$_.Exception.Message)"
 }
@@ -1076,9 +1145,8 @@ try {
     else {
         $script += @"
 try {
-    `$response = Invoke-WebRequest -Uri `$url -Method $Method -Headers `$headers
-    Write-Host "Success: `$(`$response.StatusCode)"
-    `$response.Content | ConvertFrom-Json | ConvertTo-Json -Depth 10
+    `$response = Invoke-GCRequest -Method '$Method' -Uri `$url -Headers `$headers
+    `$response | ConvertTo-Json -Depth 10
 } catch {
     Write-Error "Request failed: `$(`$_.Exception.Message)"
 }
@@ -2258,19 +2326,18 @@ function Get-PaginatedResults {
             $url = if ($currentPath -match '^https?://') { $currentPath } else { "$BaseUrl$currentPath" }
             
             $invokeParams = @{
-                Uri         = $url
-                Method      = $Method
-                Headers     = $Headers
-                ErrorAction = 'Stop'
+                Uri     = $url
+                Method  = $Method
+                Headers = $Headers
             }
 
             if ($Body -and $Method -eq "POST") { 
                 $invokeParams['Body'] = $Body
-                $invokeParams['ContentType'] = 'application/json'
             }
 
-            $response = Invoke-WebRequest @invokeParams
-            $data = $response.Content | ConvertFrom-Json
+            $response = Invoke-GCExplorerRequest @invokeParams
+            $data = if ($response -is [string]) { $response | ConvertFrom-Json -ErrorAction SilentlyContinue } else { $response }
+            if (-not $data) { $data = $response }
 
             # Add results from this page
             if ($data.entities) { 
@@ -2423,8 +2490,8 @@ function Get-ConversationReport {
         }
 
         try {
-            $response = Invoke-WebRequest -Uri $url -Method Get -Headers $Headers -ErrorAction Stop
-            $data = $response.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $response = Invoke-GCExplorerRequest -Method 'GET' -Uri $url -Headers $Headers
+            $data = if ($response -is [string]) { $response | ConvertFrom-Json -ErrorAction SilentlyContinue } else { $response }
             $result.($endpoint.PropertyName) = $data
             
             $logEntry.Status = "Success" 
@@ -4251,8 +4318,8 @@ function Get-JobStatus {
 
     $statusUrl = "$ApiBaseUrl$($JobTracker.Path)/$($JobTracker.JobId)"
     try {
-        $statusResponse = Invoke-WebRequest -Uri $statusUrl -Method Get -Headers $JobTracker.Headers -ErrorAction Stop
-        $statusJson = $statusResponse.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
+        $statusResponse = Invoke-GCExplorerRequest -Method 'GET' -Uri $statusUrl -Headers $JobTracker.Headers
+        $statusJson = if ($statusResponse -is [string]) { $statusResponse | ConvertFrom-Json -ErrorAction SilentlyContinue } else { $statusResponse }
         $statusValue = if ($statusJson.status) { $statusJson.status } elseif ($statusJson.state) { $statusJson.state } else { $null }
         $JobTracker.Status = $statusValue
         $JobTracker.LastUpdate = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
@@ -5914,18 +5981,10 @@ if ($testTokenButton) {
                 }
                 $testUrl = "https://api.usw2.pure.cloud/api/v2/users/me"
 
-                $response = Invoke-WebRequest -Uri $testUrl -Method GET -Headers $headers -ErrorAction Stop
-
-                if ($response.StatusCode -eq 200) {
-                    $tokenStatusText.Text = "✓ Valid"
-                    $tokenStatusText.Foreground = "Green"
-                    Add-LogEntry "Token test successful: Token is valid."
-                }
-                else {
-                    $tokenStatusText.Text = "⚠ Unknown status"
-                    $tokenStatusText.Foreground = "Orange"
-                    Add-LogEntry "Token test returned unexpected status: $($response.StatusCode)"
-                }
+                $null = Invoke-GCExplorerRequest -Method 'GET' -Uri $testUrl -Headers $headers
+                $tokenStatusText.Text = "✓ Valid"
+                $tokenStatusText.Foreground = "Green"
+                Add-LogEntry "Token test successful: Token is valid."
             }
             catch {
                 $tokenStatusText.Text = "✗ Invalid"
@@ -6729,22 +6788,25 @@ $btnSubmit.Add_Click({
         }
 
         try {
-            $response = Invoke-WebRequest -Uri $fullUrl -Method $selectedMethod.ToUpper() -Headers $headers -Body $body -ErrorAction Stop
-            $rawContent = $response.Content
-            $formattedContent = $rawContent
-            try {
-                $json = $rawContent | ConvertFrom-Json -ErrorAction Stop
-                $formattedContent = $json | ConvertTo-Json -Depth 10
+            $response = Invoke-GCExplorerRequest -Method $selectedMethod.ToUpper() -Uri $fullUrl -Headers $headers -Body $body
+
+            $json = $null
+            $rawContent = $response
+            if ($response -is [string]) {
+                try { $json = $response | ConvertFrom-Json -ErrorAction Stop } catch { }
             }
-            catch {
-                # Keep raw text if JSON parsing fails
+            else {
+                $json = $response
+                $rawContent = $response | ConvertTo-Json -Depth 10
             }
 
+            $formattedContent = if ($json) { $json | ConvertTo-Json -Depth 10 } else { [string]$rawContent }
+
             $script:LastResponseText = $formattedContent
-            $script:LastResponseRaw = $rawContent
+            $script:LastResponseRaw = [string]$rawContent
             $script:LastResponseFile = ""
             $script:ResponseViewMode = "Formatted"
-            $responseBox.Text = "Status $($response.StatusCode):`r`n$formattedContent"
+            $responseBox.Text = "Status: Success`r`n$formattedContent"
             $btnSave.IsEnabled = $true
             $btnSubmit.IsEnabled = $true
             if ($toggleResponseViewButton) {
