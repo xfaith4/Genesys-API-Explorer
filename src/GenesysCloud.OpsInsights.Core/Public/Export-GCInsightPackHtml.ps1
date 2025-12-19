@@ -43,14 +43,14 @@ th { background: #fafafa; }
 
     $html = New-Object System.Text.StringBuilder
     [void]$html.AppendLine("<html><head><meta charset='utf-8'/>$style</head><body>")
-    [void]$html.AppendLine("<h1>$( & $encode $packName)</h1>")
-    [void]$html.AppendLine("<div class='meta'>Pack: <b>$( & $encode $packId)</b> &nbsp; Generated (UTC): <b>$( & $encode $genUtc)</b></div>")
+    [void]$html.AppendLine("<h1>$($encode.Invoke($packName))</h1>")
+    [void]$html.AppendLine("<div class='meta'>Pack: <b>$($encode.Invoke($packId))</b> &nbsp; Generated (UTC): <b>$($encode.Invoke($genUtc))</b></div>")
 
     # Parameters
     [void]$html.AppendLine("<div class='card'><h2>Parameters</h2><div class='kv'>")
     foreach ($k in ($Result.Parameters.Keys | Sort-Object)) {
         $v = $Result.Parameters[$k]
-        [void]$html.AppendLine("<div><b>$( & $encode $k)</b></div><div>$( & $encode ([string]$v))</div>")
+        [void]$html.AppendLine("<div><b>$($encode.Invoke($k))</b></div><div>$($encode.Invoke([string]$v))</div>")
     }
     [void]$html.AppendLine("</div></div>")
 
@@ -62,9 +62,9 @@ th { background: #fafafa; }
         foreach ($m in $metrics) {
             $title = [string]$m.title
             $value = [string]$m.value
-            [void]$html.AppendLine("<h3>$( & $encode $title)</h3>")
+            [void]$html.AppendLine("<h3>$($encode.Invoke($title))</h3>")
             if ($value) {
-                [void]$html.AppendLine("<div><b>Value:</b> $( & $encode $value)</div>")
+                [void]$html.AppendLine("<div><b>Value:</b> $($encode.Invoke($value))</div>")
             }
 
             if ($m.PSObject.Properties.Name -contains 'items' -and $null -ne $m.items) {
@@ -73,14 +73,14 @@ th { background: #fafafa; }
                     $cols = @($items[0].PSObject.Properties.Name)
                         [void]$html.AppendLine("<table><thead><tr>")
                         foreach ($c in $cols) {
-                            [void]$html.AppendLine("<th>$( & $encode $c)</th>")
+                            [void]$html.AppendLine("<th>$($encode.Invoke($c))</th>")
                         }
                     [void]$html.AppendLine("</tr></thead><tbody>")
                     foreach ($row in $items) {
                         [void]$html.AppendLine("<tr>")
                         foreach ($c in $cols) {
                             $cell = $row.PSObject.Properties[$c].Value
-                            [void]$html.AppendLine("<td>$( & $encode ([string]$cell))</td>")
+                            [void]$html.AppendLine("<td>$($encode.Invoke([string]$cell))</td>")
                         }
                         [void]$html.AppendLine("</tr>")
                     }

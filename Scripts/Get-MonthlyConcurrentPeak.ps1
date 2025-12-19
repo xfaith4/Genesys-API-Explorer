@@ -164,6 +164,7 @@ function Get-GCAccessToken {
     Write-Verbose "Requesting new Genesys Cloud OAuth token from $($tokenUri)..."
 
     try {
+        # Use module-qualified transport to bypass the bearer-token wrapper in this script.
         $response = GenesysCloud.OpsInsights\Invoke-GCRequest -Method 'POST' -Uri $tokenUri -Headers $headers -Body $body
     }
     catch {
@@ -225,6 +226,7 @@ function Invoke-GCRequest {
     }
 
     Write-Verbose "Calling $($Method) $($uri)"
+    # Call the module transport directly to avoid recursive calls into this wrapper.
     GenesysCloud.OpsInsights\Invoke-GCRequest -Method $Method -Uri $uri -Headers $headers -Body $payload
 }
 
