@@ -12,10 +12,11 @@ $headers = @{
 }
 $url = "$baseUrl$path"
 
+. (Join-Path $PSScriptRoot '..\tools\Import-LocalOpsInsights.ps1')
+
 try {
-    $response = Invoke-WebRequest -Uri $url -Method post -Headers $headers
-    Write-Host "Success: $($response.StatusCode)"
-    $response.Content | ConvertFrom-Json | ConvertTo-Json -Depth 10
+    $response = Invoke-GCRequest -Method 'POST' -Uri $url -Headers $headers
+    $response | ConvertTo-Json -Depth 10
 } catch {
     Write-Error "Request failed: $($_.Exception.Message)"
 }
